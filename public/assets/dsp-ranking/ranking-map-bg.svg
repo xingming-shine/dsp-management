@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" fill="none">
+<defs>
+  <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF7A1A" stop-opacity=".10"/><stop offset="1" stop-color="#FF7A1A" stop-opacity="0"/></linearGradient>
+  <filter id="blur"><feGaussianBlur stdDeviation="24"/></filter>
+</defs>
+<ellipse cx="930" cy="90" rx="520" ry="220" fill="url(#fade)" filter="url(#blur)"/>
+<g stroke="#D8DEE9" stroke-opacity=".45" stroke-width="1">
+  <path d="M-20 120 C280 40 420 210 690 100 S1110 50 1640 160"/>
+  <path d="M40 250 C350 160 520 310 770 210 S1180 150 1620 260"/>
+  <path d="M280 30 C430 180 670 50 850 160 S1150 320 1510 170"/>
+  <path d="M540 0 C650 90 720 240 900 270 S1290 220 1580 80"/>
+  <path d="M750 20 C970 100 930 220 1160 280 S1450 300 1640 220"/>
+</g>
+<g stroke="#FF7A1A" stroke-opacity=".28" stroke-width="1.4">
+  <path d="M300 190 C520 80 640 260 880 150 S1260 120 1500 210"/>
+  <path d="M920 100 C1050 180 1170 60 1340 150"/>
+</g>
+<g fill="#FF7A1A" fill-opacity=".32">
+  <circle cx="540" cy="142" r="3"/><circle cx="930" cy="145" r="3"/><circle cx="1320" cy="150" r="3"/>
+</g>
+</svg>

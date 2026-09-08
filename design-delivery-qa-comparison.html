@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>派件作业展开区视觉对比</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 24px; background: #eef0f4; color: #222; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+      main { display: flex; flex-direction: column; gap: 24px; }
+      figure { width: fit-content; margin: 0; overflow: hidden; border: 1px solid #dfe3ea; border-radius: 8px; background: white; }
+      figcaption { padding: 10px 14px; border-bottom: 1px solid #dfe3ea; font-size: 14px; font-weight: 600; }
+      .reference { display: block; width: 1416px; height: 407px; }
+      .crop { position: relative; width: 1434px; height: 471px; overflow: hidden; }
+      .crop img { position: absolute; top: -404px; left: -89px; display: block; width: 1567px; max-width: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <figure>
+        <figcaption>参考截图</figcaption>
+        <img class="reference" src="design-delivery-reference.png" alt="参考截图" />
+      </figure>
+      <figure>
+        <figcaption>当前实现（1567 × 994 视口，派件作业展开态）</figcaption>
+        <div class="crop"><img src="design-delivery-detail-full-1567.png" alt="当前实现" /></div>
+      </figure>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "source_reference": "中文数据驾驶舱dsp排名仪表盘.png",
+  "assets": [
+    {
+      "file": "rank-trophy-decor.png",
+      "display_size": "280x290px",
+      "type": "transparent PNG",
+      "usage": "站点排名主视觉：奖杯+桂冠+光芒+底座；不含任何动态排名文字"
+    },
+    {
+      "file": "rank-trophy-decor@2x.png",
+      "display_size": "280x290px",
+      "pixel_size": "560x580px",
+      "type": "transparent PNG @2x",
+      "usage": "高DPI屏幕"
+    },
+    {
+      "file": "rank-trophy-decor.webp",
+      "display_size": "280x290px",
+      "type": "transparent lossless WebP",
+      "usage": "前端优先，体积更小"
+    },
+    {
+      "file": "ranking-map-overlay.png",
+      "pixel_size": "1920x522px",
+      "type": "transparent PNG",
+      "usage": "排名区域物流路线氛围底图，叠加在CSS渐变背景之上"
+    },
+    {
+      "file": "ranking-map-overlay.webp",
+      "pixel_size": "1920x522px",
+      "type": "transparent WebP",
+      "usage": "前端优先"
+    },
+    {
+      "file": "reference-ranking-section.png",
+      "type": "reference only",
+      "usage": "仅供开发对照，不直接作为页面图片使用"
+    }
+  ],
+  "do_not_slice": [
+    "站点排名7/87",
+    "大区排名5/163",
+    "综合总分133",
+    "难易度",
+    "周排名/月排名",
+    "雷达图",
+    "激励文案",
+    "客诉/质量分差"
+  ],
+  "implementation_note": "上述内容均为动态数据或交互组件，应由HTML/CSS/ECharts实现。"
+}

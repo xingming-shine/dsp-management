@@ -1,0 +1,4 @@
+interface:
+  display_name: "DSP Admin UI"
+  short_description: "Design and review DSP admin interfaces consistently"
+  default_prompt: "Use $shadcn-admin-ui to redesign this DSP admin screen with the repository design system."
