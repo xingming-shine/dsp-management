@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useAppBreadcrumbs } from "@/components/layout/app-breadcrumb-context"
 import { DesktopRealtimeOverview } from "@/features/live-dashboard/components/desktop-realtime-overview"
+import { DriverMonitorDetailView } from "@/features/live-dashboard/components/driver-monitor-detail-view"
 import {
   createAlertMetricDetailTitle,
   parseAlertMetricDetailTitle,
@@ -21,6 +22,7 @@ import {
   MetricDetailView,
   type TaskAssignmentRow,
 } from "@/features/live-dashboard/components/metric-detail-dialog"
+import type { PickupPeriod } from "@/features/live-dashboard/overview-card-config"
 import type { WorkMode } from "@/features/live-dashboard/mock-data"
 import { formatDateTime } from "@/lib/date-time"
 
@@ -30,12 +32,36 @@ export function LiveDashboard() {
   const [workMode, setWorkMode] = useState<WorkMode>("same-day")
   const [lastRefresh, setLastRefresh] = useState(() => INITIAL_REFRESH_TIME)
   const [detailTitle, setDetailTitle] = useState<string | null>(null)
+  const [taskPeriod, setTaskPeriod] = useState<PickupPeriod>("current")
+  const [mapDriverId, setMapDriverId] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<TaskAssignmentRow | null>(null)
   const lastManualRefresh = useRef(0)
+  const dashboardScroll = useRef(0)
 
-  const openDetail = useCallback((title: string) => {
+  const openDetail = useCallback((title: string, driverId?: string, period: PickupPeriod = "current") => {
+    setTaskPeriod(period)
+    dashboardScroll.current = window.scrollY
     setSelectedTask(null)
     setDetailTitle(title)
+    if (title === "司机监控地图") {
+      setMapDriverId(driverId ?? null)
+      const url = new URL(window.location.href)
+      url.searchParams.delete("alertMetric")
+      url.searchParams.set("view", "driver-map")
+      if (driverId) url.searchParams.set("driverId", driverId)
+      else url.searchParams.delete("driverId")
+      window.history.pushState({}, "", url)
+      window.scrollTo({ top: 0 })
+      return
+    }
+    if (title === "领件详情" || title === "应退回") {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("alertMetric")
+      url.searchParams.delete("driverId")
+      url.searchParams.set("view", title === "领件详情" ? "pickup" : "return")
+      url.searchParams.set("taskPeriod", period)
+      window.history.pushState({}, "", url)
+    }
     const alertMetric = parseAlertMetricDetailTitle(title)
     if (alertMetric) {
       const url = new URL(window.location.href)
@@ -45,13 +71,18 @@ export function LiveDashboard() {
   }, [])
 
   const returnToDashboard = useCallback(() => {
+    setMapDriverId(null)
     setSelectedTask(null)
     setDetailTitle(null)
     const url = new URL(window.location.href)
-    if (url.searchParams.has("alertMetric")) {
+    if (url.searchParams.has("alertMetric") || url.searchParams.has("view")) {
       url.searchParams.delete("alertMetric")
+      url.searchParams.delete("view")
+      url.searchParams.delete("driverId")
+      url.searchParams.delete("taskPeriod")
       window.history.replaceState({}, "", url)
     }
+    requestAnimationFrame(() => window.scrollTo({ top: dashboardScroll.current }))
   }, [])
 
   const returnToTaskAssignment = useCallback(() => {
@@ -60,11 +91,17 @@ export function LiveDashboard() {
 
   useEffect(() => {
     function syncAlertMetricFromUrl() {
-      const metric = parseAlertMetricKey(new URL(window.location.href).searchParams.get("alertMetric"))
+      const url = new URL(window.location.href)
+      const metric = parseAlertMetricKey(url.searchParams.get("alertMetric"))
+      setMapDriverId(url.searchParams.get("view") === "driver-map" ? url.searchParams.get("driverId") : null)
       setSelectedTask(null)
+      setTaskPeriod(url.searchParams.get("taskPeriod") === "next" ? "next" : "current")
       setDetailTitle((current) => {
+        if (url.searchParams.get("view") === "driver-map") return "司机监控地图"
+        if (url.searchParams.get("view") === "pickup") return "领件详情"
+        if (url.searchParams.get("view") === "return") return "应退回"
         if (metric) return createAlertMetricDetailTitle(metric.key)
-        return current && parseAlertMetricDetailTitle(current) ? null : current
+        return current && (parseAlertMetricDetailTitle(current) || current === "司机监控地图" || current === "领件详情" || current === "应退回") ? null : current
       })
     }
 
@@ -97,8 +134,11 @@ export function LiveDashboard() {
       return [dashboardItem, { label: "任务分配" }]
     }
 
-    return [dashboardItem, { label: getDeliveryDetailTitle(detailTitle) }]
-  }, [detailTitle, returnToDashboard, returnToTaskAssignment, selectedTask])
+    if (taskPeriod === "next" && (detailTitle === "领件详情" || detailTitle === "应退回")) return [dashboardItem, { label: `${detailTitle}（下期领件任务）` }]
+
+    const alertMetric = parseAlertMetricDetailTitle(detailTitle)
+    return [dashboardItem, { label: alertMetric ? createAlertMetricDetailTitle(alertMetric.key) : getDeliveryDetailTitle(detailTitle) }]
+  }, [detailTitle, returnToDashboard, returnToTaskAssignment, selectedTask, taskPeriod])
 
   useAppBreadcrumbs(breadcrumbItems)
 
@@ -157,11 +197,13 @@ export function LiveDashboard() {
         <DesktopRealtimeOverview mode={workMode} onDetail={openDetail} />
       </div>
 
-      {detailTitle ? (
+      {detailTitle === "司机监控地图" ? <DriverMonitorDetailView key={mapDriverId ?? "all"} initialDriverId={mapDriverId} onBack={returnToDashboard} /> : detailTitle ? (
         <MetricDetailView
+          key={`${detailTitle}-${taskPeriod}`}
           title={detailTitle}
+          taskPeriod={taskPeriod}
           onBack={returnToDashboard}
-          onNavigateDetail={openDetail}
+          onNavigateDetail={(title) => openDetail(title, undefined, taskPeriod)}
           selectedTask={selectedTask}
           onSelectTask={setSelectedTask}
         />

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 
 type TableProps = React.ComponentProps<"table"> & {
   variant?: "default" | "grid"
+  bordered?: boolean
   toolbar?: React.ReactNode
   footer?: React.ReactNode
   viewportClassName?: string
@@ -14,6 +15,7 @@ type TableProps = React.ComponentProps<"table"> & {
 function Table({
   className,
   variant = "default",
+  bordered = true,
   toolbar,
   footer,
   viewportClassName,
@@ -22,7 +24,7 @@ function Table({
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-hidden rounded-lg border bg-card"
+      className={cn("relative w-full overflow-hidden bg-card", bordered && "rounded-lg border")}
     >
       {toolbar ? (
         <div data-slot="table-toolbar" className="bg-card p-4">

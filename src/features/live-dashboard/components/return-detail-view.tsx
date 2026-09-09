@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { DataPagination } from "@/components/ui/pagination"
 import {
@@ -28,6 +28,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 import { formatDate, formatTime } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
 
@@ -129,7 +130,7 @@ function createWaybillRows() {
 
 const waybillRows = createWaybillRows()
 
-export function ReturnDetailView({ onBack }: { onBack: () => void }) {
+export function ReturnDetailView({ onBack, period = "current" }: { onBack: () => void; period?: "current" | "next" }) {
   const [view, setView] = useState("driver")
   const [driverFilter, setDriverFilter] = useState("all")
   const [signInFilter, setSignInFilter] = useState("all")
@@ -152,7 +153,7 @@ export function ReturnDetailView({ onBack }: { onBack: () => void }) {
 
   const filteredDrivers = useMemo(() => {
     const [driver, signIn, signOut] = appliedDriverFilters
-    const rows = driverRows.filter((row) => (driver === "all" || row.driverId === driver)
+    const rows = driverRows.filter((row) => period !== "next" && (driver === "all" || row.driverId === driver)
       && (signIn === "all" || (signIn === "yes" ? Boolean(row.signedInAt) : !row.signedInAt))
       && (signOut === "all" || (signOut === "yes" ? Boolean(row.signedOutAt) : !row.signedOutAt)))
     if (!sortKey) return rows
@@ -163,14 +164,15 @@ export function ReturnDetailView({ onBack }: { onBack: () => void }) {
       return row[sortKey]
     }
     return [...rows].sort((left, right) => sortDirection === "asc" ? getValue(left) - getValue(right) : getValue(right) - getValue(left))
-  }, [appliedDriverFilters, sortDirection, sortKey])
+  }, [period, appliedDriverFilters, sortDirection, sortKey])
 
   const filteredWaybills = useMemo(() => waybillRows.filter((row) => {
+    if (period === "next") return false
     return (appliedWaybillFilters.driver === "all" || row.driverId === appliedWaybillFilters.driver)
       && (!appliedWaybillFilters.query || row.trackingNumber === appliedWaybillFilters.query)
       && (appliedWaybillFilters.reasons.length === 0 || appliedWaybillFilters.reasons.includes(row.returnType))
       && (appliedWaybillFilters.status === "all" || row.returnStatus === appliedWaybillFilters.status)
-  }), [appliedWaybillFilters])
+  }), [period, appliedWaybillFilters])
 
   const shownDrivers = filteredDrivers.slice((driverPage - 1) * driverPageSize, driverPage * driverPageSize)
   const shownWaybills = filteredWaybills.slice((waybillPage - 1) * waybillPageSize, waybillPage * waybillPageSize)
@@ -209,7 +211,7 @@ export function ReturnDetailView({ onBack }: { onBack: () => void }) {
       <section className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 duration-200" aria-label="应退回详情下钻">
         <div className="flex items-start gap-3">
           <Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button>
-          <h2 className="font-heading text-xl font-semibold text-foreground">应退回</h2>
+          <h2 className="font-heading text-xl font-semibold text-foreground">应退回{period === "next" ? "（下期领件任务）" : ""}</h2>
         </div>
 
         <Tabs value={view} onValueChange={setView} className="min-w-0 gap-3">
@@ -219,17 +221,18 @@ export function ReturnDetailView({ onBack }: { onBack: () => void }) {
           </TabsList>
 
           <TabsContent value="driver" className="flex min-h-0 flex-1 flex-col gap-4">
-            <div className="flex flex-col gap-4">
-              <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <QueryFilterLayout
+              fieldCount={3}
+              fields={<>
                 <FilterSelect id="return-driver" label="司机" value={driverFilter} onChange={setDriverFilter} options={driverRows.map((row) => [row.driverId, row.driver])} />
                 <FilterSelect id="return-sign-in" label="签到状态" value={signInFilter} onChange={setSignInFilter} options={[["yes", "已签到"], ["no", "未签到"]]} />
                 <FilterSelect id="return-sign-out" label="签退状态" value={signOutFilter} onChange={setSignOutFilter} options={[["yes", "已签退"], ["no", "未签退"]]} />
-              </FieldGroup>
-              <div className="flex justify-end gap-2">
+              </>}
+              actions={<>
                 <Button onClick={applyDriverFilters}><SearchIcon data-icon="inline-start" />查询</Button>
                 <Button variant="outline" onClick={() => { setDriverFilter("all"); setSignInFilter("all"); setSignOutFilter("all"); setAppliedDriverFilters(["all", "all", "all"]); setDriverPage(1) }}>重置</Button>
-              </div>
-            </div>
+              </>}
+            />
 
             <Table variant="grid" className="min-w-[97rem] table-fixed">
               <colgroup>
@@ -264,24 +267,26 @@ export function ReturnDetailView({ onBack }: { onBack: () => void }) {
                   <MetricCell value={totalPending(row)} onClick={() => drillToWaybills(row)} label={`${row.driver} 的待退回合计`} />
                   <TableCell className="text-center"><Button variant="link" size="xs" className="px-0" onClick={() => setContactDriver(row)}>联系司机</Button></TableCell>
                 </TableRow>)}
+                {shownDrivers.length === 0 ? <TableRow><TableCell colSpan={9} className="h-28 text-center text-muted-foreground">{period === "next" ? "下期领件任务尚未生成，暂无交取件数据" : "暂无符合条件的司机"}</TableCell></TableRow> : null}
               </TableBody>
             </Table>
             <DataPagination className="border-t-0" page={driverPage} pageSize={driverPageSize} total={filteredDrivers.length} onPageChange={setDriverPage} onPageSizeChange={setDriverPageSize} showJumper={false} />
           </TabsContent>
 
           <TabsContent value="waybill" className="flex min-h-0 flex-1 flex-col gap-4">
-            <div className="flex flex-col gap-4">
-              <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <QueryFilterLayout
+              fieldCount={4}
+              fields={<>
                 <FilterSelect id="return-waybill-driver" label="司机" value={waybillDriver} onChange={setWaybillDriver} options={driverRows.map((row) => [row.driverId, row.driver])} />
                 <Field><FieldLabel htmlFor="return-waybill-query" className="text-xs font-normal">运单编号</FieldLabel><Input id="return-waybill-query" value={waybillQuery} onChange={(event) => setWaybillQuery(event.target.value)} placeholder="请输入完整运单编号" onKeyDown={(event) => { if (event.key === "Enter") applyWaybillFilters() }} /></Field>
                 <FilterSelect id="return-status" label="退回状态" value={returnStatus} onChange={setReturnStatus} options={[["pending", "待退回"], ["returned", "已退回"]]} />
                 <Field><FieldLabel htmlFor="return-reason" className="text-xs font-normal">退回原因</FieldLabel><StatusMultiSelect id="return-reason" ariaLabel="选择退回原因，可多选" options={["派送异常", "错分/No Scan"]} value={returnReasons} onValueChange={setReturnReasons} /></Field>
-              </FieldGroup>
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              </>}
+              secondaryActions={
                 <Button variant="outline" onClick={() => toast.success("导出成功")}><DownloadIcon data-icon="inline-start" />导出</Button>
-                <div className="flex gap-2"><Button onClick={applyWaybillFilters}><SearchIcon data-icon="inline-start" />查询</Button><Button variant="outline" onClick={() => { setWaybillDriver("all"); setWaybillQuery(""); setReturnReasons([]); setReturnStatus("all"); setAppliedWaybillFilters({ driver: "all", query: "", reasons: [], status: "all" }); setWaybillPage(1) }}>重置</Button></div>
-              </div>
-            </div>
+              }
+              actions={<><Button onClick={applyWaybillFilters}><SearchIcon data-icon="inline-start" />查询</Button><Button variant="outline" onClick={() => { setWaybillDriver("all"); setWaybillQuery(""); setReturnReasons([]); setReturnStatus("all"); setAppliedWaybillFilters({ driver: "all", query: "", reasons: [], status: "all" }); setWaybillPage(1) }}>重置</Button></>}
+            />
 
             <Table variant="grid" className="min-w-[145rem] table-fixed">
               <colgroup>

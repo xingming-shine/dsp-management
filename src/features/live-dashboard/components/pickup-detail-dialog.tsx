@@ -20,7 +20,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { DataPagination } from "@/components/ui/pagination"
 import {
@@ -42,6 +42,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 import { cn } from "@/lib/utils"
 import { formatDate, formatTime } from "@/lib/date-time"
 
@@ -441,7 +442,7 @@ function ContactDriverDialog({
   )
 }
 
-export function PickupDetailView({ onBack }: { onBack: () => void }) {
+export function PickupDetailView({ onBack, period = "current" }: { onBack: () => void; period?: "current" | "next" }) {
   const [view, setView] = useState("driver")
   const [driverFilter, setDriverFilter] = useState("all")
   const [signInFilter, setSignInFilter] = useState("all")
@@ -470,6 +471,7 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
 
   const filteredDriverRows = useMemo(() => {
     const rows = pickupDriverRows.filter((row) => {
+      if (period === "next") return false
       const matchesDriver = submittedDriverFilter === "all" || row.driverId === submittedDriverFilter
       const matchesSignIn =
         submittedSignInFilter === "all" ||
@@ -486,10 +488,11 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
       const rightValue = sortKey === "totalPickup" ? getTotalPickup(right) : right[sortKey]
       return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue
     })
-  }, [sortDirection, sortKey, submittedDriverFilter, submittedSignInFilter, submittedSignOutFilter])
+  }, [period, sortDirection, sortKey, submittedDriverFilter, submittedSignInFilter, submittedSignOutFilter])
 
   const filteredWaybillRows = useMemo(() => {
     const rows = pickupWaybillRows.filter((row) => {
+      if (period === "next") return false
       const matchesDriver = submittedWaybillDriverFilter === "all" || row.driverId === submittedWaybillDriverFilter
       const matchesWaybill = !submittedWaybillQuery || row.trackingNumber === submittedWaybillQuery
       const matchesPickupStatus =
@@ -512,6 +515,7 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
       return waybillSortDirection === "asc" ? comparison : -comparison
     })
   }, [
+    period,
     submittedTodayTaskFilter,
     submittedWaybillDriverFilter,
     submittedWaybillPickupStatuses,
@@ -618,8 +622,9 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
   }
 
   const driverFilters = (
-    <div className="flex flex-col gap-4">
-      <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <QueryFilterLayout
+      fieldCount={3}
+      fields={<>
         <Field>
           <FieldLabel htmlFor="pickup-driver-filter" className="text-xs font-normal">司机</FieldLabel>
           <Select value={driverFilter} onValueChange={setDriverFilter}>
@@ -660,20 +665,21 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
             </SelectContent>
           </Select>
         </Field>
-      </FieldGroup>
-      <div className="flex justify-end gap-2">
+      </>}
+      actions={<>
         <Button type="button" onClick={queryDrivers}>
           <SearchIcon data-icon="inline-start" />
           查询
         </Button>
         <Button type="button" variant="outline" onClick={resetDriverFilters}>重置</Button>
-      </div>
-    </div>
+      </>}
+    />
   )
 
   const waybillFilters = (
-    <div className="flex flex-col gap-4">
-      <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <QueryFilterLayout
+      fieldCount={4}
+      fields={<>
         <Field>
           <FieldLabel htmlFor="pickup-waybill-driver-filter" className="text-xs font-normal">司机</FieldLabel>
           <Select value={waybillDriverFilter} onValueChange={setWaybillDriverFilter}>
@@ -705,7 +711,7 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
           <PickupStatusMultiSelect value={waybillPickupStatuses} onValueChange={setWaybillPickupStatuses} />
         </Field>
         <Field>
-          <FieldLabel htmlFor="pickup-today-task-filter" className="text-xs font-normal">是否今日派件任务</FieldLabel>
+          <FieldLabel htmlFor="pickup-today-task-filter" className="text-xs font-normal">{period === "next" ? "是否下期派件任务" : "是否今日派件任务"}</FieldLabel>
           <Select value={todayTaskFilter} onValueChange={setTodayTaskFilter}>
             <SelectTrigger id="pickup-today-task-filter" className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -717,21 +723,21 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
             </SelectContent>
           </Select>
         </Field>
-      </FieldGroup>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      </>}
+      secondaryActions={
         <Button type="button" variant="outline" onClick={() => exportPickupWaybills(filteredWaybillRows)}>
           <DownloadIcon data-icon="inline-start" />
           导出
         </Button>
-        <div className="flex items-center gap-2">
+      }
+      actions={<>
           <Button type="button" onClick={queryWaybills}>
             <SearchIcon data-icon="inline-start" />
             查询
           </Button>
           <Button type="button" variant="outline" onClick={resetWaybillFilters}>重置</Button>
-        </div>
-      </div>
-    </div>
+      </>}
+    />
   )
 
   return (
@@ -747,7 +753,7 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
               返回
             </Button>
             <div className="min-w-0">
-              <h2 className="font-heading text-xl font-semibold text-foreground">领件详情</h2>
+              <h2 className="font-heading text-xl font-semibold text-foreground">领件详情{period === "next" ? "（下期领件任务）" : ""}</h2>
             </div>
           </div>
         </div>
@@ -784,8 +790,8 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
                     <SortableHead label="应领件" sortKey="expected" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
                     <SortableHead label="未分拣未领件" sortKey="unsortedUncollected" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
                     <SortableHead label="已分拣未领件" sortKey="sortedUncollected" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                    <SortableHead label="当期任务领件" sortKey="currentPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                    <SortableHead label="非当期任务领件" sortKey="nonCurrentPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
+                    <SortableHead label={period === "next" ? "下期任务领件" : "当期任务领件"} sortKey="currentPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
+                    <SortableHead label={period === "next" ? "非下期任务领件" : "非当期任务领件"} sortKey="nonCurrentPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
                     <SortableHead label="领件总量" sortKey="totalPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
                     <TableHead className="text-center">操作</TableHead>
                   </TableRow>
@@ -955,7 +961,7 @@ export function PickupDetailView({ onBack }: { onBack: () => void }) {
                     <TableHead>邮编</TableHead>
                     <TableHead>快递员路线</TableHead>
                     <TableHead>领件状态</TableHead>
-                    <TableHead>今日派件任务</TableHead>
+                    <TableHead>{period === "next" ? "下期派件任务" : "今日派件任务"}</TableHead>
                     <TableHead>最新操作</TableHead>
                     <TableHead>操作时间</TableHead>
                     <TableHead>操作人</TableHead>

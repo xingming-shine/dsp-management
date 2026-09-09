@@ -21,7 +21,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { DataPagination } from "@/components/ui/pagination"
 import {
@@ -50,6 +50,7 @@ import { ExceptionDistributionDetailView } from "@/features/live-dashboard/compo
 import { parseAlertMetricDetailTitle } from "@/features/live-dashboard/alert-metric-config"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 
 function csvCell(value: string) {
   return `"${value.replaceAll('"', '""')}"`
@@ -240,40 +241,45 @@ function WaybillDetail({
       <DetailHeader title={title} description="当前 DSP 车队今日数据 · 默认按最新操作时间倒序" onBack={onBack} />
 
       <div className="flex min-w-0 flex-col gap-5 rounded-xl border bg-card p-5">
-        <FieldGroup className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
-          <Field>
-            <FieldLabel htmlFor="waybill-query">运单编号</FieldLabel>
-            <Input
-              id="waybill-query"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="精确查询运单编号"
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="waybill-status">派件状态</FieldLabel>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger id="waybill-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="all">全部</SelectItem>
-                  <SelectItem value="待派件">待派件</SelectItem>
-                  <SelectItem value="已签收">已签收</SelectItem>
-                  <SelectItem value="派送异常">派送异常</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="justify-end">
-            <FieldLabel className="sr-only">查询操作</FieldLabel>
+        <QueryFilterLayout
+          fieldCount={2}
+          fields={<>
+            <Field>
+              <FieldLabel htmlFor="waybill-query">运单编号</FieldLabel>
+              <Input
+                id="waybill-query"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="精确查询运单编号"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="waybill-status">派件状态</FieldLabel>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger id="waybill-status" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="待派件">待派件</SelectItem>
+                    <SelectItem value="已签收">已签收</SelectItem>
+                    <SelectItem value="派送异常">派送异常</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </>}
+          actions={<>
             <Button type="button" onClick={() => toast.success(`已查询到 ${filteredRows.length} 条记录`)}>
               <SearchIcon data-icon="inline-start" />
               查询
             </Button>
-          </Field>
-        </FieldGroup>
+            <Button type="button" variant="outline" onClick={() => { setQuery(""); setStatus("all") }}>
+              重置
+            </Button>
+          </>}
+        />
 
         <div className="max-h-[calc(100vh-18rem)] overflow-auto rounded-lg border">
           <Table>
@@ -436,54 +442,56 @@ function TaskWaybillDetail({
 
       <div className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-col gap-4">
-          <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Field>
-              <FieldLabel className="text-xs font-normal" htmlFor="task-waybill-task-id">
-                任务编号
-              </FieldLabel>
-              <Input
-                id="task-waybill-task-id"
-                value={task.taskId}
-                readOnly
-                aria-readonly="true"
-              />
-            </Field>
-            <Field>
-              <FieldLabel className="text-xs font-normal" htmlFor="task-waybill-query">
-                运单编号
-              </FieldLabel>
-              <Input
-                id="task-waybill-query"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    queryWaybills()
-                  }
-                }}
-                placeholder="请输入运单编号"
-              />
-            </Field>
-            <Field>
-              <FieldLabel className="text-xs font-normal" htmlFor="task-waybill-status">
-                领件状态
-              </FieldLabel>
-              <TaskWaybillStatusMultiSelect
-                value={pickupStatuses}
-                onValueChange={setPickupStatuses}
-              />
-            </Field>
-          </FieldGroup>
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" onClick={queryWaybills}>
-              <SearchIcon data-icon="inline-start" />
-              查询
-            </Button>
-            <Button type="button" variant="outline" onClick={resetFilters}>
-              重置
-            </Button>
-          </div>
+          <QueryFilterLayout
+            fieldCount={3}
+            fields={<>
+              <Field>
+                <FieldLabel className="text-xs font-normal" htmlFor="task-waybill-task-id">
+                  任务编号
+                </FieldLabel>
+                <Input
+                  id="task-waybill-task-id"
+                  value={task.taskId}
+                  readOnly
+                  aria-readonly="true"
+                />
+              </Field>
+              <Field>
+                <FieldLabel className="text-xs font-normal" htmlFor="task-waybill-query">
+                  运单编号
+                </FieldLabel>
+                <Input
+                  id="task-waybill-query"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      queryWaybills()
+                    }
+                  }}
+                  placeholder="请输入运单编号"
+                />
+              </Field>
+              <Field>
+                <FieldLabel className="text-xs font-normal" htmlFor="task-waybill-status">
+                  领件状态
+                </FieldLabel>
+                <TaskWaybillStatusMultiSelect
+                  value={pickupStatuses}
+                  onValueChange={setPickupStatuses}
+                />
+              </Field>
+            </>}
+            actions={<>
+              <Button type="button" onClick={queryWaybills}>
+                <SearchIcon data-icon="inline-start" />
+                查询
+              </Button>
+              <Button type="button" variant="outline" onClick={resetFilters}>
+                重置
+              </Button>
+            </>}
+          />
         </div>
 
         <Table variant="grid" className="table-fixed">
@@ -728,7 +736,9 @@ function TaskAssignmentDetail({
 
       <div className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-col gap-4">
-            <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <QueryFilterLayout
+              fieldCount={3}
+              fields={<>
               <Field>
                 <FieldLabel className="text-xs font-normal" htmlFor="task-query">
                   任务编号
@@ -783,10 +793,8 @@ function TaskAssignmentDetail({
                   </SelectContent>
                 </Select>
               </Field>
-            </FieldGroup>
-
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <div className="flex items-center gap-2">
+              </>}
+              actions={<>
                 <Button type="button" onClick={queryTasks}>
                   <SearchIcon data-icon="inline-start" />
                   查询
@@ -794,8 +802,8 @@ function TaskAssignmentDetail({
                 <Button type="button" variant="outline" onClick={resetFilters}>
                   重置
                 </Button>
-              </div>
-            </div>
+              </>}
+            />
         </div>
 
         <Table variant="grid" className="table-fixed">
@@ -1012,23 +1020,25 @@ function TaskAssignmentDetail({
 
 export function MetricDetailView({
   title,
+  taskPeriod = "current",
   onBack,
   onNavigateDetail,
   selectedTask,
   onSelectTask,
 }: {
   title: string
+  taskPeriod?: "current" | "next"
   onBack: () => void
   onNavigateDetail: (title: string) => void
   selectedTask: TaskAssignmentRow | null
   onSelectTask: (task: TaskAssignmentRow | null) => void
 }) {
   if (title === "领件详情") {
-    return <PickupDetailView onBack={onBack} />
+    return <PickupDetailView onBack={onBack} period={taskPeriod} />
   }
 
   if (title === "应退回") {
-    return <ReturnDetailView onBack={onBack} />
+    return <ReturnDetailView onBack={onBack} period={taskPeriod} />
   }
 
   if (parseDeliveryDetailKey(title)) {

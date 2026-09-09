@@ -109,7 +109,7 @@ export function WaybillDetailSheet({
           </SheetClose>
           {row ? (
             <>
-              <SheetHeader className="gap-1 p-5 pe-14">
+              <SheetHeader className="gap-1 px-6 py-5 pe-14 sm:px-10 sm:pe-16">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <div className="flex items-center gap-1">
                     <SheetTitle className="text-xl">{row.trackingNumber}</SheetTitle>
@@ -134,7 +134,7 @@ export function WaybillDetailSheet({
               </SheetHeader>
 
               <div className="grid min-h-0 flex-1 xl:grid-cols-[minmax(0,1fr)_28rem]">
-                <div className="min-h-0 overflow-y-auto p-5 pt-0">
+                <div className="min-h-0 overflow-y-auto px-6 pb-5 sm:px-10">
                   <section aria-labelledby="recipient-information-title">
                     <h3 id="recipient-information-title" className="font-heading text-base font-medium">
                       收件人信息
@@ -266,7 +266,7 @@ export function WaybillDetailSheet({
                   </section>
                 </div>
 
-                <aside className="min-h-0 border-t p-5 xl:border-t-0 xl:border-s" aria-labelledby="operation-record-title">
+                <aside className="min-h-0 border-t px-6 py-5 sm:px-10 xl:border-t-0 xl:border-s" aria-labelledby="operation-record-title">
                   <h3 id="operation-record-title" className="font-heading text-base font-medium">
                     操作记录
                   </h3>

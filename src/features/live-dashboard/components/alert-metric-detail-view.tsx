@@ -17,6 +17,8 @@ import {
   parseAlertMetricDetailTitle,
   type AlertMetricItem,
 } from "@/features/live-dashboard/alert-metric-config"
+import { ProblemTaskList } from "./problem-task-list"
+import { DeliveryAlertList } from "./delivery-alert-list"
 import { cn } from "@/lib/utils"
 
 export function AlertMetricDetailView({
@@ -31,6 +33,9 @@ export function AlertMetricDetailView({
   const [collapsed, setCollapsed] = useState(false)
   const activeMetric = parseAlertMetricDetailTitle(title)
   if (!activeMetric) return null
+  const isDeliveryAlert = activeMetric.key === "pod" || activeMetric.key === "delivery-location"
+  const isProblemTask = activeMetric.key === "pending" || activeMetric.key === "in-progress" || activeMetric.key === "suspected-lost" || activeMetric.key === "fake-delivery" || activeMetric.key === "dsp-tracking"
+  const hasContent = isDeliveryAlert || isProblemTask
 
   function navigateToMetric(key: Parameters<typeof createAlertMetricDetailTitle>[0]) {
     const nextTitle = createAlertMetricDetailTitle(key)
@@ -72,7 +77,7 @@ export function AlertMetricDetailView({
   return (
     <section
       className="animate-in fade-in slide-in-from-right-4 min-w-0 rounded-xl bg-card p-5 duration-200"
-      aria-label={`${activeMetric.label}详情`}
+      aria-label={activeMetric.detailTitle ?? `${activeMetric.label}详情`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
@@ -81,14 +86,15 @@ export function AlertMetricDetailView({
             返回
           </Button>
           <div className="min-w-0">
-            <h2 className="font-heading text-xl font-semibold text-foreground">{activeMetric.label}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">异常指标详情</p>
+            <h2 className="font-heading text-xl font-semibold text-foreground">{activeMetric.detailTitle ?? activeMetric.label}</h2>
+            {!hasContent && <p className="mt-1 text-sm text-muted-foreground">异常指标详情</p>}
           </div>
         </div>
       </div>
 
       <div className={cn("mt-5 grid min-w-0 gap-5 lg:items-start", collapsed ? "lg:grid-cols-[minmax(0,1fr)_3rem]" : "lg:grid-cols-[minmax(0,1fr)_10rem]")}>
-        <div className="order-last flex min-h-[32rem] min-w-0 flex-col gap-4 lg:order-first">
+        <div className={cn("flex min-h-[32rem] min-w-0 flex-col gap-4 lg:order-first", hasContent ? "order-first" : "order-last")}>
+          {isDeliveryAlert ? <DeliveryAlertList key={activeMetric.key} metric={activeMetric.key as "pod" | "delivery-location"} /> : isProblemTask ? <ProblemTaskList key={activeMetric.key} metric={activeMetric.key as "pending" | "in-progress" | "suspected-lost" | "fake-delivery" | "dsp-tracking"} /> : <>
           <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-4 py-3">
             <div className="flex min-w-0 flex-col gap-1">
               <span className="text-xs text-muted-foreground">当前指标</span>
@@ -107,9 +113,10 @@ export function AlertMetricDetailView({
               <EmptyDescription>筛选条件、统计信息和数据列表将在后续需求确认后补充。</EmptyDescription>
             </EmptyHeader>
           </Empty>
+          </>}
         </div>
 
-        <aside className={cn("sticky top-16 order-first min-w-0 self-start lg:fixed lg:top-14 lg:right-0 lg:z-30 lg:order-last lg:h-[calc(100dvh-3.5rem)]", collapsed ? "lg:w-12" : "lg:w-40")} aria-label="异常指标切换">
+        <aside className={cn("sticky top-16 order-first min-w-0 self-start lg:fixed lg:top-14 lg:right-0 lg:z-30 lg:order-last lg:h-[calc(100dvh-3.5rem)]", collapsed ? "lg:w-12" : "lg:w-40", hasContent && "static order-last")} aria-label="异常指标切换">
           <nav className="alert-nav-glass flex flex-col rounded-lg lg:h-full lg:rounded-none">
             <div className={cn("flex shrink-0 items-center gap-2 p-2", collapsed ? "justify-center" : "justify-between pl-3")}>
               {!collapsed && <span className="text-sm font-semibold">异常指标</span>}

@@ -21,7 +21,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { DataPagination } from "@/components/ui/pagination"
 import {
@@ -44,6 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 import { formatDate, formatTime } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
 
@@ -368,18 +369,21 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
   }
 
   const driverToolbar = <div className="flex flex-col gap-4">
-    <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <FilterSelect id="delivery-driver-filter" label="司机" value={driverFilter} onChange={setDriverFilter} options={deliveryDrivers.map((driver) => [driver.id, driver.name])} />
-      {config.metric !== "expected" ? <FilterSelect id="delivery-driver-source" label="派件来源" value={driverSource} onChange={(value) => setDriverSource(value as DeliveryDetailSource)} options={[["current", "当期未派"], ["history", "历史未派"]]} /> : null}
-    </FieldGroup>
-    <div className={cn("flex flex-wrap items-center gap-3", config.metric === "expected" ? "justify-between" : "justify-end")}>
-      {config.metric === "expected" ? <Tabs value={sourceTab} onValueChange={(value) => { setSourceTab(value as DeliveryDetailSource); setDriverPage(1) }}><TabsList><TabsTrigger value="all">全部应派件</TabsTrigger><TabsTrigger value="current">当期未派</TabsTrigger><TabsTrigger value="history">历史未派</TabsTrigger></TabsList></Tabs> : null}
-      <div className="flex gap-2"><Button onClick={() => { setAppliedDriverFilter(driverFilter); setAppliedDriverSource(driverSource); setDriverPage(1); toast.success("查询条件已应用") }}><SearchIcon data-icon="inline-start" />查询</Button><Button variant="outline" onClick={() => { setDriverFilter("all"); setDriverSource(config.source); setAppliedDriverFilter("all"); setAppliedDriverSource(config.source); setSourceTab(config.source); setDriverPage(1); toast.success("筛选条件已重置") }}>重置</Button></div>
-    </div>
+    {config.metric === "expected" ? <Tabs value={sourceTab} onValueChange={(value) => { setSourceTab(value as DeliveryDetailSource); setDriverPage(1) }}><TabsList><TabsTrigger value="all">全部应派件</TabsTrigger><TabsTrigger value="current">当期未派</TabsTrigger><TabsTrigger value="history">历史未派</TabsTrigger></TabsList></Tabs> : null}
+    <QueryFilterLayout
+      fieldCount={config.metric === "expected" ? 1 : 2}
+      fields={<>
+        <FilterSelect id="delivery-driver-filter" label="司机" value={driverFilter} onChange={setDriverFilter} options={deliveryDrivers.map((driver) => [driver.id, driver.name])} />
+        {config.metric !== "expected" ? <FilterSelect id="delivery-driver-source" label="派件来源" value={driverSource} onChange={(value) => setDriverSource(value as DeliveryDetailSource)} options={[["current", "当期未派"], ["history", "历史未派"]]} /> : null}
+      </>}
+      actions={<><Button onClick={() => { setAppliedDriverFilter(driverFilter); setAppliedDriverSource(driverSource); setDriverPage(1); toast.success("查询条件已应用") }}><SearchIcon data-icon="inline-start" />查询</Button><Button variant="outline" onClick={() => { setDriverFilter("all"); setDriverSource(config.source); setAppliedDriverFilter("all"); setAppliedDriverSource(config.source); setSourceTab(config.source); setDriverPage(1); toast.success("筛选条件已重置") }}>重置</Button></>}
+    />
   </div>
 
-  const waybillToolbar = <div className="flex flex-col gap-4">
-    <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  const waybillFieldCount = config.metric === "expected" ? 7 : config.metric === "exception" ? 5 : 4
+  const waybillToolbar = <QueryFilterLayout
+    fieldCount={waybillFieldCount}
+    fields={<>
       <FilterSelect id="delivery-waybill-driver" label="司机" value={waybillFilters.driverId} onChange={(value) => setWaybillFilters((current) => ({ ...current, driverId: value }))} options={deliveryDrivers.map((driver) => [driver.id, driver.name])} />
       <Field><FieldLabel htmlFor="delivery-waybill-query" className="text-xs font-normal">运单编号</FieldLabel><Input id="delivery-waybill-query" value={waybillFilters.query} onChange={(event) => setWaybillFilters((current) => ({ ...current, query: event.target.value }))} placeholder="请输入完整运单编号" /></Field>
       {config.metric === "expected" ? <Field><FieldLabel htmlFor="delivery-status-filter" className="text-xs font-normal">派件状态</FieldLabel><StatusMultiSelect id="delivery-status-filter" ariaLabel="选择派件状态，可多选" options={["待派件", "已签收", "派送异常"] as const} value={waybillFilters.statuses} onValueChange={(statuses) => setWaybillFilters((current) => ({ ...current, statuses }))} /></Field> : null}
@@ -390,9 +394,10 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
       {config.metric === "delivered" ? <FilterSelect id="delivery-issue" label="妥投异常" value={waybillFilters.deliveryIssue} onChange={(value) => setWaybillFilters((current) => ({ ...current, deliveryIssue: value as WaybillFilters["deliveryIssue"] }))} options={[["无", "无"], ["POD不合规", "POD不合规"], ["妥投位置异常", "妥投位置异常"]]} /> : null}
       {config.metric === "exception" ? <FilterSelect id="delivery-problem-type" label="问题件类型" value={waybillFilters.problemType} onChange={(value) => setWaybillFilters((current) => ({ ...current, problemType: value as WaybillFilters["problemType"] }))} options={[["商业地址关门", "商业地址关门"], ["地址错误/不详", "地址错误/不详"], ["无法投递", "无法投递"], ["收件人拒收", "收件人拒收"], ["无法进入", "无法进入"]]} /> : null}
       {config.metric === "exception" ? <FilterSelect id="delivery-fake" label="是否虚假问题件" value={waybillFilters.fake} onChange={(value) => setWaybillFilters((current) => ({ ...current, fake: value as WaybillFilters["fake"] }))} options={[["yes", "是"], ["no", "否"]]} /> : null}
-    </FieldGroup>
-    <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="outline" onClick={() => exportDeliveryWaybills(title, filteredWaybills)}><DownloadIcon data-icon="inline-start" />导出</Button><div className="flex gap-2"><Button onClick={() => { const next = { ...waybillFilters, query: waybillFilters.query.trim() }; setWaybillFilters(next); setAppliedWaybillFilters(next); setWaybillPage(1); toast.success("查询条件已应用") }}><SearchIcon data-icon="inline-start" />查询</Button><Button variant="outline" onClick={() => { const next = createWaybillFilters(config.source); setWaybillFilters(next); setAppliedWaybillFilters(next); setWaybillPage(1); toast.success("筛选条件已重置") }}>重置</Button></div></div>
-  </div>
+    </>}
+    secondaryActions={<Button variant="outline" onClick={() => exportDeliveryWaybills(title, filteredWaybills)}><DownloadIcon data-icon="inline-start" />导出</Button>}
+    actions={<><Button onClick={() => { const next = { ...waybillFilters, query: waybillFilters.query.trim() }; setWaybillFilters(next); setAppliedWaybillFilters(next); setWaybillPage(1); toast.success("查询条件已应用") }}><SearchIcon data-icon="inline-start" />查询</Button><Button variant="outline" onClick={() => { const next = createWaybillFilters(config.source); setWaybillFilters(next); setAppliedWaybillFilters(next); setWaybillPage(1); toast.success("筛选条件已重置") }}>重置</Button></>}
+  />
 
   return <>
     <section className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 duration-200" aria-label={`${title}详情下钻`}>

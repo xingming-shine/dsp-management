@@ -1,11 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent, type PointerEvent as ReactPointerEvent } from "react"
-import { LocateFixedIcon, MinusIcon, PlusIcon, TruckIcon } from "lucide-react"
+import { LocateFixedIcon, MinusIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { DriverSnapshot } from "@/features/live-dashboard/mock-data"
-import { formatDate, formatTime } from "@/lib/date-time"
+import { DriverLocationBubble, DriverMapMarker } from "./driver-map-marker"
 import { cn } from "@/lib/utils"
 
 type MapPoint = {
@@ -59,10 +59,6 @@ function createMapPoints(drivers: DriverSnapshot[]) {
     x: 8 + ((longitude - west) / longitudeSpan) * 84,
     y: 8 + ((north - latitude) / latitudeSpan) * 84,
   }))
-}
-
-function hasNoDeliveryReminder(driver: DriverSnapshot) {
-  return /(?:\d+h|\d+min|小时).*未派送/.test(driver.status)
 }
 
 export function DriverLiveMap({
@@ -279,7 +275,6 @@ export function DriverLiveMap({
 
       {points.map(({ driver, x, y }) => {
         const selected = driver.id === selectedDriverId
-        const needsAttention = hasNoDeliveryReminder(driver)
         return (
           <div
             key={driver.id}
@@ -290,45 +285,18 @@ export function DriverLiveMap({
             }}
           >
             {selected ? (
-              <div ref={popupRef} className={cn("pointer-events-none absolute left-1/2 w-64 -translate-x-1/2 rounded-lg bg-popover p-3 text-left text-popover-foreground shadow-lg", y < 38 ? "top-[calc(100%+0.5rem)]" : "bottom-[calc(100%+0.5rem)]")} role="status" aria-label={`${driver.name}定位信息`}>
-                <div className="flex items-center gap-2">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-muted font-heading text-xs font-semibold text-brand">{driver.rating}★</span>
-                  <strong className="min-w-0 truncate text-sm font-medium">{driver.name}</strong>
-                </div>
-                <dl className="mt-3 grid gap-1 text-xs">
-                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">最新定位时间</dt><dd className="tabular-nums">{formatDate(driver.updatedAt)} {formatTime(driver.updatedAt)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">经纬度</dt><dd className="tabular-nums">{driver.coordinates}</dd></div>
-                </dl>
+              <DriverLocationBubble driver={driver} ref={popupRef} className={cn("pointer-events-none absolute left-1/2 -translate-x-1/2", y < 38 ? "top-[calc(100%+0.5rem)]" : "bottom-[calc(100%+0.5rem)]")}>
                 <span className={cn("absolute left-1/2 size-3 -translate-x-1/2 rotate-45 bg-popover", y < 38 ? "bottom-full translate-y-1/2" : "top-full -translate-y-1/2")} />
-              </div>
+              </DriverLocationBubble>
             ) : null}
-            <button
-              type="button"
-              className="group flex cursor-pointer flex-col items-center gap-0.5 rounded-md outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              aria-label={`${selected ? "取消选择" : "选择"}司机 ${driver.name}`}
-              aria-pressed={selected}
-              onClick={() => {
+            <DriverMapMarker
+              driver={driver}
+              selected={selected}
+              onSelect={() => {
                 if (suppressDriverClickRef.current) return
                 onSelectDriver(selected ? null : driver.id)
               }}
-            >
-              <span className="relative flex size-9 items-center justify-center">
-                {selected ? (
-                  <span className="absolute inset-0 animate-ping rounded-full bg-brand/25 motion-reduce:animate-none" aria-hidden="true" />
-                ) : null}
-                <span
-                  className={cn(
-                    "relative flex size-8 items-center justify-center rounded-full border-2 bg-card shadow-md transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-lg",
-                    selected
-                      ? "-translate-y-1 scale-110 border-brand bg-brand text-brand-foreground shadow-lg"
-                      : "border-chart-2 text-chart-2",
-                  )}
-                >
-                  <TruckIcon className="size-[1.125rem]" strokeWidth={2.25} aria-hidden="true" />
-                </span>
-              </span>
-              <span className={cn("max-w-28 truncate rounded-sm bg-card/95 px-1.5 py-0.5 text-xs font-medium shadow-sm", needsAttention ? "text-destructive" : "text-foreground")}>{driver.name}</span>
-            </button>
+            />
           </div>
         )
       })}
