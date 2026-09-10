@@ -45,6 +45,7 @@ import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill
 import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 import { cn } from "@/lib/utils"
 import { formatDate, formatTime } from "@/lib/date-time"
+import { driverRows } from "@/features/live-dashboard/driver-rows"
 
 type PickupDriverRow = {
   driverId: string
@@ -64,8 +65,6 @@ type PickupSortKey =
   | "expected"
   | "unsortedUncollected"
   | "sortedUncollected"
-  | "currentPickup"
-  | "nonCurrentPickup"
   | "totalPickup"
 
 type PickupWaybillSortKey = "pushedAt" | "pickupAt"
@@ -217,6 +216,15 @@ function getTotalPickup(row: PickupDriverRow) {
   return row.currentPickup + row.nonCurrentPickup
 }
 
+function resolvePickupDriverId(initialDriverId?: string | null) {
+  if (!initialDriverId) return "all"
+  if (pickupDriverRows.some((row) => row.driverId === initialDriverId)) return initialDriverId
+
+  const dashboardDriver = driverRows.find((row) => row.id === initialDriverId)
+  const dashboardDriverName = dashboardDriver?.name.replace(/\d+$/, "")
+  return pickupDriverRows.find((row) => row.driver === dashboardDriverName)?.driverId ?? "all"
+}
+
 function formatDateTime(value: string | null, emptyLabel: string) {
   return value ? `${formatDate(value)} ${formatTime(value)}` : emptyLabel
 }
@@ -352,24 +360,22 @@ function SortableHead<TSortKey extends string>({
   activeSortKey,
   direction,
   onSort,
-  align = "end",
 }: {
   label: string
   sortKey: TSortKey
   activeSortKey: TSortKey | null
   direction: SortDirection
   onSort: (key: TSortKey) => void
-  align?: "start" | "end"
 }) {
   const isActive = activeSortKey === sortKey
 
   return (
-    <TableHead className={cn(align === "end" && "text-end")}>
+    <TableHead>
       <Button
         type="button"
         variant="ghost"
         size="xs"
-        className={cn("px-1 text-xs font-medium", align === "end" && "ms-auto")}
+        className="px-1 text-xs font-medium"
         aria-label={`${label}，${isActive ? `当前${direction === "asc" ? "升序" : "降序"}` : "未排序"}，点击排序`}
         onClick={() => onSort(sortKey)}
       >
@@ -442,19 +448,20 @@ function ContactDriverDialog({
   )
 }
 
-export function PickupDetailView({ onBack, period = "current" }: { onBack: () => void; period?: "current" | "next" }) {
-  const [view, setView] = useState("driver")
+export function PickupDetailView({ onBack, period = "current", initialDriverId }: { onBack: () => void; period?: "current" | "next"; initialDriverId?: string | null }) {
+  const initialWaybillDriverFilter = resolvePickupDriverId(initialDriverId)
+  const [view, setView] = useState(initialWaybillDriverFilter === "all" ? "driver" : "waybill")
   const [driverFilter, setDriverFilter] = useState("all")
   const [signInFilter, setSignInFilter] = useState("all")
   const [signOutFilter, setSignOutFilter] = useState("all")
   const [submittedDriverFilter, setSubmittedDriverFilter] = useState("all")
   const [submittedSignInFilter, setSubmittedSignInFilter] = useState("all")
   const [submittedSignOutFilter, setSubmittedSignOutFilter] = useState("all")
-  const [waybillDriverFilter, setWaybillDriverFilter] = useState("all")
+  const [waybillDriverFilter, setWaybillDriverFilter] = useState(initialWaybillDriverFilter)
   const [waybillQuery, setWaybillQuery] = useState("")
   const [waybillPickupStatuses, setWaybillPickupStatuses] = useState<PickupWaybillStatus[]>([])
   const [todayTaskFilter, setTodayTaskFilter] = useState("all")
-  const [submittedWaybillDriverFilter, setSubmittedWaybillDriverFilter] = useState("all")
+  const [submittedWaybillDriverFilter, setSubmittedWaybillDriverFilter] = useState(initialWaybillDriverFilter)
   const [submittedWaybillQuery, setSubmittedWaybillQuery] = useState("")
   const [submittedWaybillPickupStatuses, setSubmittedWaybillPickupStatuses] = useState<PickupWaybillStatus[]>([])
   const [submittedTodayTaskFilter, setSubmittedTodayTaskFilter] = useState("all")
@@ -790,10 +797,10 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                     <SortableHead label="应领件" sortKey="expected" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
                     <SortableHead label="未分拣未领件" sortKey="unsortedUncollected" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
                     <SortableHead label="已分拣未领件" sortKey="sortedUncollected" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                    <SortableHead label={period === "next" ? "下期任务领件" : "当期任务领件"} sortKey="currentPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                    <SortableHead label={period === "next" ? "非下期任务领件" : "非当期任务领件"} sortKey="nonCurrentPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
+                    <TableHead>{period === "next" ? "下期任务领件" : "当期任务领件"}</TableHead>
+                    <TableHead>{period === "next" ? "非下期任务领件" : "非当期任务领件"}</TableHead>
                     <SortableHead label="领件总量" sortKey="totalPickup" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                    <TableHead className="text-center">操作</TableHead>
+                    <TableHead sticky="right" className="w-24 min-w-24 text-center">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -802,7 +809,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                       <TableCell>{row.driver}</TableCell>
                       <TableCell className="tabular-nums">{formatDateTime(row.signedInAt, row.driver === "未分配" ? "/" : "未签到")}</TableCell>
                       <TableCell className="tabular-nums">{formatDateTime(row.signedOutAt, row.driver === "未分配" ? "/" : "未签退")}</TableCell>
-                      <TableCell className="text-end font-medium tabular-nums">
+                      <TableCell className="font-medium tabular-nums">
                         {row.driverId === "unassigned" ? (
                           row.expected
                         ) : (
@@ -810,7 +817,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                             type="button"
                             variant="link"
                             size="xs"
-                            className="ms-auto px-0 tabular-nums"
+                            className="px-0 tabular-nums"
                             aria-label={`查看 ${row.driver} 的应领件运单，共 ${row.expected} 件`}
                             onClick={() => drillIntoDriverWaybills(row)}
                           >
@@ -818,7 +825,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-end font-medium tabular-nums">
+                      <TableCell className="font-medium tabular-nums">
                         {row.driverId === "unassigned" ? (
                           row.unsortedUncollected
                         ) : (
@@ -826,7 +833,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                             type="button"
                             variant="link"
                             size="xs"
-                            className="ms-auto px-0 tabular-nums"
+                            className="px-0 tabular-nums"
                             aria-label={`查看 ${row.driver} 的未分拣未领件运单，共 ${row.unsortedUncollected} 件`}
                             onClick={() => drillIntoDriverWaybills(row, ["未分拣未领件"])}
                           >
@@ -834,7 +841,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-end font-medium tabular-nums">
+                      <TableCell className="font-medium tabular-nums">
                         {row.driverId === "unassigned" ? (
                           row.sortedUncollected
                         ) : (
@@ -842,7 +849,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                             type="button"
                             variant="link"
                             size="xs"
-                            className="ms-auto px-0 tabular-nums"
+                            className="px-0 tabular-nums"
                             aria-label={`查看 ${row.driver} 的已分拣未领件运单，共 ${row.sortedUncollected} 件`}
                             onClick={() => drillIntoDriverWaybills(row, ["已分拣未领件"])}
                           >
@@ -850,7 +857,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-end font-medium tabular-nums">
+                      <TableCell className="font-medium tabular-nums">
                         {row.driverId === "unassigned" ? (
                           row.currentPickup
                         ) : (
@@ -858,7 +865,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                             type="button"
                             variant="link"
                             size="xs"
-                            className="ms-auto px-0 tabular-nums"
+                            className="px-0 tabular-nums"
                             aria-label={`查看 ${row.driver} 的当期任务领件运单，共 ${row.currentPickup} 件`}
                             onClick={() => drillIntoDriverWaybills(row, ["已领件"], "yes")}
                           >
@@ -866,7 +873,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-end font-medium tabular-nums">
+                      <TableCell className="font-medium tabular-nums">
                         {row.driverId === "unassigned" ? (
                           row.nonCurrentPickup
                         ) : (
@@ -874,7 +881,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                             type="button"
                             variant="link"
                             size="xs"
-                            className="ms-auto px-0 tabular-nums"
+                            className="px-0 tabular-nums"
                             aria-label={`查看 ${row.driver} 的非当期任务领件运单，共 ${row.nonCurrentPickup} 件`}
                             onClick={() => drillIntoDriverWaybills(row, ["已领件"], "no")}
                           >
@@ -882,7 +889,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-end font-medium tabular-nums">
+                      <TableCell className="font-medium tabular-nums">
                         {row.driverId === "unassigned" ? (
                           getTotalPickup(row)
                         ) : (
@@ -890,7 +897,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                             type="button"
                             variant="link"
                             size="xs"
-                            className="ms-auto px-0 tabular-nums"
+                            className="px-0 tabular-nums"
                             aria-label={`查看 ${row.driver} 的领件总量运单，共 ${getTotalPickup(row)} 件`}
                             onClick={() => drillIntoDriverWaybills(row, ["已领件"])}
                           >
@@ -898,7 +905,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell sticky="right" className="w-24 min-w-24 text-center">
                         {row.phone ? (
                           <Button variant="link" size="xs" className="px-0" onClick={() => setContactDriver(row)}>
                             联系司机
@@ -953,15 +960,15 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                   <TableRow>
                     <TableHead>运单编号</TableHead>
                     <TableHead>运单状态</TableHead>
-                    <SortableHead label="任务推送时间" sortKey="pushedAt" activeSortKey={waybillSortKey} direction={waybillSortDirection} onSort={handleWaybillSort} align="start" />
-                    <SortableHead label="领件时间" sortKey="pickupAt" activeSortKey={waybillSortKey} direction={waybillSortDirection} onSort={handleWaybillSort} align="start" />
+                    <SortableHead label="任务推送时间" sortKey="pushedAt" activeSortKey={waybillSortKey} direction={waybillSortDirection} onSort={handleWaybillSort} />
+                    <SortableHead label="领件时间" sortKey="pickupAt" activeSortKey={waybillSortKey} direction={waybillSortDirection} onSort={handleWaybillSort} />
                     <TableHead>分配快递员</TableHead>
                     <TableHead>取件快递员</TableHead>
                     <TableHead>路区</TableHead>
                     <TableHead>邮编</TableHead>
                     <TableHead>快递员路线</TableHead>
                     <TableHead>领件状态</TableHead>
-                    <TableHead>{period === "next" ? "下期派件任务" : "今日派件任务"}</TableHead>
+                    <TableHead className="text-center">{period === "next" ? "下期派件任务" : "今日派件任务"}</TableHead>
                     <TableHead>最新操作</TableHead>
                     <TableHead>操作时间</TableHead>
                     <TableHead>操作人</TableHead>
@@ -990,7 +997,7 @@ export function PickupDetailView({ onBack, period = "current" }: { onBack: () =>
                       <TableCell>{row.postalCode}</TableCell>
                       <TableCell>{row.courierRoute ?? "—"}</TableCell>
                       <TableCell>{row.pickupStatus}</TableCell>
-                      <TableCell>{row.isTodayDeliveryTask ? "是" : "否"}</TableCell>
+                      <TableCell className="text-center">{row.isTodayDeliveryTask ? "是" : "否"}</TableCell>
                       <TableCell>{row.latestAction}</TableCell>
                       <TableCell className="tabular-nums">{formatDateTime(row.actionAt, "—")}</TableCell>
                       <TableCell>{row.operator}</TableCell>

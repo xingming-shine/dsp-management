@@ -10,21 +10,48 @@ function cssToken(styles: CSSStyleDeclaration, token: string) {
   return styles.getPropertyValue(token).trim()
 }
 
-function createProjectTheme(element: HTMLElement) {
-  const styles = getComputedStyle(element)
-  const foreground = cssToken(styles, "--foreground")
-  const muted = cssToken(styles, "--muted-foreground")
-  const border = cssToken(styles, "--border")
-  const background = cssToken(styles, "--card")
+function createColorResolver(styles: CSSStyleDeclaration) {
+  const canvas = document.createElement("canvas")
+  canvas.width = 1
+  canvas.height = 1
+  const context = canvas.getContext("2d", { willReadFrequently: true })
+  const cache = new Map<string, string>()
+
+  return (token: string) => {
+    const cached = cache.get(token)
+    if (cached) return cached
+
+    const color = cssToken(styles, token)
+    if (!context || !color) return color
+
+    context.clearRect(0, 0, 1, 1)
+    context.fillStyle = color
+    context.fillRect(0, 0, 1, 1)
+    const [red, green, blue, alphaByte] = context.getImageData(0, 0, 1, 1).data
+    const alpha = Number((alphaByte / 255).toFixed(3))
+    const resolved = alpha === 1
+      ? `rgb(${red}, ${green}, ${blue})`
+      : `rgba(${red}, ${green}, ${blue}, ${alpha})`
+
+    cache.set(token, resolved)
+    return resolved
+  }
+}
+
+function createProjectTheme(styles: CSSStyleDeclaration, resolveColor: (token: string) => string) {
+  const foreground = resolveColor("--foreground")
+  const muted = resolveColor("--muted-foreground")
+  const border = resolveColor("--border")
+  const background = resolveColor("--card")
 
   return {
     color: [
-      cssToken(styles, "--chart-1"),
-      cssToken(styles, "--chart-2"),
-      cssToken(styles, "--chart-3"),
-      cssToken(styles, "--chart-4"),
-      cssToken(styles, "--chart-5"),
-      cssToken(styles, "--chart-6"),
+      resolveColor("--chart-1"),
+      resolveColor("--chart-2"),
+      resolveColor("--chart-3"),
+      resolveColor("--chart-4"),
+      resolveColor("--chart-5"),
+      resolveColor("--chart-6"),
     ],
     backgroundColor: "transparent",
     textStyle: { color: muted, fontFamily: cssToken(styles, "--font-sans") },
@@ -53,6 +80,19 @@ function createProjectTheme(element: HTMLElement) {
       splitArea: { areaStyle: { color: ["transparent"] } },
       axisLine: { lineStyle: { color: border } },
     },
+  }
+}
+
+function createChartMotion(reduceMotion: boolean) {
+  if (reduceMotion) return { animation: false }
+
+  return {
+    animation: true,
+    animationDuration: 820,
+    animationEasing: "cubicOut" as const,
+    animationDelay: (dataIndex: number) => Math.min(dataIndex * 36, 280),
+    animationDurationUpdate: 420,
+    animationEasingUpdate: "cubicInOut" as const,
   }
 }
 
@@ -85,9 +125,12 @@ export function EChartsChart({
     const container = containerRef.current
     if (!container) return
 
-    const theme = createProjectTheme(container)
     const styles = getComputedStyle(container)
-    const chart = echarts.init(container, theme)
+    const resolveColor = createColorResolver(styles)
+    const theme = createProjectTheme(styles, resolveColor)
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
+    let chart: echarts.ECharts | null = null
+    let isIntersecting = false
     const series = Array.isArray(option.series)
       ? option.series.map((item, index) => {
           const labelColor = labelColors?.[index]
@@ -101,16 +144,16 @@ export function EChartsChart({
           const lineStyle = (item as { lineStyle?: object }).lineStyle
           const resolvedSeriesColor = gradient
             ? new echarts.graphic.LinearGradient(0, gradientDirection === "vertical" ? 1 : 0, gradientDirection === "vertical" ? 0 : 1, 0, [
-                { offset: 0, color: cssToken(styles, gradient[0]) },
-                { offset: 1, color: cssToken(styles, gradient[1]) },
+                { offset: 0, color: resolveColor(gradient[0]) },
+                { offset: 1, color: resolveColor(gradient[1]) },
               ])
-            : seriesColor ? cssToken(styles, seriesColor) : undefined
+            : seriesColor ? resolveColor(seriesColor) : undefined
           const data = Array.isArray((item as { data?: unknown[] }).data)
             ? (item as { data: unknown[] }).data.map((datum, dataIndex) => {
                 const dataColor = itemDataColors?.[dataIndex]
                 if (!dataColor) return datum
 
-                const resolvedDataColor = cssToken(styles, dataColor)
+                const resolvedDataColor = resolveColor(dataColor)
                 if (datum && typeof datum === "object") {
                   const datumStyle = (datum as { itemStyle?: object }).itemStyle
                   return { ...datum, itemStyle: { ...datumStyle, color: resolvedDataColor } }
@@ -128,28 +171,49 @@ export function EChartsChart({
                 }
               : {}),
             ...(labelColor
-              ? { label: { ...label, color: cssToken(styles, labelColor) } }
+              ? { label: { ...label, color: resolveColor(labelColor) } }
               : {}),
           }
         })
       : option.series
 
-    chart.setOption({
-      ...option,
-      color: colors?.map((token) => cssToken(styles, token)) ?? option.color,
-      series,
-    })
+    const setChartOption = () => {
+      if (!chart) return
 
-    if (onChartClick) {
-      chart.on("click", onChartClick)
+      chart.setOption({
+        ...option,
+        ...createChartMotion(motionQuery.matches),
+        color: colors?.map(resolveColor) ?? option.color,
+        series,
+      })
     }
 
-    const observer = new ResizeObserver(() => chart.resize())
-    observer.observe(container)
+    const initializeChart = () => {
+      if (chart || !isIntersecting || container.clientWidth === 0 || container.clientHeight === 0) return
+
+      chart = echarts.init(container, theme)
+      setChartOption()
+      if (onChartClick) chart.on("click", onChartClick)
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (!chart) initializeChart()
+      else chart.resize()
+    })
+    const intersectionObserver = new IntersectionObserver(([entry]) => {
+      isIntersecting = entry.isIntersecting
+      if (isIntersecting) initializeChart()
+    }, { rootMargin: "40px 0px" })
+
+    motionQuery.addEventListener("change", setChartOption)
+    resizeObserver.observe(container)
+    intersectionObserver.observe(container)
 
     return () => {
-      observer.disconnect()
-      chart.dispose()
+      motionQuery.removeEventListener("change", setChartOption)
+      resizeObserver.disconnect()
+      intersectionObserver.disconnect()
+      chart?.dispose()
     }
   }, [colors, dataColors, gradientDirection, labelColors, onChartClick, option, seriesColors, seriesGradients])
 

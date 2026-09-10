@@ -3,6 +3,15 @@
 @import "shadcn/tailwind.css";
 @import "maplibre-gl/dist/maplibre-gl.css";
 
+/* Offline cockpit only; the protected overview ranking keeps its existing styles. */
+.cockpit-chart-tooltip { font-size: 12px; font-weight: 400; }
+.cockpit-chart-tooltip strong { display: block; font-weight: 500; }
+.cockpit-chart-tooltip > div { display: flex; gap: 38px; min-height: 22px; align-items: center; }
+.cockpit-chart-tooltip > div > span:last-child { font-variant-numeric: tabular-nums; }
+.cockpit-detail [data-slot="sheet-header"] { padding: 30px 30px 0; flex-shrink: 0; }
+.cockpit-detail-body { padding: 0 30px 30px; overflow: auto; min-height: 0; flex: 1; }
+.cockpit-detail-body > * { flex-shrink: 0; }
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

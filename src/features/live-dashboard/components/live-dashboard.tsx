@@ -34,12 +34,14 @@ export function LiveDashboard() {
   const [detailTitle, setDetailTitle] = useState<string | null>(null)
   const [taskPeriod, setTaskPeriod] = useState<PickupPeriod>("current")
   const [mapDriverId, setMapDriverId] = useState<string | null>(null)
+  const [pickupDriverId, setPickupDriverId] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<TaskAssignmentRow | null>(null)
   const lastManualRefresh = useRef(0)
   const dashboardScroll = useRef(0)
 
   const openDetail = useCallback((title: string, driverId?: string, period: PickupPeriod = "current") => {
     setTaskPeriod(period)
+    setPickupDriverId(title === "领件详情" ? driverId ?? null : null)
     dashboardScroll.current = window.scrollY
     setSelectedTask(null)
     setDetailTitle(title)
@@ -57,9 +59,10 @@ export function LiveDashboard() {
     if (title === "领件详情" || title === "应退回") {
       const url = new URL(window.location.href)
       url.searchParams.delete("alertMetric")
-      url.searchParams.delete("driverId")
       url.searchParams.set("view", title === "领件详情" ? "pickup" : "return")
       url.searchParams.set("taskPeriod", period)
+      if (title === "领件详情" && driverId) url.searchParams.set("driverId", driverId)
+      else url.searchParams.delete("driverId")
       window.history.pushState({}, "", url)
     }
     const alertMetric = parseAlertMetricDetailTitle(title)
@@ -72,6 +75,7 @@ export function LiveDashboard() {
 
   const returnToDashboard = useCallback(() => {
     setMapDriverId(null)
+    setPickupDriverId(null)
     setSelectedTask(null)
     setDetailTitle(null)
     const url = new URL(window.location.href)
@@ -92,8 +96,11 @@ export function LiveDashboard() {
   useEffect(() => {
     function syncAlertMetricFromUrl() {
       const url = new URL(window.location.href)
+      const detailView = url.searchParams.get("view")
+      const driverId = url.searchParams.get("driverId")
       const metric = parseAlertMetricKey(url.searchParams.get("alertMetric"))
-      setMapDriverId(url.searchParams.get("view") === "driver-map" ? url.searchParams.get("driverId") : null)
+      setMapDriverId(detailView === "driver-map" ? driverId : null)
+      setPickupDriverId(detailView === "pickup" ? driverId : null)
       setSelectedTask(null)
       setTaskPeriod(url.searchParams.get("taskPeriod") === "next" ? "next" : "current")
       setDetailTitle((current) => {
@@ -134,7 +141,7 @@ export function LiveDashboard() {
       return [dashboardItem, { label: "任务分配" }]
     }
 
-    if (taskPeriod === "next" && (detailTitle === "领件详情" || detailTitle === "应退回")) return [dashboardItem, { label: `${detailTitle}（下期领件任务）` }]
+    if (taskPeriod === "next" && detailTitle === "领件详情") return [dashboardItem, { label: `${detailTitle}（下期领件任务）` }]
 
     const alertMetric = parseAlertMetricDetailTitle(detailTitle)
     return [dashboardItem, { label: alertMetric ? createAlertMetricDetailTitle(alertMetric.key) : getDeliveryDetailTitle(detailTitle) }]
@@ -199,9 +206,10 @@ export function LiveDashboard() {
 
       {detailTitle === "司机监控地图" ? <DriverMonitorDetailView key={mapDriverId ?? "all"} initialDriverId={mapDriverId} onBack={returnToDashboard} /> : detailTitle ? (
         <MetricDetailView
-          key={`${detailTitle}-${taskPeriod}`}
+          key={`${detailTitle}-${taskPeriod}-${pickupDriverId ?? "all"}`}
           title={detailTitle}
           taskPeriod={taskPeriod}
+          initialDriverId={pickupDriverId}
           onBack={returnToDashboard}
           onNavigateDetail={(title) => openDetail(title, undefined, taskPeriod)}
           selectedTask={selectedTask}

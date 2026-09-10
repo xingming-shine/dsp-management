@@ -14,6 +14,8 @@ import {
   ChevronRightIcon,
   ChevronUpIcon,
   ChartNoAxesColumnIcon,
+  CircleHelpIcon,
+  CopyIcon,
   PackageCheckIcon,
   SearchIcon,
 } from "lucide-react"
@@ -39,6 +41,7 @@ import {
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
+import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -51,6 +54,7 @@ import {
 import { EChartsChart } from "@/features/data-cockpit/components/echarts-chart"
 import { DriverLiveMap } from "@/features/live-dashboard/components/driver-live-map"
 import { CurrentPickupMonitor } from "@/features/live-dashboard/components/current-pickup-monitor"
+import { AnimatedSegmentedProgress } from "@/features/live-dashboard/components/animated-segmented-progress"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import {
   createDeliveryDetailKey,
@@ -105,15 +109,41 @@ const driverSortOptions = [
 ] as const
 type DriverSort = (typeof driverSortOptions)[number]["value"]
 
+const driverMonitorTabs: Array<{ value: MonitorView; label: string; description: string }> = [
+  {
+    value: "current-pickup",
+    label: "当期领件任务监控",
+    description: "监控昨日8：00到今日8：00站点推送的应领件量（包括8:00后推送的需当日派送的包裹），各个司机的领件情况。",
+  },
+  {
+    value: "delivery",
+    label: "派件监控",
+    description: "监控昨日12:00到今日12:00领取的快递和历史领件未完成派送的快递,各个司机的派件情况。",
+  },
+  {
+    value: "next-pickup",
+    label: "下期领件任务监控",
+    description: "监控今日8:00后站点推送且派送日期不是当日的应领件量,各个司机的领件情况。",
+  },
+]
+
 type HandoffData = { [K in keyof typeof realtimeOverview.handoff]: number }
 const emptyHandoff = Object.fromEntries(Object.keys(realtimeOverview.handoff).map((key) => [key, 0])) as HandoffData
+type AllocationData = {
+  expected: number
+  tasks: number
+  assigned: number
+  unassigned: number
+  completionRate: number
+}
 
 type AlertActionItem = {
   label: string
   value: string
+  description: string
   urgent?: boolean
   info?: boolean
-  bubble?: { label: string; value: string }
+  bubble?: { label: string; value: string; description: string }
 }
 
 const alertGroups: Array<{ title: string; items: AlertActionItem[] }> = alertMetricGroups.map((group) => ({
@@ -123,9 +153,10 @@ const alertGroups: Array<{ title: string; items: AlertActionItem[] }> = alertMet
     return {
       label: item.label,
       value: String(item.value),
+      description: item.description,
       urgent: ["pod", "delivery-location", "pending"].includes(item.key),
       info: ["fake-delivery", "dsp-tracking"].includes(item.key),
-      ...(nested ? { bubble: { label: nested.label, value: String(nested.value) } } : {}),
+      ...(nested ? { bubble: { label: nested.label, value: String(nested.value), description: nested.description } } : {}),
     }
   }),
 }))
@@ -229,7 +260,7 @@ export function DesktopRealtimeOverview({ mode, onDetail }: { mode: WorkMode; on
       </div>
       <div className="grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] xl:col-span-12">
         <div className="min-w-0">
-          <DriverMonitor selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onViewDriver={(driverId) => onDetail("司机监控地图", driverId)} />
+          <DriverMonitor selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onViewDriver={(driverId) => onDetail("司机监控地图", driverId)} onViewPickup={(driverId, period) => onDetail("领件详情", driverId, period)} />
         </div>
         <div className="min-w-0">
           <DriverMapPanel selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onDetail={onDetail} />
@@ -289,7 +320,7 @@ function OverviewCards({ mode, onDetail }: { mode: WorkMode; onDetail: OverviewD
             }
             if (id === "allocation") return <CurrentAllocationCard key={id} {...props} className="md:col-span-4" onDetail={(title) => onDetail(title, undefined, "current")} />
             if (id === "delivery") return <DeliveryOperationCard key={id} {...props} className={mode === "next-day" ? "md:col-span-2 lg:col-span-1" : "md:col-span-8"} onDetail={onDetail} />
-            if (id === "next-allocation") return <NextAllocationCard key={id} {...props} className={mode === "next-day" ? "md:col-span-1" : "md:col-span-4"} mode={mode} />
+            if (id === "next-allocation") return <NextAllocationCard key={id} {...props} className={mode === "next-day" ? "md:col-span-1" : "md:col-span-4"} mode={mode} onDetail={(title) => onDetail(title, undefined, "next")} />
             const period = id === "next-handoff" ? "next" : "current"
             return <StationHandoffCard key={id} {...props} id={id} pickupOnly={id === "current-pickup"} period={period} className={mode === "same-day" ? "md:col-span-8" : cn(id === "current-pickup" ? "md:col-span-1" : "md:col-span-2", "lg:col-span-1")} onPickupDetail={() => onDetail("领件详情", undefined, period)} onReturnDetail={() => onDetail("应退回", undefined, period)} />
           })}
@@ -572,16 +603,18 @@ function DeliveryOperationCard({ className, order, compact = false, expanded, on
   )
 }
 
-function NextAllocationCard({ className, order, mode, compact = false, expanded, onToggle }: {
+function NextAllocationCard({ className, order, mode, compact = false, expanded, onToggle, onDetail }: {
   className?: string
   order: number
   mode: WorkMode
   compact?: boolean
   expanded: boolean
   onToggle: () => void
+  onDetail: (title: string) => void
 }) {
   const data = realtimeOverview.nextAllocation
   const pushAt = data.pushAtByMode[mode]
+  const allocation = data.dataByMode[mode]
   return (
     <SummaryCard
       className={className}
@@ -592,15 +625,42 @@ function NextAllocationCard({ className, order, mode, compact = false, expanded,
       expanded={expanded}
       onToggle={onToggle}
     >
-      <div className={cn("flex min-h-0 flex-1 flex-col justify-center gap-3", mode === "same-day" ? "pl-2" : "@min-[12rem]:pl-2")}>
-        <div>
-          <p className="text-xs text-muted-foreground">预计推送</p>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="font-heading text-xl font-medium tabular-nums">{formatTime(pushAt, { includeSeconds: true })}</span>
+      {allocation ? (
+        <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 @min-[12rem]:px-2">
+          <div className="flex flex-col gap-2">
+            <p className="text-kpi-label font-normal text-foreground">未分配件量</p>
+            <button
+              type="button"
+              className="-ml-1 w-fit cursor-pointer rounded-sm px-1 font-heading text-kpi-primary font-medium tabular-nums text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:ring-1 focus-visible:ring-ring"
+              aria-label={`查看下期任务未分配件量明细，共 ${formatCount(allocation.unassigned)} 件`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onDetail("未分配件量明细")
+              }}
+            >
+              {formatCount(allocation.unassigned)}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Progress
+              value={allocation.completionRate}
+              className="h-1.5 min-w-0 flex-1 bg-muted-foreground/20 [&_[data-slot=progress-indicator]]:bg-allocation-assigned"
+              aria-label={`下期任务分配完成率 ${allocation.completionRate}%`}
+            />
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{allocation.completionRate}%</span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">{formatDate(pushAt)}</p>
-      </div>
+      ) : (
+        <div className={cn("flex min-h-0 flex-1 flex-col justify-center gap-3", mode === "same-day" ? "pl-2" : "@min-[12rem]:pl-2")}>
+          <div>
+            <p className="text-xs text-muted-foreground">预计推送</p>
+            <div className="mt-3 flex items-baseline gap-1">
+              <span className="font-heading text-xl font-medium tabular-nums">{formatTime(pushAt, { includeSeconds: true })}</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">{formatDate(pushAt)}</p>
+        </div>
+      )}
     </SummaryCard>
   )
 }
@@ -614,18 +674,24 @@ function OverviewDetailPanel({ card, mode, onDetail }: {
   const openPeriodDetail = (title: string) => onDetail(title, undefined, period)
   return (
     <section id={`overview-detail-${card}`} className="overflow-hidden rounded-xl border border-brand bg-card" role="region" aria-label={overviewCardTitles[card]}>
-      <div className="p-5">
-        {card === "allocation" ? <AllocationDetail onDetail={openPeriodDetail} /> : null}
+      <div className={cn("px-5 pt-5", card === "handoff" || card === "current-pickup" || card === "next-handoff" ? "pb-3" : "pb-5")}>
+        {card === "allocation" ? <AllocationDetail data={realtimeOverview.allocation} period="current" onDetail={openPeriodDetail} /> : null}
         {card === "handoff" || card === "current-pickup" || card === "next-handoff" ? <HandoffDetail period={period} pickupOnly={card === "current-pickup"} onDetail={openPeriodDetail} /> : null}
         {card === "delivery" ? <DeliveryDetail onDetail={onDetail} /> : null}
-        {card === "next-allocation" ? <NextAllocationDetail mode={mode} /> : null}
+        {card === "next-allocation" ? <NextAllocationDetail mode={mode} onDetail={openPeriodDetail} /> : null}
       </div>
     </section>
   )
 }
 
-function NextAllocationDetail({ mode }: { mode: WorkMode }) {
-  const pushAt = realtimeOverview.nextAllocation.pushAtByMode[mode]
+function NextAllocationDetail({ mode, onDetail }: { mode: WorkMode; onDetail: (title: string) => void }) {
+  const data = realtimeOverview.nextAllocation
+  const pushAt = data.pushAtByMode[mode]
+  const allocation = data.dataByMode[mode]
+
+  if (allocation) {
+    return <AllocationDetail data={allocation} period="next" onDetail={onDetail} />
+  }
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -661,9 +727,9 @@ function NextAllocationDetail({ mode }: { mode: WorkMode }) {
 
 const TASK_ASSIGNMENT_DETAIL_TITLE = "任务分配"
 
-function AllocationDetail({ onDetail }: { onDetail: (title: string) => void }) {
-  const data = realtimeOverview.allocation
+function AllocationDetail({ data, period, onDetail }: { data: AllocationData; period: PickupPeriod; onDetail: (title: string) => void }) {
   const unassignedRate = Number((100 - data.completionRate).toFixed(2))
+  const expectedLabel = period === "next" ? "应领件（下期领件任务）" : "应领件"
 
   return (
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(22rem,1fr)]">
@@ -749,17 +815,19 @@ function AllocationDetail({ onDetail }: { onDetail: (title: string) => void }) {
 
       <aside className="flex flex-col gap-4 rounded-lg border bg-muted/40 p-5" aria-label="指标说明">
         <div className="flex flex-col gap-2">
-          <h5 className="text-sm font-medium text-muted-foreground">应领件</h5>
-          <p className="text-xs leading-5 text-muted-foreground">昨天 8:00 到今日 8:00 站点推送需要司机领件的件量（包括 8:00 后推送的需当日派送的包裹）</p>
+          <h5 className="text-sm font-medium text-muted-foreground">{expectedLabel}</h5>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {period === "next" ? "今天8:00后站点推送且派送日期不为今日的包裹，不包括任务状态是已取消、已撤回" : "昨天 8:00 到今日 8:00 站点推送需要司机领件的件量（包括 8:00 后推送的需当日派送的包裹）"}
+          </p>
         </div>
         <div className="flex flex-col gap-4 border-l pl-3">
           <div className="flex flex-col gap-1">
             <h5 className="text-sm font-medium text-muted-foreground">未分配件量</h5>
-            <p className="text-xs leading-5 text-muted-foreground">应领件中还没有分配司机的件量</p>
+            <p className="text-xs leading-5 text-muted-foreground">{expectedLabel}中还没有分配司机的件量</p>
           </div>
           <div className="flex flex-col gap-1">
             <h5 className="text-sm font-medium text-muted-foreground">已分配件量</h5>
-            <p className="text-xs leading-5 text-muted-foreground">应领件中已经分配司机的件量</p>
+            <p className="text-xs leading-5 text-muted-foreground">{expectedLabel}中已经分配司机的件量</p>
           </div>
         </div>
       </aside>
@@ -768,10 +836,12 @@ function AllocationDetail({ onDetail }: { onDetail: (title: string) => void }) {
 }
 
 function HandoffDetail({ onDetail, period = "current", pickupOnly = false }: { onDetail: (title: string) => void; period?: PickupPeriod; pickupOnly?: boolean }) {
-  const data = period === "next" ? emptyHandoff : realtimeOverview.handoff
-  const expectedPickup = period === "next" ? 0 : realtimeOverview.allocation.expected
-  const taskLabel = period === "next" ? "下期任务领件" : "当期任务领件"
+  const isNextPeriod = period === "next"
+  const data = isNextPeriod ? emptyHandoff : realtimeOverview.handoff
+  const expectedPickup = isNextPeriod ? 0 : realtimeOverview.allocation.expected
+  const taskLabel = isNextPeriod ? "下期任务领件" : "当期任务领件"
   const otherTaskLabel = `非${taskLabel}`
+  const expectedPickupLabel = isNextPeriod ? "应领件（下期任务）" : "应领件"
   const pickupAfterUncollected = expectedPickup - data.uncollected
   const pickupCompositionOption: EChartsOption = {
     animationDuration: 320,
@@ -910,6 +980,7 @@ function HandoffDetail({ onDetail, period = "current", pickupOnly = false }: { o
           </div>
           <EChartsChart
             option={pickupCompositionOption}
+            onChartClick={() => onDetail("领件详情")}
             colors={["--card", "--muted-foreground", "--muted-foreground", "--muted-foreground", "--chart-2", "--destructive", "--delivery-delivered", "--delivery-delivered"]}
             labelColors={["--foreground", "--foreground", "--foreground", "--foreground", "--chart-2", "--destructive", "--delivery-delivered", "--delivery-delivered"]}
             seriesColors={[null, "--muted-foreground", "--muted-foreground", "--muted-foreground", "--chart-2", "--destructive", "--delivery-delivered", "--delivery-delivered"]}
@@ -961,57 +1032,66 @@ function HandoffDetail({ onDetail, period = "current", pickupOnly = false }: { o
         />
       </section>}
 
-      <aside className="flex min-w-0 flex-col gap-4 rounded-lg border bg-muted/40 p-4" aria-label="指标说明">
-        <Tabs defaultValue="pickup" className="gap-4">
-          <TabsList className={cn("grid w-full", pickupOnly ? "grid-cols-1" : "grid-cols-2")}>
+      <div className={cn("relative h-56 min-w-0", pickupOnly ? "lg:h-auto lg:min-h-0" : "xl:h-auto xl:min-h-0")}>
+        <aside className="absolute inset-0 flex min-w-0 flex-col gap-4 rounded-lg border bg-muted/40 p-4" aria-label="指标说明">
+          <Tabs defaultValue="pickup" className="min-h-0 flex-1 gap-4">
+          {!pickupOnly && <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="pickup">站点领件</TabsTrigger>
-            {!pickupOnly && <TabsTrigger value="return">退回站点</TabsTrigger>}
-          </TabsList>
+            <TabsTrigger value="return">退回站点</TabsTrigger>
+          </TabsList>}
           <TabsContent
             value="pickup"
-            className="max-h-56 min-h-24 overflow-y-auto pe-1"
+            className="min-h-0 flex-1 overflow-y-auto pe-1"
           >
             <div className="flex flex-col gap-4">
               <p className="text-xs leading-5 text-muted-foreground">
-                {period === "next" ? "监控下期领件任务的交取件情况。下期任务尚未生成，当前暂无数据。" : "监控昨天 8:00 到今天 8:00 站点推送的应领件（包括 8:00 后推送的需当日派送的包裹）的领件情况。"}
+                {isNextPeriod ? "监控今天8:00后站点推送且派送日期不为今日的包裹（不包括任务状态是已取消、已撤回）的领件情况。" : "监控昨天 8:00 到今天 8:00 站点推送的应领件（包括 8:00 后推送的需当日派送的包裹）的领件情况。"}
               </p>
               <dl className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <dt className="text-xs font-medium">应领件</dt>
+                  <dt className="text-xs font-medium">{expectedPickupLabel}</dt>
                   <dd className="text-xs leading-5 text-muted-foreground">
-                    {period === "next" ? "站点推送的下期领件任务中需要司机领取的件量。" : "昨天 8:00 到今日 8:00 站点推送需要司机领件的件量（包括 8:00 后推送的需当日派送的包裹）。"}
+                    {isNextPeriod ? "今天8:00后站点推送且派送日期不为今日的包裹，不包括任务状态是已取消、已撤回" : "昨天 8:00 到今日 8:00 站点推送需要司机领件的件量（包括 8:00 后推送的需当日派送的包裹）。"}
                   </dd>
                 </div>
+                <p className="text-xs font-medium">
+                  {isNextPeriod ? "领件率=下期任务领件 ÷ 应领件 × 100%" : "领件率 = 当期任务领件 ÷ 应领件 × 100%"}
+                </p>
                 <div className="flex flex-col gap-3 border-l pl-3">
                   <div className="flex flex-col gap-1">
                     <dt className="text-xs font-medium">未分拣未领件</dt>
                     <dd className="text-xs leading-5 text-muted-foreground">
-                      应领件中还没有扫描分拣的快递。
+                      {isNextPeriod ? "应领件（下期任务）中还没有扫描分拣的快递" : "应领件中还没有扫描分拣的快递。"}
                     </dd>
                   </div>
                   <div className="flex flex-col gap-1">
                     <dt className="text-xs font-medium">已分拣未领件</dt>
                     <dd className="text-xs leading-5 text-muted-foreground">
-                      应领件中已扫描分拣还没完成收件的快递。
+                      {isNextPeriod ? "应领件（下期任务）中已扫描分拣还没完成收件的快递" : "应领件中已扫描分拣还没完成收件的快递。"}
                     </dd>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <dt className="text-xs font-medium">{taskLabel}</dt>
+                    <dt className="text-xs font-medium">{isNextPeriod ? "当期任务领件" : taskLabel}</dt>
                     <dd className="text-xs leading-5 text-muted-foreground">
-                      应领件中已完成收件的快递。
+                      {isNextPeriod ? "应领件（下期任务）中已完成收件的快递" : "应领件中已完成收件的快递。"}
                     </dd>
                   </div>
                 </div>
+                {isNextPeriod && (
+                  <p className="text-xs font-medium">
+                    领件率=下期任务领件 ÷ 应领件（下期任务） × 100%
+                  </p>
+                )}
               </dl>
               <div className="flex flex-col gap-3 border-t pt-3">
                 <p className="text-xs font-medium">
-                  领件总量 = {taskLabel} + {otherTaskLabel}
+                  {isNextPeriod ? "领件总量=下期任务领件+非下期任务领件" : `领件总量 = ${taskLabel} + ${otherTaskLabel}`}
                 </p>
                 <dl className="border-l pl-3">
                   <div className="flex flex-col gap-1">
                     <dt className="text-xs font-medium">{otherTaskLabel}</dt>
                     <dd className="text-xs leading-5 text-muted-foreground">
-                      不属于应领件，但是司机完成收件的快递。
+                      {isNextPeriod ? "不属于应领件（下期任务）,但是司机完成收件的快递" : "不属于应领件，但是司机完成收件的快递。"}
                     </dd>
                   </div>
                 </dl>
@@ -1020,7 +1100,7 @@ function HandoffDetail({ onDetail, period = "current", pickupOnly = false }: { o
           </TabsContent>
           <TabsContent
             value="return"
-            className="max-h-56 min-h-24 overflow-y-auto pe-1"
+            className="min-h-0 flex-1 overflow-y-auto pe-1"
           >
             <div className="flex flex-col gap-4">
               <p className="text-xs leading-5 text-muted-foreground">
@@ -1042,8 +1122,9 @@ function HandoffDetail({ onDetail, period = "current", pickupOnly = false }: { o
               </dl>
             </div>
           </TabsContent>
-        </Tabs>
-      </aside>
+          </Tabs>
+        </aside>
+      </div>
     </div>
   )
 }
@@ -1203,17 +1284,35 @@ function DeliveryDetail({ onDetail }: { onDetail: (title: string) => void }) {
 
       </section>
 
-      <aside className="flex h-56 min-w-0 flex-col gap-4 overflow-hidden rounded-lg border bg-muted/40 p-5" aria-label="指标说明">
-        <h3 className="text-sm font-semibold text-muted-foreground">指标说明</h3>
-        <ScrollArea className="min-h-0 flex-1 pr-3">
-          <div className="flex flex-col gap-4">
-            <DeliveryDefinition title="全部应派件">当期应派与历史未派件的合计。</DeliveryDefinition>
-            <DeliveryDefinition title="当期应派">本原型对应当期实际领件量。</DeliveryDefinition>
-            <DeliveryDefinition title="历史未派">沿用原图“历史未清件量”；具体结转口径待确认。</DeliveryDefinition>
-            <DeliveryDefinition title="派件结果分布">已签收、待派件、派送异常之和等于所选范围的应派件量。占比以当前选中范围为分母。</DeliveryDefinition>
-          </div>
-        </ScrollArea>
-      </aside>
+      <div className="relative h-56 min-w-0 xl:h-auto xl:min-h-0">
+        <aside className="absolute inset-0 flex min-w-0 flex-col gap-4 overflow-hidden rounded-lg border bg-muted/40 p-5" aria-label="指标说明">
+          <ScrollArea className="min-h-0 flex-1 pr-3">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1 text-xs font-medium leading-5 text-foreground">
+                  <p>应派件 = 当期应派 + 历史未派</p>
+                  <p>应派件 = 待派件 + 已签收 + 派送异常</p>
+                </div>
+                <div className="flex flex-col gap-3 border-l pl-3">
+                  <DeliveryDefinition title="当期应派">昨天12:00到今日12:00首次收件的快递。</DeliveryDefinition>
+                  <DeliveryDefinition title="历史未派">8日前的12:00到昨天12:00已收件但未完成派送的快递。</DeliveryDefinition>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 border-t pt-4">
+                <div className="flex flex-col gap-1 text-xs font-medium leading-5 text-foreground">
+                  <p>2400妥投率 = 当期应派中已签收的快递数量 ÷ 当期应派 × 100%</p>
+                  <p>日清率 = （已签收 + 派送异常）÷ 应派件 × 100%</p>
+                </div>
+                <div className="flex flex-col gap-3 border-l pl-3">
+                  <DeliveryDefinition title="待派件">应派件中还未尝试派送的快递。</DeliveryDefinition>
+                  <DeliveryDefinition title="已签收">应派件中完成派送，已签收的快递。</DeliveryDefinition>
+                  <DeliveryDefinition title="派送异常">应派件中尝试派送失败，登记派送异常的快递。</DeliveryDefinition>
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+        </aside>
+      </div>
     </div>
   )
 }
@@ -1240,7 +1339,7 @@ function DeliveryResultMetric({ label, value, rate, tone, onClick }: {
 function DeliveryDefinition({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <h4 className="text-sm font-medium text-muted-foreground">{title}</h4>
+      <h4 className="text-xs font-medium text-foreground">{title}</h4>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">{children}</p>
     </div>
   )
@@ -1252,15 +1351,16 @@ function AlertActionPanel({ compact = false, onCollapse, onDetail }: {
   onDetail: (title: string) => void
 }) {
   return (
-    <Card
-      size="sm"
-      className={cn(
-        "h-full min-h-[17rem]",
-        compact &&
-          "alert-nav-glass min-h-0 flex-row items-center gap-3 rounded-t-none border-0 [--card-spacing:--spacing(2)]"
-      )}
-    >
-      <CardContent className={compact ? "grid flex-1 grid-cols-[minmax(0,2fr)_minmax(0,5fr)] gap-3 px-3" : "grid flex-1 gap-3 pt-2 md:grid-cols-[minmax(10rem,.8fr)_minmax(0,2.4fr)]"}>
+    <TooltipProvider>
+      <Card
+        size="sm"
+        className={cn(
+          "h-full min-h-[17rem]",
+          compact &&
+            "alert-nav-glass min-h-0 flex-row items-center gap-3 rounded-t-none border-0 [--card-spacing:--spacing(2)]"
+        )}
+      >
+        <CardContent className={compact ? "grid flex-1 grid-cols-[minmax(0,2fr)_minmax(0,5fr)] gap-3 px-3" : "grid flex-1 gap-3 pt-2 md:grid-cols-[minmax(10rem,.8fr)_minmax(0,2.4fr)]"}>
         {compact ? alertGroups.map((group, groupIndex) => {
           return (
             <section
@@ -1293,20 +1393,21 @@ function AlertActionPanel({ compact = false, onCollapse, onDetail }: {
           </section>
           )
         })}
-      </CardContent>
-      {compact && onCollapse ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="mr-1 shrink-0"
-          aria-label="收起异常指标导航"
-          aria-expanded="true"
-          onClick={onCollapse}
-        >
-          <ChevronUpIcon />
-        </Button>
-      ) : null}
-    </Card>
+        </CardContent>
+        {compact && onCollapse ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="mr-1 shrink-0"
+            aria-label="收起异常指标导航"
+            aria-expanded="true"
+            onClick={onCollapse}
+          >
+            <ChevronUpIcon />
+          </Button>
+        ) : null}
+      </Card>
+    </TooltipProvider>
   )
 }
 
@@ -1339,6 +1440,12 @@ function AlertActionButton({ compact = false, item, onDetail }: {
       <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">{item.label}</span>
     </button>
   )
+  const metricTooltip = (
+    <Tooltip>
+      <TooltipTrigger asChild>{metricButton}</TooltipTrigger>
+      <TooltipContent>{item.description}</TooltipContent>
+    </Tooltip>
+  )
 
   if (embedsBubble && item.bubble) {
     return (
@@ -1347,7 +1454,7 @@ function AlertActionButton({ compact = false, item, onDetail }: {
         !compact && "h-22 pr-2.5",
         compact && "col-span-1 min-h-10 gap-1 rounded-md border border-card bg-card p-1"
       )}>
-        {metricButton}
+        {metricTooltip}
         <AlertSubActionButton compact={compact} embedded={compact} item={item.bubble} onDetail={onDetail} />
       </div>
     )
@@ -1355,7 +1462,7 @@ function AlertActionButton({ compact = false, item, onDetail }: {
 
   return (
     <>
-      {metricButton}
+      {metricTooltip}
       {item.bubble ? <AlertSubActionButton item={item.bubble} onDetail={onDetail} /> : null}
     </>
   )
@@ -1364,10 +1471,10 @@ function AlertActionButton({ compact = false, item, onDetail }: {
 function AlertSubActionButton({ compact = false, embedded = false, item, onDetail }: {
   compact?: boolean
   embedded?: boolean
-  item: { label: string; value: string }
+  item: { label: string; value: string; description: string }
   onDetail: (title: string) => void
 }) {
-  return (
+  const button = (
     <button
       type="button"
       className={cn(
@@ -1394,34 +1501,52 @@ function AlertSubActionButton({ compact = false, embedded = false, item, onDetai
       </span>
     </button>
   )
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{item.description}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 function ExceptionDistribution({ option, onDetail }: { option: EChartsOption; onDetail: (title: string) => void }) {
   return (
-    <Card size="sm" className="h-full">
-      <CardHeader>
-        <CardTitle>派送异常原因分布</CardTitle>
-        <CardAction><Button variant="link" size="xs" onClick={() => onDetail("派送异常分布详情")}>详情<ArrowRightIcon data-icon="inline-end" /></Button></CardAction>
-      </CardHeader>
-      <CardContent>
-        <EChartsChart
-          option={option}
-          colors={["--exception-overview-normal", "--exception-overview-fake"]}
-          seriesColors={[null, "--exception-overview-fake"]}
-          seriesGradients={[
-            ["--exception-overview-normal-start", "--exception-overview-normal"],
-            null,
-          ]}
-          labelColors={["--brand-foreground", "--brand-foreground"]}
-          className="h-50 min-h-0"
-          onChartClick={(event) => onDetail(`${String(event.name)}异常明细`)}
-        />
-      </CardContent>
-    </Card>
+    <TooltipProvider>
+      <Card size="sm" className="h-full">
+        <CardHeader>
+          <CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="cursor-help rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring/50" aria-label="查看派送异常原因分布说明">
+                  派送异常原因分布
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>今日应派件中派送失败司机登记派送异常的问题件原因分布</TooltipContent>
+            </Tooltip>
+          </CardTitle>
+          <CardAction><Button variant="link" size="xs" onClick={() => onDetail("派送异常分布详情")}>详情<ArrowRightIcon data-icon="inline-end" /></Button></CardAction>
+        </CardHeader>
+        <CardContent>
+          <EChartsChart
+            option={option}
+            colors={["--exception-overview-normal", "--exception-overview-fake"]}
+            seriesColors={[null, "--exception-overview-fake"]}
+            seriesGradients={[
+              ["--exception-overview-normal-start", "--exception-overview-normal"],
+              null,
+            ]}
+            labelColors={["--brand-foreground", "--brand-foreground"]}
+            className="h-50 min-h-0"
+            onChartClick={(event) => onDetail(`${String(event.name)}异常明细`)}
+          />
+        </CardContent>
+      </Card>
+    </TooltipProvider>
   )
 }
 
-function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver }: { selectedDriverId: string | null; onSelectDriver: (driverId: string | null) => void; onViewDriver: (driverId: string) => void }) {
+function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewPickup }: { selectedDriverId: string | null; onSelectDriver: (driverId: string | null) => void; onViewDriver: (driverId: string) => void; onViewPickup: (driverId: string, period: PickupPeriod) => void }) {
   const [view, setView] = useState<MonitorView>("delivery")
   const [query, setQuery] = useState("")
   const [statusFilters, setStatusFilters] = useState<DriverStatusFilter[]>([])
@@ -1456,11 +1581,31 @@ function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver }: { sel
       <CardHeader><CardTitle>司机监控</CardTitle></CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
         <Tabs value={view} onValueChange={(value) => setView(value as MonitorView)} className="gap-3">
-          <TabsList variant="line" className="grid w-full grid-cols-3">
-            <TabsTrigger value="current-pickup">当期领件任务监控</TabsTrigger>
-            <TabsTrigger value="delivery">派件监控</TabsTrigger>
-            <TabsTrigger value="next-pickup">下期领件任务监控</TabsTrigger>
-          </TabsList>
+          <TooltipProvider>
+            <TabsList variant="line" className="grid w-full grid-cols-3">
+              {driverMonitorTabs.map((tab) => (
+                <div key={tab.value} className="flex min-w-0 items-center justify-center">
+                  <TabsTrigger value={tab.value} className="flex-none">
+                    {tab.label}
+                  </TabsTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="-ml-4 border-transparent bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-brand focus-visible:bg-transparent"
+                        aria-label={`查看${tab.label}说明`}
+                      >
+                        <CircleHelpIcon />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{tab.description}</TooltipContent>
+                  </Tooltip>
+                </div>
+              ))}
+            </TabsList>
+          </TooltipProvider>
           <TabsContent value="delivery" className="flex flex-col gap-3 rounded-lg bg-muted/30 p-3">
             <DriverSummary onQueryStatus={(status) => setStatusFilters([status])} />
             <div className="grid gap-2 lg:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1fr)_auto_auto]">
@@ -1519,8 +1664,8 @@ function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver }: { sel
               </div>
             </ScrollArea>
           </TabsContent>
-          <TabsContent value="current-pickup"><CurrentPickupMonitor drivers={driverRows} /></TabsContent>
-          <TabsContent value="next-pickup"><CurrentPickupMonitor drivers={driverRows} period="next" /></TabsContent>
+          <TabsContent value="current-pickup"><CurrentPickupMonitor drivers={driverRows} onViewDetail={(driverId) => onViewPickup(driverId, "current")} /></TabsContent>
+          <TabsContent value="next-pickup"><CurrentPickupMonitor drivers={driverRows} period="next" onViewDetail={(driverId) => onViewPickup(driverId, "next")} /></TabsContent>
         </Tabs>
       </CardContent>
     </Card>
@@ -1542,6 +1687,8 @@ function DriverSummary({ onQueryStatus }: { onQueryStatus: (status: DriverStatus
 }
 
 function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver: DashboardDriverSnapshot; selected: boolean; onSelect: () => void; onViewDetail: () => void }) {
+  const [contactOpen, setContactOpen] = useState(false)
+  const contactCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const historyDue = Math.min(17, driver.total)
   const currentDue = Math.max(driver.total - historyDue, 0)
   const completed = driver.delivered + driver.exception
@@ -1551,22 +1698,59 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
   const completion = driver.total ? Math.round((completed / driver.total) * 100) : 0
   const hasIssueTags = Boolean(driver.locationIssues || driver.podIssues || driver.fakeIssues)
 
+  useEffect(() => () => {
+    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
+  }, [])
+
+  const openContact = () => {
+    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
+    setContactOpen(true)
+  }
+
+  const scheduleContactClose = () => {
+    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
+    contactCloseTimer.current = setTimeout(() => setContactOpen(false), 150)
+  }
+
+  const copyPhone = async () => {
+    try {
+      await navigator.clipboard.writeText(driver.phone)
+      toast.success(`${driver.name} 的手机号已复制`)
+    } catch {
+      toast.error("复制失败，请手动复制手机号")
+    }
+  }
+
   return (
-    <article
-      id={`monitor-driver-${driver.id}`}
-      aria-label={`${driver.name}派件监控`}
-      className={cn(
-        "relative flex min-w-0 flex-col gap-3 rounded-md border bg-card p-4 text-left transition-colors hover:bg-brand-hover",
-        selected && "border-brand/30 bg-brand-selected"
-      )}
-    >
-      <button type="button" aria-pressed={selected} aria-current={selected ? "true" : undefined} className="flex w-full min-w-0 flex-col gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50" onClick={onSelect}>
+    <Popover open={contactOpen} onOpenChange={setContactOpen}>
+      <article
+        id={`monitor-driver-${driver.id}`}
+        aria-label={`${driver.name}派件监控`}
+        className={cn(
+          "relative flex min-w-0 flex-col gap-3 rounded-md border bg-card p-4 text-left transition-colors hover:bg-brand-hover",
+          selected && "border-brand/30 bg-brand-selected"
+        )}
+      >
+      <button type="button" aria-pressed={selected} aria-current={selected ? "true" : undefined} className="flex w-full min-w-0 flex-col gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50" onFocus={openContact} onClick={onSelect}>
       <div className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 pr-10">
         <span className="flex h-7 w-[50px] min-w-[50px] items-center justify-center rounded-md bg-warning/15 px-2 font-heading [font-size:var(--button-font-size)] font-medium tabular-nums text-brand-ink">
           {driver.rating}★
         </span>
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="max-w-28 shrink-0 truncate font-heading text-base font-medium">{driver.name}</span>
+          <PopoverTrigger asChild>
+            <span
+              className="max-w-28 shrink-0 truncate font-heading text-base font-medium"
+              onPointerEnter={openContact}
+              onPointerLeave={scheduleContactClose}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                openContact()
+              }}
+            >
+              {driver.name}
+            </span>
+          </PopoverTrigger>
           <span
             className="flex min-w-0 flex-1 touch-pan-x items-center gap-2 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             aria-label={`${driver.name}路区列表`}
@@ -1602,10 +1786,15 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
             <span className="ml-auto text-xs tabular-nums text-muted-foreground">{completed}/{driver.total}</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${driver.name}派件进度 ${completion}%`}>
-              <span className="h-full bg-delivery-delivered" style={{ width: `${deliveredRate}%` }} />
-              <span className="h-full bg-delivery-exception" style={{ width: `${exceptionRate}%` }} />
-            </div>
+            <AnimatedSegmentedProgress
+              value={completion}
+              ariaLabel={`${driver.name}派件进度 ${completion}%`}
+              className="h-2.5 min-w-0 flex-1"
+              segments={[
+                { className: "bg-delivery-delivered", value: deliveredRate },
+                { className: "bg-delivery-exception", value: exceptionRate },
+              ]}
+            />
             <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">{completion}%</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -1628,7 +1817,30 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
       ) : null}
       </button>
       <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4 border-0 bg-transparent" aria-label={`查看${driver.name}的派件地图详情`} onClick={onViewDetail}><ArrowUpRightIcon /></Button></TooltipTrigger><TooltipContent>查看派件地图详情</TooltipContent></Tooltip></TooltipProvider>
-    </article>
+      </article>
+      <PopoverContent
+        align="start"
+        side="top"
+        sideOffset={8}
+        className="w-72 max-w-[calc(100vw-2rem)] gap-3 p-3"
+        aria-label={`${driver.name}的联系方式`}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onPointerEnter={openContact}
+        onPointerLeave={scheduleContactClose}
+      >
+        <PopoverHeader>
+          <PopoverTitle>司机联系方式</PopoverTitle>
+          <PopoverDescription>{driver.name}</PopoverDescription>
+        </PopoverHeader>
+        <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
+          <span className="text-muted-foreground">手机号</span>
+          <span className="truncate font-medium tabular-nums">{driver.phone || "暂无手机号"}</span>
+          <Button type="button" variant="outline" size="sm" disabled={!driver.phone} onClick={copyPhone} aria-label={`复制${driver.name}的手机号`}>
+            <CopyIcon data-icon="inline-start" />复制
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

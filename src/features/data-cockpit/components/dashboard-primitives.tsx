@@ -242,7 +242,7 @@ export function DataTableCard<Row extends object>({
                 {columns.map((column) => (
                   <TableCell
                     key={String(column.key)}
-                    className={cn(index > -1 && typeof (row as Record<string, unknown>)[String(column.key)] === "number" && "text-right tabular-nums")}
+                    className={cn(index > -1 && typeof (row as Record<string, unknown>)[String(column.key)] === "number" && "tabular-nums")}
                   >
                     {column.render
                       ? column.render(row)

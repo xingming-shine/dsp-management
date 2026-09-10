@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { ArrowDownUpIcon } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowDownUpIcon, CopyIcon } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -10,10 +11,12 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { DriverSnapshot } from "@/features/live-dashboard/mock-data"
 import { formatDate, formatTime } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
+import { AnimatedSegmentedProgress } from "@/features/live-dashboard/components/animated-segmented-progress"
 
 const statuses = ["未签到/签退", "未签退", "已签到/签退"] as const
 const statusFilterLabels = ["未签到", "未签退", "已签到/签退"] as const
@@ -30,7 +33,7 @@ const pickupSortOptions = [
 type PickupSort = (typeof pickupSortOptions)[number]["value"]
 const timestamp = (value: string | null, fallback: string) => value ? `${formatDate(value)} ${formatTime(value)}` : fallback
 
-export function CurrentPickupMonitor({ drivers, period = "current" }: { drivers: DriverSnapshot[]; period?: "current" | "next" }) {
+export function CurrentPickupMonitor({ drivers, period = "current", onViewDetail }: { drivers: DriverSnapshot[]; period?: "current" | "next"; onViewDetail: (driverId: string) => void }) {
   const fieldPrefix = period === "next" ? "next-pickup" : "pickup"
   const periodLabel = period === "next" ? "下期" : "当期"
   const collectedLabel = period === "next" ? "已领件（下期任务）" : "已领件"
@@ -38,6 +41,8 @@ export function CurrentPickupMonitor({ drivers, period = "current" }: { drivers:
   const [status, setStatus] = useState("all")
   const [filter, setFilter] = useState({ name: "", status: "all" })
   const [sort, setSort] = useState<PickupSort>("default")
+  const [contactDriverId, setContactDriverId] = useState<string | null>(null)
+  const contactCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sortLabel = pickupSortOptions.find((option) => option.value === sort)!.label
   const rows = useMemo(() => drivers.map((driver, index) => {
     const state = index === 0 ? 0 : index < 4 ? 1 : 2
@@ -66,6 +71,31 @@ export function CurrentPickupMonitor({ drivers, period = "current" }: { drivers:
     { label: "未签退", value: rows.filter((row) => matchesPickupStatus(row.state, "1")).length, status: "1" },
     { label: "领件率", value: `${due ? (collected / due * 100).toFixed(2) : "0.00"}%`, status: null },
   ]
+
+  useEffect(() => () => {
+    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
+  }, [])
+
+  const openContact = (driverId: string) => {
+    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
+    setContactDriverId(driverId)
+  }
+
+  const scheduleContactClose = (driverId: string) => {
+    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
+    contactCloseTimer.current = setTimeout(() => {
+      setContactDriverId((current) => current === driverId ? null : current)
+    }, 150)
+  }
+
+  const copyPhone = async (phone: string, driverName: string) => {
+    try {
+      await navigator.clipboard.writeText(phone)
+      toast.success(`${driverName} 的手机号已复制`)
+    } catch {
+      toast.error("复制失败，请手动复制手机号")
+    }
+  }
 
   return (
     <TooltipProvider>
@@ -108,17 +138,50 @@ export function CurrentPickupMonitor({ drivers, period = "current" }: { drivers:
         <ScrollArea className="h-[40rem] rounded-lg">
           <div className="flex flex-col gap-2 pr-3">
             {visible.map((row) => (
-              <article key={row.id} className="flex flex-col gap-3 rounded-lg border bg-card p-4" aria-label={`${row.name}${periodLabel}领件情况`}>
+              <Popover key={row.id} open={contactDriverId === row.id} onOpenChange={(open) => open ? openContact(row.id) : setContactDriverId(null)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full flex-col items-stretch gap-3 rounded-lg p-4 text-left whitespace-normal"
+                  aria-label={`查看${row.name}${periodLabel}领件详情运单列表`}
+                  onFocus={() => openContact(row.id)}
+                  onClick={() => onViewDetail(row.id)}
+                >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-3"><span className="rounded-sm bg-brand/10 px-3 py-1 text-sm font-medium text-brand">{row.rating}★</span><span className="truncate text-base font-medium">{row.name}</span></div>
-                  <Tooltip><TooltipTrigger asChild><Badge asChild variant={row.state === 2 ? "success" : "destructive"}><button type="button" aria-label={`${row.name}${statuses[row.state]}，查看签到签退时间`}>{statuses[row.state]}</button></Badge></TooltipTrigger><TooltipContent><div className="flex flex-col gap-1"><span>签到时间：{timestamp(row.checkIn, "未签到")}</span><span>签退时间：{timestamp(row.checkOut, "未签退")}</span></div></TooltipContent></Tooltip>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="rounded-sm bg-brand/10 px-3 py-1 text-sm font-medium text-brand">{row.rating}★</span>
+                    <PopoverTrigger asChild>
+                      <span
+                        className="truncate text-base font-medium"
+                        onPointerEnter={() => openContact(row.id)}
+                        onPointerLeave={() => scheduleContactClose(row.id)}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          openContact(row.id)
+                        }}
+                      >
+                        {row.name}
+                      </span>
+                    </PopoverTrigger>
+                  </div>
+                  <Tooltip><TooltipTrigger asChild><Badge variant={row.state === 2 ? "success" : "destructive"}>{statuses[row.state]}</Badge></TooltipTrigger><TooltipContent><div className="flex flex-col gap-1"><span>签到时间：{timestamp(row.checkIn, "未签到")}</span><span>签退时间：{timestamp(row.checkOut, "未签退")}</span></div></TooltipContent></Tooltip>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-4">
                   <div className="flex min-w-0 flex-col gap-2 sm:pr-1">
                     <div className="grid grid-cols-[minmax(0,1fr)_3.25rem] items-center gap-x-1.5 gap-y-2 text-xs">
                       <span>应领件 <strong className="ml-2 font-medium tabular-nums">{row.due}</strong></span>
                       <span className="text-right tabular-nums text-muted-foreground">{row.collected}/{row.due}</span>
-                      <div role="img" aria-label={`${collectedLabel} ${row.collected}，已分拣未领件 ${row.sorted}，未分拣未领件 ${row.unsorted}，领件率 ${row.rate.toFixed(2)}%`} className="flex h-2 overflow-hidden rounded-full bg-border"><span className="bg-chart-1" style={{ width: `${row.rate}%` }} /><span className="bg-muted-foreground" style={{ width: `${row.sorted / row.due * 100}%` }} /><span className="bg-border" style={{ width: `${row.unsorted / row.due * 100}%` }} /></div>
+                      <AnimatedSegmentedProgress
+                        value={row.rate}
+                        ariaLabel={`${collectedLabel} ${row.collected}，已分拣未领件 ${row.sorted}，未分拣未领件 ${row.unsorted}，领件率 ${row.rate.toFixed(2)}%`}
+                        className="h-2 bg-border"
+                        segments={[
+                          { className: "bg-chart-1", value: row.rate },
+                          { className: "bg-muted-foreground", value: row.sorted / row.due * 100 },
+                          { className: "bg-border", value: row.unsorted / row.due * 100 },
+                        ]}
+                      />
                       <span className="text-right tabular-nums text-muted-foreground">{row.rate.toFixed(2)}%</span>
                       <div className="grid grid-cols-3 items-start gap-2 text-xs text-muted-foreground">
                         {[
@@ -137,7 +200,30 @@ export function CurrentPickupMonitor({ drivers, period = "current" }: { drivers:
                   </div>
                   <dl className="flex flex-col gap-2 border-t pt-3 text-xs sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4"><div className="flex justify-between gap-2"><dt className="text-muted-foreground">领件总量</dt><dd className="font-medium tabular-nums">{row.collected + row.other}</dd></div><div className="flex justify-between gap-2 pl-2"><dt className="text-muted-foreground">{period === "next" ? "下期任务领件" : "当期任务领件"}</dt><dd className="tabular-nums">{row.collected}</dd></div><div className="flex justify-between gap-2 pl-2"><dt className="text-muted-foreground">{period === "next" ? "非下期任务领件" : "非当期任务领件"}</dt><dd className="tabular-nums">{row.other}</dd></div></dl>
                 </div>
-              </article>
+                </Button>
+                <PopoverContent
+                  align="start"
+                  side="top"
+                  sideOffset={8}
+                  className="w-72 max-w-[calc(100vw-2rem)] gap-3 p-3"
+                  aria-label={`${row.name}的联系方式`}
+                  onOpenAutoFocus={(event) => event.preventDefault()}
+                  onPointerEnter={() => openContact(row.id)}
+                  onPointerLeave={() => scheduleContactClose(row.id)}
+                >
+                  <PopoverHeader>
+                    <PopoverTitle>司机联系方式</PopoverTitle>
+                    <PopoverDescription>{row.name}</PopoverDescription>
+                  </PopoverHeader>
+                  <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">手机号</span>
+                    <span className="truncate font-medium tabular-nums">{row.phone || "暂无手机号"}</span>
+                    <Button type="button" variant="outline" size="sm" disabled={!row.phone} onClick={() => copyPhone(row.phone, row.name)} aria-label={`复制${row.name}的手机号`}>
+                      <CopyIcon data-icon="inline-start" />复制
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             ))}
             {!visible.length && <Empty><EmptyHeader><EmptyTitle>暂无匹配司机</EmptyTitle><EmptyDescription>请调整司机姓名或状态筛选条件。</EmptyDescription></EmptyHeader></Empty>}
           </div>

@@ -12,6 +12,16 @@ type TableProps = React.ComponentProps<"table"> & {
   viewportClassName?: string
 }
 
+type StickyColumn = "right"
+
+type TableHeadProps = React.ComponentProps<"th"> & {
+  sticky?: StickyColumn
+}
+
+type TableCellProps = React.ComponentProps<"td"> & {
+  sticky?: StickyColumn
+}
+
 function Table({
   className,
   variant = "default",
@@ -38,7 +48,7 @@ function Table({
           className={cn(
             "w-full caption-bottom text-xs",
             variant === "grid" &&
-              "[&_tr>*:not(:last-child)]:border-r",
+              "[&_tr>*:not(:last-child):not(:has(+_[data-sticky=right]))]:border-r",
             className
           )}
           {...props}
@@ -53,7 +63,10 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("bg-muted/50 [&_tr]:border-b", className)}
+      className={cn(
+        "bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] [&_tr]:border-b",
+        className
+      )}
       {...props}
     />
   )
@@ -87,7 +100,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-brand-hover has-aria-expanded:bg-brand-selected data-[state=selected]:bg-brand-selected",
+        "border-b transition-colors hover:bg-brand-hover has-aria-expanded:bg-brand-selected data-[state=selected]:bg-brand-selected [&:hover>[data-sticky=right]]:bg-brand-hover [&:has([aria-expanded=true])>[data-sticky=right]]:bg-brand-selected [&[data-state=selected]>[data-sticky=right]]:bg-brand-selected",
         className
       )}
       {...props}
@@ -95,12 +108,13 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
-function TableHead({ className, ...props }: React.ComponentProps<"th">) {
+function TableHead({ className, sticky, ...props }: TableHeadProps) {
   return (
     <th
       data-slot="table-head"
+      data-sticky={sticky}
       className={cn(
-        "h-12 px-3 text-start align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pe-0",
+        "h-12 px-3 text-start align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pe-0 data-[sticky=right]:sticky data-[sticky=right]:right-0 data-[sticky=right]:z-20 data-[sticky=right]:border-l data-[sticky=right]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]",
         className
       )}
       {...props}
@@ -108,12 +122,13 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   )
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+function TableCell({ className, sticky, ...props }: TableCellProps) {
   return (
     <td
       data-slot="table-cell"
+      data-sticky={sticky}
       className={cn(
-        "h-12 px-3 py-0 align-middle whitespace-nowrap [&:has([role=checkbox])]:pe-0",
+        "h-12 px-3 py-0 text-start align-middle whitespace-nowrap [&:has([role=checkbox])]:pe-0 data-[sticky=right]:sticky data-[sticky=right]:right-0 data-[sticky=right]:z-10 data-[sticky=right]:border-l data-[sticky=right]:bg-card",
         className
       )}
       {...props}

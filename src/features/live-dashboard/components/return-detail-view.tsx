@@ -211,7 +211,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
       <section className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 duration-200" aria-label="应退回详情下钻">
         <div className="flex items-start gap-3">
           <Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button>
-          <h2 className="font-heading text-xl font-semibold text-foreground">应退回{period === "next" ? "（下期领件任务）" : ""}</h2>
+          <h2 className="font-heading text-xl font-semibold text-foreground">应退回</h2>
         </div>
 
         <Tabs value={view} onValueChange={setView} className="min-w-0 gap-3">
@@ -244,7 +244,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
                 <col className="w-56" />
                 <col className="w-56" />
                 <col className="w-40" />
-                <col className="w-32" />
+                <col className="w-24" />
               </colgroup>
               <TableHeader><TableRow>
                 <TableHead>司机</TableHead><TableHead>签到时间</TableHead><TableHead>签退时间</TableHead>
@@ -253,7 +253,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
                 <SortableReturnHead label="错分 + No Scan 应退回" sortKey="noScanExpected" activeSortKey={sortKey} direction={sortDirection} onSort={sortDrivers} />
                 <SortableReturnHead label="错分 + No Scan 待退回" sortKey="noScanPending" activeSortKey={sortKey} direction={sortDirection} onSort={sortDrivers} />
                 <SortableReturnHead label="待退回合计" sortKey="totalPending" activeSortKey={sortKey} direction={sortDirection} onSort={sortDrivers} />
-                <TableHead className="text-center">操作</TableHead>
+                <TableHead sticky="right" className="w-24 min-w-24 text-center">操作</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {shownDrivers.map((row) => <TableRow key={row.driverId}>
@@ -265,9 +265,9 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
                   <MetricCell value={row.noScanExpected} onClick={() => drillToWaybills(row, "错分/No Scan", "all")} label={`${row.driver} 的错分应退回`} />
                   <MetricCell value={pending(row, "错分/No Scan")} onClick={() => drillToWaybills(row, "错分/No Scan")} label={`${row.driver} 的错分待退回`} />
                   <MetricCell value={totalPending(row)} onClick={() => drillToWaybills(row)} label={`${row.driver} 的待退回合计`} />
-                  <TableCell className="text-center"><Button variant="link" size="xs" className="px-0" onClick={() => setContactDriver(row)}>联系司机</Button></TableCell>
+                  <TableCell sticky="right" className="w-24 min-w-24 text-center"><Button variant="link" size="xs" className="px-0" onClick={() => setContactDriver(row)}>联系司机</Button></TableCell>
                 </TableRow>)}
-                {shownDrivers.length === 0 ? <TableRow><TableCell colSpan={9} className="h-28 text-center text-muted-foreground">{period === "next" ? "下期领件任务尚未生成，暂无交取件数据" : "暂无符合条件的司机"}</TableCell></TableRow> : null}
+                {shownDrivers.length === 0 ? <TableRow><TableCell colSpan={9} className="h-28 text-center text-muted-foreground">{period === "next" ? "暂无信息" : "暂无符合条件的司机"}</TableCell></TableRow> : null}
               </TableBody>
             </Table>
             <DataPagination className="border-t-0" page={driverPage} pageSize={driverPageSize} total={filteredDrivers.length} onPageChange={setDriverPage} onPageSizeChange={setDriverPageSize} showJumper={false} />
@@ -338,10 +338,10 @@ function FilterSelect({ id, label, value, onChange, options }: { id: string; lab
 }
 
 function MetricCell({ value, onClick, label }: { value: number; onClick: () => void; label: string }) {
-  return <TableCell className="text-end"><Button type="button" variant="link" size="xs" className="ms-auto px-0 tabular-nums" onClick={onClick} aria-label={`查看${label}，共 ${value} 件`}>{value}</Button></TableCell>
+  return <TableCell><Button type="button" variant="link" size="xs" className="px-0 tabular-nums" onClick={onClick} aria-label={`查看${label}，共 ${value} 件`}>{value}</Button></TableCell>
 }
 
 function SortableReturnHead({ label, sortKey, activeSortKey, direction, onSort }: { label: string; sortKey: ReturnSortKey; activeSortKey: ReturnSortKey | null; direction: SortDirection; onSort: (key: ReturnSortKey) => void }) {
   const active = sortKey === activeSortKey
-  return <TableHead className="text-end"><Button type="button" variant="ghost" size="xs" className="ms-auto px-1 text-xs font-medium" onClick={() => onSort(sortKey)} aria-label={`${label}，${active ? `当前${direction === "asc" ? "升序" : "降序"}` : "未排序"}，点击排序`}>{label}<span data-icon="inline-end" className="flex flex-col"><ChevronUpIcon className={cn("size-3", active && direction === "asc" ? "text-brand" : "text-muted-foreground/40")} /><ChevronDownIcon className={cn("-mt-1 size-3", active && direction === "desc" ? "text-brand" : "text-muted-foreground/40")} /></span></Button></TableHead>
+  return <TableHead><Button type="button" variant="ghost" size="xs" className="px-1 text-xs font-medium" onClick={() => onSort(sortKey)} aria-label={`${label}，${active ? `当前${direction === "asc" ? "升序" : "降序"}` : "未排序"}，点击排序`}>{label}<span data-icon="inline-end" className="flex flex-col"><ChevronUpIcon className={cn("size-3", active && direction === "asc" ? "text-brand" : "text-muted-foreground/40")} /><ChevronDownIcon className={cn("-mt-1 size-3", active && direction === "desc" ? "text-brand" : "text-muted-foreground/40")} /></span></Button></TableHead>
 }

@@ -46,7 +46,7 @@ export function MonitorWaybillCard({ row, driver, selected, address, addressLoad
           {row.type !== "普通件" && <Badge variant="outline">{row.type}</Badge>}
           <span>{row.postalCode}</span>
           <span className="inline-flex min-w-0 flex-1 items-center gap-2"><span className="truncate text-foreground" title={address ?? row.maskedAddress}>{address ?? row.maskedAddress}</span><Button variant="ghost" size="icon-xs" aria-label={`${address ? "隐藏" : "查看"} ${row.id} 收件地址`} disabled={addressLoading} onClick={onAddress}>{addressLoading ? <LoaderCircleIcon className="animate-spin" /> : address ? <EyeOffIcon /> : <EyeIcon />}</Button></span>
-          {row.transferred && <Badge variant="destructive">接收转派</Badge>}
+          {row.transferred && <Badge variant="destructive">今日转派</Badge>}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-muted-foreground">
           <span>签收时间：<time dateTime={row.signedAt ?? row.actionAt} className="tabular-nums">{formatDateTime(row.signedAt ?? row.actionAt, { includeSeconds: true })}</time></span>
@@ -73,7 +73,7 @@ export function MonitorWaybillCard({ row, driver, selected, address, addressLoad
       <Badge variant="secondary" className="bg-brand-selected text-brand">{driver.rating}★</Badge><span className="text-foreground">{driver.name}</span>
       <span className={cn("inline-flex items-center gap-2", layout === "map" && "ml-auto")}><span>{row.stop}</span><span className="font-normal text-foreground">{row.deliveryNumber.replace(/^B/, "")}</span></span>{row.type !== "普通件" && <Badge variant="outline" className="bg-transparent">{row.type}</Badge>}
     </div>
-    <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs"><div className="flex min-w-0 items-center gap-2"><span className="shrink-0 text-muted-foreground">{row.postalCode}</span><span className="min-w-0 break-words">{address ?? row.maskedAddress}</span><Button variant="ghost" size="icon-xs" className="shrink-0 border-transparent bg-transparent" aria-label={`${address ? "隐藏" : "查看"} ${row.id} 收件地址`} disabled={addressLoading} onClick={onAddress}>{addressLoading ? <LoaderCircleIcon className="animate-spin" /> : address ? <EyeOffIcon /> : <EyeIcon />}</Button></div>{row.transferred && <Badge variant="destructive">接收转派</Badge>}</div>
+    <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs"><div className="flex min-w-0 items-center gap-2"><span className="shrink-0 text-muted-foreground">{row.postalCode}</span><span className="min-w-0 break-words">{address ?? row.maskedAddress}</span><Button variant="ghost" size="icon-xs" className="shrink-0 border-transparent bg-transparent" aria-label={`${address ? "隐藏" : "查看"} ${row.id} 收件地址`} disabled={addressLoading} onClick={onAddress}>{addressLoading ? <LoaderCircleIcon className="animate-spin" /> : address ? <EyeOffIcon /> : <EyeIcon />}</Button></div>{row.transferred && <Badge variant="destructive">今日转派</Badge>}</div>
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
       <span>{row.signedAt ? "签收时间" : "最新操作"}：{!row.signedAt && `${row.latestAction} `}<time dateTime={row.signedAt ?? row.actionAt} className="tabular-nums">{formatDateTime(row.signedAt ?? row.actionAt, { includeSeconds: true })}</time></span>
       {row.status === "pending" && row.attempts > 0 && <span>派送 <b className="font-medium text-destructive">{row.attempts}</b> 次</span>}

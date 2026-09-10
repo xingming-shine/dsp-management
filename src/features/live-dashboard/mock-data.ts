@@ -40,11 +40,19 @@ export const realtimeOverview = {
     fakeIssues: 24,
   },
   nextAllocation: {
-    generated: false,
-    status: "暂未生成",
     pushAtByMode: {
       "same-day": "2026-08-21T13:00:00-04:00",
       "next-day": "2026-08-22T08:00:00-04:00",
+    },
+    dataByMode: {
+      "same-day": null,
+      "next-day": {
+        expected: 1765,
+        tasks: 30,
+        assigned: 1600,
+        unassigned: 165,
+        completionRate: 90.65,
+      },
     },
   },
 } as const

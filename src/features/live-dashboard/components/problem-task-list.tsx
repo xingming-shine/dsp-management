@@ -25,7 +25,7 @@ const suspectedLostColumns = ["运单编号", "运单状态", "剩余处理时�
 const completedColumns = ["运单编号", "运单状态", "问题件上报时间", "问题件结束时间", "问题件类型", "问题件状态", "处理结果", "责任机构", "司机", "路区", "邮编", "最新操作", "操作时间", "操作人"]
 
 function RemainingTimeCell({ task, now }: { task: ProblemTask; now: number }) {
-  return <TableCell className={cn("text-end tabular-nums", Date.parse(task.deadline) <= now && "text-destructive")} title={`截止时间：${formatDateTime(task.deadline)}（纽约时间）`}>{remainingProblemTime(task.deadline, now)}</TableCell>
+  return <TableCell className={cn("tabular-nums", Date.parse(task.deadline) <= now && "text-destructive")} title={`截止时间：${formatDateTime(task.deadline)}（纽约时间）`}>{remainingProblemTime(task.deadline, now)}</TableCell>
 }
 
 function TaskFilter({ name, label, value, options, onChange }: { name: string; label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {
@@ -98,21 +98,21 @@ export function ProblemTaskList({ metric }: { metric: "pending" | "in-progress" 
       />
     </form>
     <Table variant="grid" className={isSuspectedLost || isCompleted ? "min-w-[120rem]" : showRemainingTime ? "min-w-[140rem]" : "min-w-[130rem]"} aria-label={`${label}问题件任务列表`} viewportClassName="max-h-[36rem]" footer={<DataPagination page={page} pageSize={pageSize} total={rows.length} onPageChange={changePage} onPageSizeChange={setPageSize} />}>
-      <TableHeader><TableRow>{visibleColumns.map((column) => <TableHead key={column} className={cn((column.includes("时间") || column === "剩余处理时长") && "text-end")}>{column}</TableHead>)}</TableRow></TableHeader>
+      <TableHeader><TableRow>{visibleColumns.map((column) => <TableHead key={column} className={column === "是否虚假问题件" ? "text-center" : undefined}>{column}</TableHead>)}</TableRow></TableHeader>
       <TableBody>{visible.length ? visible.map((task) => <TableRow key={task.id}>
         <TableCell><Button variant="link" size="xs" className="px-0" onClick={() => setSelected(task)}>{task.waybill.id}</Button></TableCell>
         <TableCell>{statusLabels[task.waybill.status]}</TableCell>
         {isSuspectedLost && <RemainingTimeCell task={task} now={now} />}
-        <TableCell className="text-end tabular-nums">{formatDateTime(task.reportedAt)}</TableCell>
-        {isCompleted && <TableCell className="text-end tabular-nums">{task.endedAt ? formatDateTime(task.endedAt) : "—"}</TableCell>}
+        <TableCell className="tabular-nums">{formatDateTime(task.reportedAt)}</TableCell>
+        {isCompleted && <TableCell className="tabular-nums">{task.endedAt ? formatDateTime(task.endedAt) : "—"}</TableCell>}
         <TableCell>{task.type}</TableCell>
         <TableCell><Badge variant="secondary">{task.status}</Badge></TableCell>
-        {showProcessingFields && <TableCell>{task.fake ? "是" : "否"}</TableCell>}
+        {showProcessingFields && <TableCell className="text-center">{task.fake ? "是" : "否"}</TableCell>}
         <TableCell>{isCompleted ? task.result ?? "—" : task.instruction}</TableCell>
         {showRemainingTime && !isSuspectedLost && <RemainingTimeCell task={task} now={now} />}
         <TableCell>{task.responsibleOrg}</TableCell>{showProcessingFields && <TableCell>{task.currentOrg}</TableCell>}
         <TableCell>{task.driver}</TableCell><TableCell>{task.route}</TableCell><TableCell>{task.waybill.postalCode}</TableCell>
-        <TableCell>{task.latestAction}</TableCell><TableCell className="text-end tabular-nums">{formatDateTime(task.actionAt)}</TableCell><TableCell>{task.operator}</TableCell>
+        <TableCell>{task.latestAction}</TableCell><TableCell className="tabular-nums">{formatDateTime(task.actionAt)}</TableCell><TableCell>{task.operator}</TableCell>
       </TableRow>) : <TableRow><TableCell colSpan={visibleColumns.length}><Empty className="items-start"><EmptyHeader><EmptyTitle>暂无匹配任务</EmptyTitle><EmptyDescription>请调整筛选条件，运单编号需完整匹配。</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}</TableBody>
     </Table>
     <MonitorWaybillOverlay row={selected?.waybill ?? null} driver={monitorDrivers.find((driver) => driver.id === selected?.waybill.driverId)} initialTab="details" onClose={() => setSelected(null)} />

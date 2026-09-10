@@ -818,7 +818,7 @@ function TaskAssignmentDetail({
           <col className="w-[4.5rem]" />
           <col className="w-[6.5%]" />
           <col className="w-[7.5%]" />
-          <col className="w-[3.75rem]" />
+          <col className="w-24" />
         </colgroup>
         <TableHeader>
           <TableRow>
@@ -830,9 +830,9 @@ function TaskAssignmentDetail({
             <TableHead>取件快递员</TableHead>
             <TableHead>快递员路线</TableHead>
             <TableHead>领件状态</TableHead>
-            <TableHead className="text-end">运单数量</TableHead>
+            <TableHead>运单数量</TableHead>
             <TableHead
-              className="px-1 text-end"
+              className="px-1"
               aria-sort={
                 uncollectedSortDirection === "asc"
                   ? "ascending"
@@ -845,7 +845,7 @@ function TaskAssignmentDetail({
                 type="button"
                 variant="ghost"
                 size="xs"
-                className="w-full justify-end gap-0.5 px-0"
+                className="w-full justify-start gap-0.5 px-0"
                 onClick={toggleUncollectedSort}
                 aria-label={`未领件量，${
                   uncollectedSortDirection === "asc"
@@ -878,7 +878,7 @@ function TaskAssignmentDetail({
                 </span>
               </Button>
             </TableHead>
-            <TableHead className="text-center">操作</TableHead>
+            <TableHead sticky="right" className="w-24 min-w-24 text-center">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -908,10 +908,10 @@ function TaskAssignmentDetail({
               <TableCell>
                 <span>{row.pickupStatus}</span>
               </TableCell>
-              <TableCell className="text-end tabular-nums">
+              <TableCell className="tabular-nums">
                 {row.waybillCount}
               </TableCell>
-              <TableCell className="text-end tabular-nums">
+              <TableCell className="tabular-nums">
                 <Button
                   variant="link"
                   size="xs"
@@ -928,7 +928,7 @@ function TaskAssignmentDetail({
                   {row.uncollectedCount}
                 </Button>
               </TableCell>
-              <TableCell className="text-center">
+              <TableCell sticky="right" className="w-24 min-w-24 text-center">
                 {row.assignedCourier ? (
                   <Button
                     variant="link"
@@ -1021,6 +1021,7 @@ function TaskAssignmentDetail({
 export function MetricDetailView({
   title,
   taskPeriod = "current",
+  initialDriverId,
   onBack,
   onNavigateDetail,
   selectedTask,
@@ -1028,13 +1029,14 @@ export function MetricDetailView({
 }: {
   title: string
   taskPeriod?: "current" | "next"
+  initialDriverId?: string | null
   onBack: () => void
   onNavigateDetail: (title: string) => void
   selectedTask: TaskAssignmentRow | null
   onSelectTask: (task: TaskAssignmentRow | null) => void
 }) {
   if (title === "领件详情") {
-    return <PickupDetailView onBack={onBack} period={taskPeriod} />
+    return <PickupDetailView onBack={onBack} period={taskPeriod} initialDriverId={initialDriverId} />
   }
 
   if (title === "应退回") {

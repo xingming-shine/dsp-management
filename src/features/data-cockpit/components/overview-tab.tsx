@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import { useMemo, useState } from "react"
-import { ArrowRightIcon, FlameIcon, GaugeIcon, TrophyIcon, UsersIcon, WheatIcon } from "lucide-react"
+import { ArrowRightIcon, FlameIcon, TrophyIcon, WheatIcon } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -10,27 +10,17 @@ import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { radarOption } from "@/features/data-cockpit/chart-options"
-import { MetricGrid } from "@/features/data-cockpit/components/dashboard-primitives"
+import { OverviewOperations } from "./cockpit-operations"
+import type { Selection } from "../cockpit-model"
 import { EChartsChart } from "@/features/data-cockpit/components/echarts-chart"
-import { TimeFilter } from "@/features/data-cockpit/components/time-filter"
-import { getDefaultPeriod, getRankingPeriodLabel } from "@/features/data-cockpit/date-utils"
-import { overviewMetrics, rankingSnapshots } from "@/features/data-cockpit/mock-data"
-import type { CockpitView, KpiMetric, PeriodMode, RankMode } from "@/features/data-cockpit/types"
+import { getRankingPeriodLabel } from "@/features/data-cockpit/date-utils"
+import { rankingSnapshots } from "@/features/data-cockpit/mock-data"
+import type { CockpitView, RankMode } from "@/features/data-cockpit/types"
 import { cn } from "@/lib/utils"
 
-const sections: Array<{ key: "capacity" | "efficiency" | "timeliness" | "quality"; label: string; view: CockpitView }> = [
-  { key: "capacity", label: "产能", view: "capacity" },
-  { key: "efficiency", label: "人效", view: "efficiency" },
-  { key: "timeliness", label: "时效", view: "timeliness" },
-  { key: "quality", label: "质量", view: "quality" },
-]
-
-export function OverviewTab({ onNavigate, onMetricDetail }: { onNavigate: (view: CockpitView) => void; onMetricDetail: (metric: KpiMetric) => void }) {
+export function OverviewTab({ onNavigate }: { onNavigate: (view: CockpitView, selection?: Selection) => void }) {
   const [rankMode, setRankMode] = useState<RankMode>("week")
   const [rankScope, setRankScope] = useState<"station" | "region">("station")
-  const [metricFilter, setMetricFilter] = useState<"all" | "assessment">("all")
-  const [periodMode, setPeriodMode] = useState<PeriodMode>("day")
-  const [periodValue, setPeriodValue] = useState(getDefaultPeriod("day"))
   const ranking = rankingSnapshots[rankMode]
   const radar = useMemo(() => radarOption(
     ranking.dimensions.map((item) => ({ name: item.name, max: 100 })),
@@ -121,37 +111,7 @@ export function OverviewTab({ onNavigate, onMetricDetail }: { onNavigate: (view:
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><GaugeIcon />运营指标</CardTitle>
-          <CardDescription>{periodMode === "day" ? "日数据·每日更新" : periodMode === "week" ? "周数据·每周更新" : "月数据·每月更新"}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <TimeFilter mode={periodMode} value={periodValue} onModeChange={setPeriodMode} onValueChange={setPeriodValue} allowCustom={false} />
-            <ToggleGroup type="single" variant="outline" spacing={0} value={metricFilter} onValueChange={(value) => value && setMetricFilter(value as "all" | "assessment")} aria-label="指标筛选">
-              <ToggleGroupItem value="all">全部指标</ToggleGroupItem><ToggleGroupItem value="assessment">仅考核指标</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-          {sections.map((section) => {
-            const sourceMetrics = section.key === "timeliness" && periodMode === "day" ? overviewMetrics.timeliness.map((metric) => {
-              const gap = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(`${periodValue}T00:00:00`).getTime()) / 86400000)
-              const updating = (metric.detailType === "4800" && gap < 2) || (metric.detailType === "7200" && gap < 3)
-              return updating ? { ...metric, status: "更新中" as const, change: undefined } : metric
-            }) : overviewMetrics[section.key]
-            const metrics = metricFilter === "assessment" ? sourceMetrics.filter((metric) => metric.assessment) : sourceMetrics
-            return <section key={section.key} className="flex flex-col gap-3 border-t pt-4 first:border-t-0 first:pt-0">
-              <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{section.label}</h3><Button variant="ghost" size="sm" onClick={() => onNavigate(section.view)}>查看详情<ArrowRightIcon data-icon="inline-end" /></Button></div>
-              <MetricGrid metrics={metrics} onDetail={onMetricDetail} />
-            </section>
-          })}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="grid-cols-1 sm:grid-cols-[1fr_auto]"><CardTitle className="flex items-center gap-2"><UsersIcon />司机表现</CardTitle><CardDescription>月度数据·每月5号更新</CardDescription><CardAction className="col-start-1 row-start-3 row-span-1 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><Button variant="ghost" size="sm" onClick={() => onNavigate("driver")}>查看详情<ArrowRightIcon data-icon="inline-end" /></Button></CardAction></CardHeader>
-        <CardContent><MetricGrid metrics={overviewMetrics.driver} /></CardContent>
-      </Card>
+      <OverviewOperations onNavigate={onNavigate} />
     </div>
   )
 }
