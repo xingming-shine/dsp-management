@@ -29,8 +29,8 @@ import { formatDateTime } from "@/lib/date-time"
 
 const INITIAL_REFRESH_TIME = new Date("2026-08-21T10:05:12-04:00")
 
-export function LiveDashboard() {
-  const [workMode, setWorkMode] = useState<WorkMode>("same-day")
+export function LiveDashboard({ initialWorkMode = "same-day" }: { initialWorkMode?: WorkMode }) {
+  const [workMode, setWorkMode] = useState<WorkMode>(initialWorkMode)
   const [lastRefresh, setLastRefresh] = useState(() => INITIAL_REFRESH_TIME)
   const [detailTitle, setDetailTitle] = useState<string | null>(null)
   const [detailParentTitle, setDetailParentTitle] = useState<string | null>(null)
@@ -126,6 +126,7 @@ export function LiveDashboard() {
       const driverId = url.searchParams.get("driverId")
       const alertType = parseWaybillAlert(url.searchParams.get("alertType"))
       const metric = parseAlertMetricKey(url.searchParams.get("alertMetric"))
+      setWorkMode(url.searchParams.get("workMode") === "next-day" ? "next-day" : "same-day")
       setMapDriverId(detailView === "driver-map" ? driverId : null)
       setMapAlertType(detailView === "driver-map" ? alertType : null)
       setPickupDriverId(detailView === "pickup" ? driverId : null)
@@ -188,16 +189,25 @@ export function LiveDashboard() {
     toast.success("刷新成功")
   }
 
+  function toggleWorkMode() {
+    const nextMode: WorkMode = workMode === "same-day" ? "next-day" : "same-day"
+    setWorkMode(nextMode)
+    const url = new URL(window.location.href)
+    url.searchParams.set("workMode", nextMode)
+    window.history.replaceState({}, "", url)
+  }
+
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className={detailTitle ? "hidden" : "flex flex-col gap-3"} aria-hidden={detailTitle ? true : undefined}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className="gap-0 overflow-hidden p-0 has-data-[icon=inline-end]:pe-0"
-              onClick={() => setWorkMode((current) => current === "same-day" ? "next-day" : "same-day")}
+              onClick={toggleWorkMode}
               aria-label="切换实时看板工作模式"
               title={workMode === "same-day" ? "切换为隔日派" : "切换为当日派"}
             >
