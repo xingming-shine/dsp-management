@@ -15,7 +15,7 @@ import { DataPagination } from "@/components/ui/pagination"
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { monitorDrivers, statusLabels } from "../driver-monitor-data"
 import { emptyProblemFilters, filterProblemTasks, trackingProblemTasks, fakeDeliveryProblemTasks, inProgressProblemTasks, pendingProblemTasks, suspectedLostProblemTasks, matchesTrackingGap, trackingGapOptions, problemInstructions, problemSnapshotAt, problemTypes, remainingProblemTime, type ProblemFilters, type ProblemTask, type TrackingGapRange } from "../problem-task-data"
-import { MonitorWaybillOverlay } from "./monitor-waybill-card"
+import { AlertWaybillWorkspace } from "./alert-waybill-workspace"
 import { StatusMultiSelect } from "./status-multi-select"
 import { formatDateTime } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
@@ -32,12 +32,13 @@ function TaskFilter({ name, label, value, options, onChange }: { name: string; l
   return <Field><FieldLabel htmlFor={`problem-${name}`}>{label}</FieldLabel><Select value={value} onValueChange={onChange}><SelectTrigger id={`problem-${name}`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">全部</SelectItem>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
 }
 
-export function ProblemTaskList({ metric }: { metric: "pending" | "in-progress" | "suspected-lost" | "fake-delivery" | "dsp-tracking" }) {
+export function ProblemTaskList({ metric, onWorkspaceChange }: { metric: "pending" | "in-progress" | "suspected-lost" | "fake-delivery" | "dsp-tracking"; onWorkspaceChange: (active: boolean) => void }) {
   const isSuspectedLost = metric === "suspected-lost"
   const isFakeDelivery = metric === "fake-delivery"
   const isTracking = metric === "dsp-tracking"
   const isCompleted = isFakeDelivery || isTracking
   const showRemainingTime = metric === "pending" || isSuspectedLost
+  const showProcessingAction = metric === "pending" || isSuspectedLost
   const showProcessingFields = !isSuspectedLost && !isCompleted
   const label = isTracking ? "DSP 轨迹断更" : isFakeDelivery ? "虚假签收" : isSuspectedLost ? "疑似丢失" : metric === "pending" ? "待处理" : "进行中"
   const visibleColumns = isCompleted ? completedColumns : isSuspectedLost ? suspectedLostColumns : columns.filter((column) => showRemainingTime || column !== "剩余处理时长")
@@ -47,7 +48,6 @@ export function ProblemTaskList({ metric }: { metric: "pending" | "in-progress" 
   const [queryRanges, setQueryRanges] = useState<TrackingGapRange[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [selected, setSelected] = useState<ProblemTask | null>(null)
   const [now, setNow] = useState(Date.parse(problemSnapshotAt))
   const top = useRef<HTMLDivElement>(null)
   // Demo clock advances from the fixture snapshot; production uses server time.
@@ -78,7 +78,7 @@ export function ProblemTaskList({ metric }: { metric: "pending" | "in-progress" 
       toast.error("导出失败，请重试")
     }
   }
-  return <div ref={top} className="flex min-w-0 scroll-mt-20 flex-col gap-4">
+  return <AlertWaybillWorkspace rows={rows.map((task) => ({ id: task.id, waybill: task.waybill, task }))} metric={metric} pageSize={pageSize} onPageChange={setPage} onActiveChange={onWorkspaceChange} now={now}>{(open) => <div ref={top} className="flex min-w-0 scroll-mt-20 flex-col gap-4">
     <form className="flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); setQuery({ ...draft, number: draft.number.trim() }); setQueryRanges([...draftRanges]); setPage(1) }}>
       <QueryFilterLayout
         desktopBreakpoint="lg"
@@ -98,9 +98,9 @@ export function ProblemTaskList({ metric }: { metric: "pending" | "in-progress" 
       />
     </form>
     <Table variant="grid" className={isSuspectedLost || isCompleted ? "min-w-[120rem]" : showRemainingTime ? "min-w-[140rem]" : "min-w-[130rem]"} aria-label={`${label}问题件任务列表`} viewportClassName="max-h-[36rem]" footer={<DataPagination page={page} pageSize={pageSize} total={rows.length} onPageChange={changePage} onPageSizeChange={setPageSize} />}>
-      <TableHeader><TableRow>{visibleColumns.map((column) => <TableHead key={column} className={column === "是否虚假问题件" ? "text-center" : undefined}>{column}</TableHead>)}</TableRow></TableHeader>
-      <TableBody>{visible.length ? visible.map((task) => <TableRow key={task.id}>
-        <TableCell><Button variant="link" size="xs" className="px-0" onClick={() => setSelected(task)}>{task.waybill.id}</Button></TableCell>
+      <TableHeader><TableRow>{visibleColumns.map((column) => <TableHead key={column} className={column === "是否虚假问题件" ? "text-center" : undefined}>{column}</TableHead>)}{showProcessingAction && <TableHead sticky="right" className="w-32 min-w-32 text-center">操作</TableHead>}</TableRow></TableHeader>
+      <TableBody>{visible.length ? visible.map((task) => <TableRow key={task.id} data-alert-source={task.id}>
+        <TableCell><Button variant="link" size="xs" className="px-0" onClick={() => open(task.id)}>{task.waybill.id}</Button></TableCell>
         <TableCell>{statusLabels[task.waybill.status]}</TableCell>
         {isSuspectedLost && <RemainingTimeCell task={task} now={now} />}
         <TableCell className="tabular-nums">{formatDateTime(task.reportedAt)}</TableCell>
@@ -113,8 +113,8 @@ export function ProblemTaskList({ metric }: { metric: "pending" | "in-progress" 
         <TableCell>{task.responsibleOrg}</TableCell>{showProcessingFields && <TableCell>{task.currentOrg}</TableCell>}
         <TableCell>{task.driver}</TableCell><TableCell>{task.route}</TableCell><TableCell>{task.waybill.postalCode}</TableCell>
         <TableCell>{task.latestAction}</TableCell><TableCell className="tabular-nums">{formatDateTime(task.actionAt)}</TableCell><TableCell>{task.operator}</TableCell>
-      </TableRow>) : <TableRow><TableCell colSpan={visibleColumns.length}><Empty className="items-start"><EmptyHeader><EmptyTitle>暂无匹配任务</EmptyTitle><EmptyDescription>请调整筛选条件，运单编号需完整匹配。</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}</TableBody>
+        {showProcessingAction && <TableCell sticky="right" className="w-32 min-w-32 text-center"><Button type="button" variant="link" size="xs" aria-label={`处理问题件 ${task.waybill.id}`} onClick={() => toast.info(`将打开运单 ${task.waybill.id} 的问题件处理抽屉，当前暂未接入。`)}>处理问题件</Button></TableCell>}
+      </TableRow>) : <TableRow><TableCell colSpan={visibleColumns.length + Number(showProcessingAction)}><Empty className="items-start"><EmptyHeader><EmptyTitle>暂无匹配任务</EmptyTitle><EmptyDescription>请调整筛选条件，运单编号需完整匹配。</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}</TableBody>
     </Table>
-    <MonitorWaybillOverlay row={selected?.waybill ?? null} driver={monitorDrivers.find((driver) => driver.id === selected?.waybill.driverId)} initialTab="details" onClose={() => setSelected(null)} />
-  </div>
+  </div>}</AlertWaybillWorkspace>
 }

@@ -9,6 +9,8 @@ type DriverDeliveryStatusBadgeProps = {
   latestAction: string
   latestActionAt: string
   focusable?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function DriverDeliveryStatusBadge({
@@ -16,10 +18,12 @@ export function DriverDeliveryStatusBadge({
   latestAction,
   latestActionAt,
   focusable = true,
+  open,
+  onOpenChange,
 }: DriverDeliveryStatusBadgeProps) {
   return (
     <TooltipProvider>
-      <Tooltip>
+      <Tooltip open={open} onOpenChange={onOpenChange}>
         <TooltipTrigger asChild>
           <Badge
             variant="destructive"

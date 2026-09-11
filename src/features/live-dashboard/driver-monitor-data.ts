@@ -1,14 +1,16 @@
 import { driverRows } from "@/features/live-dashboard/driver-rows"
 import type { DashboardDriverSnapshot } from "@/features/live-dashboard/driver-rows"
-import type { DriverSnapshot } from "@/features/live-dashboard/mock-data"
+import { realtimeOverview, type DriverSnapshot } from "@/features/live-dashboard/mock-data"
 
-export type DeliveryStatus = "pending" | "delivered" | "exception"
+export type DeliveryStatus = "pending" | "delivered" | "exception" | "nonstandard_return"
 export type WaybillAlert = "pod" | "location" | "fake"
 export type Coordinate = [longitude: number, latitude: number]
 export type MonitorDriver = DashboardDriverSnapshot & { expectedPickup: number; expectedReturn: number }
 export type MonitorWaybill = {
   id: string
+  source: "current" | "history"
   driverId: string
+  route: string | null
   sequence: number
   stop: string
   deliveryNumber: string
@@ -29,9 +31,20 @@ export type MonitorWaybill = {
   destination: Coordinate | null
   collectedPosition: Coordinate | null
   podImages: { url: string; label: string }[]
+  nonStandardReturnInfo: {
+    returnedAt: string
+    stationName: string
+    reason: string
+    operator: string
+  } | null
 }
 
-export const statusLabels: Record<DeliveryStatus, string> = { pending: "待派件", delivered: "已签收", exception: "派送异常" }
+export const statusLabels: Record<DeliveryStatus, string> = {
+  delivered: "已签收",
+  exception: "派送异常",
+  nonstandard_return: "非标退回",
+  pending: "待派件",
+}
 export const alertLabels: Record<WaybillAlert, string> = { pod: "POD 不合规", location: "妥投位置异常", fake: "虚假问题件" }
 export function parseWaybillAlert(value: string | null): WaybillAlert | null {
   return value === "pod" || value === "location" || value === "fake" ? value : null
@@ -50,6 +63,7 @@ export function driverCoordinate(driver: DriverSnapshot): Coordinate | null {
 }
 
 export function waybillCoordinate(row: MonitorWaybill): Coordinate | null {
+  if (row.status === "nonstandard_return") return validCoordinate(row.destination) ? row.destination : null
   if (row.status !== "pending" && validCoordinate(row.collectedPosition)) return row.collectedPosition
   return validCoordinate(row.destination) ? row.destination : null
 }
@@ -84,14 +98,20 @@ function mockDeliveryCoordinates(origin: Coordinate, count: number, seed: number
 
 // Deterministic demo fixtures. Counts reconcile exactly to the shared driver snapshots.
 // Plain-text addresses are intentionally resolved by the server-side demo adapter only.
-export const monitorWaybills: MonitorWaybill[] = monitorDrivers.flatMap((driver, driverIndex) => {
+const generatedMonitorWaybills = monitorDrivers.flatMap((driver, driverIndex) => {
   const origin = driverCoordinate(driver) ?? [-74.004, 40.72]
   const destinations = mockDeliveryCoordinates(origin, driver.total, driverIndex + 1)
   // Alice's first stops demonstrate combined/single alerts, fake issues and overdue transfers.
   // Keep IDs, status totals and the sequence unique; swap two stops to surface an exception early.
   const isLabelDemo = driver.id === "DRV-ALICE-01"
-  return Array.from({ length: driver.total }, (_, index): MonitorWaybill => {
-    const status: DeliveryStatus = index < driver.delivered ? "delivered" : index < driver.delivered + driver.exception ? "exception" : "pending"
+  return Array.from({ length: driver.total }, (_, index): Omit<MonitorWaybill, "source"> => {
+    const status: DeliveryStatus = index < driver.delivered
+      ? "delivered"
+      : index < driver.delivered + driver.exception
+        ? "exception"
+        : index < driver.delivered + driver.exception + driver.nonStandardReturn
+          ? "nonstandard_return"
+          : "pending"
     const exceptionIndex = index - driver.delivered
     const alerts: WaybillAlert[] = []
     if (status === "delivered" && (isLabelDemo ? [0, 113].includes(index) : index < driver.podIssues)) alerts.push("pod")
@@ -106,10 +126,12 @@ export const monitorWaybills: MonitorWaybill[] = monitorDrivers.flatMap((driver,
     return {
       id: `GFUS${String(driverIndex + 1).padStart(3, "0")}${String(index + 1).padStart(9, "0")}`,
       driverId: driver.id, sequence, stop: `STOP-${5700 + sequence}`, deliveryNumber: `B${sequence}`,
+      // Fixture assignment is stable per waybill; the UI never expands a driver's route list.
+      route: driver.routeAssignments[index % driver.routeAssignments.length]?.name ?? null,
       type: ["普通件", "PUDO", "货代", "Locker"][index % 4], postalCode: String(10001 + (sequence % 9)),
       maskedAddress: "*** ******** Ave, New York", status, alerts,
       overdueDays: status === "pending" ? isLabelDemo && index === 180 ? 3 : index % 6 : 0,
-      latestAction: status === "delivered" ? "签收" : status === "exception" ? "派送异常采集" : index % 3 === 0 ? "今日转派" : "快递员收件",
+      latestAction: status === "delivered" ? "签收" : status === "exception" ? "派送异常采集" : status === "nonstandard_return" ? "非标退回入库" : index % 3 === 0 ? "今日转派" : "快递员收件",
       actionAt, signedAt: status === "delivered" ? actionAt : null,
       transferred: status === "pending" && index % 3 === 0, attempts: status === "pending" ? index % 3 : 1,
       returned: status === "exception" && exceptionIndex % 2 === 0,
@@ -117,16 +139,47 @@ export const monitorWaybills: MonitorWaybill[] = monitorDrivers.flatMap((driver,
       deviation,
       destination, collectedPosition: status === "pending" || (index % 5 === 0 && deviation === null) ? null : [destination[0] + (alerts.includes("location") ? 0.004 : 0.0001), destination[1]],
       podImages: [],
+      nonStandardReturnInfo: status === "nonstandard_return" ? {
+        returnedAt: actionAt,
+        stationName: `SLE-${String((driverIndex % 3) + 1).padStart(2, "0")}`,
+        reason: ["未登记异常直接退回", "操作流程不规范", "站点临时召回"][index % 3],
+        operator: `站点操作员 ${String((index % 5) + 1).padStart(2, "0")}`,
+      } : null,
     }
   }).sort((a, b) => a.sequence - b.sequence)
+})
+
+// Spread demo history parcels across drivers while preserving the dashboard's
+// per-status source totals. Source stays fixed when the user filters drivers.
+const historyCounts: Record<DeliveryStatus, number> = {
+  delivered: realtimeOverview.delivery.scopes.history.delivered,
+  exception: realtimeOverview.delivery.scopes.history.exception,
+  nonstandard_return: realtimeOverview.delivery.scopes.history.nonStandardReturn,
+  pending: realtimeOverview.delivery.scopes.history.pending,
+}
+const statusCounts = generatedMonitorWaybills.reduce((counts, row) => {
+  counts[row.status] += 1
+  return counts
+}, { delivered: 0, exception: 0, nonstandard_return: 0, pending: 0 })
+const sourceIndices: Record<DeliveryStatus, number> = { delivered: 0, exception: 0, nonstandard_return: 0, pending: 0 }
+export const monitorWaybills: MonitorWaybill[] = generatedMonitorWaybills.map((row) => {
+  const index = sourceIndices[row.status]++
+  const history = Math.min(historyCounts[row.status], statusCounts[row.status])
+  const isHistory = Math.floor((index + 1) * history / statusCounts[row.status]) > Math.floor(index * history / statusCounts[row.status])
+  return { ...row, source: isHistory ? "history" : "current" }
 })
 
 export function summarizeWaybills(rows: MonitorWaybill[]) {
   const total = rows.length
   const delivered = rows.filter((row) => row.status === "delivered").length
   const exception = rows.filter((row) => row.status === "exception").length
+  const nonStandardReturn = rows.filter((row) => row.status === "nonstandard_return").length
+  const currentExpected = rows.filter((row) => row.source === "current").length
+  const currentDelivered = rows.filter((row) => row.source === "current" && row.status === "delivered").length
   return {
-    total, delivered, exception, pending: total - delivered - exception,
+    total, delivered, exception, nonStandardReturn, pending: total - delivered - exception - nonStandardReturn,
+    currentExpected, currentDelivered,
+    delivered2400Rate: currentExpected ? currentDelivered / currentExpected * 100 : 0,
     deliveredRate: total ? delivered / total * 100 : 0,
     clearanceRate: total ? (delivered + exception) / total * 100 : 0,
     pod: rows.filter((row) => row.alerts.includes("pod")).length,

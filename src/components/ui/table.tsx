@@ -100,7 +100,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-brand-hover has-aria-expanded:bg-brand-selected data-[state=selected]:bg-brand-selected [&:hover>[data-sticky=right]]:bg-brand-hover [&:has([aria-expanded=true])>[data-sticky=right]]:bg-brand-selected [&[data-state=selected]>[data-sticky=right]]:bg-brand-selected",
+        "border-b transition-colors hover:bg-brand-hover has-aria-expanded:bg-brand-selected data-[state=selected]:bg-brand-selected [&:hover>[data-sticky=right]]:bg-[linear-gradient(var(--brand-hover),var(--brand-hover))] [&:has([aria-expanded=true])>[data-sticky=right]]:bg-brand-selected [&[data-state=selected]>[data-sticky=right]]:bg-brand-selected",
         className
       )}
       {...props}
@@ -114,7 +114,7 @@ function TableHead({ className, sticky, ...props }: TableHeadProps) {
       data-slot="table-head"
       data-sticky={sticky}
       className={cn(
-        "h-12 px-3 text-start align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pe-0 data-[sticky=right]:sticky data-[sticky=right]:right-0 data-[sticky=right]:z-20 data-[sticky=right]:border-l data-[sticky=right]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]",
+        "h-12 px-3 text-start align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pe-0 data-[sticky=right]:sticky data-[sticky=right]:right-0 data-[sticky=right]:z-20 data-[sticky=right]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]",
         className
       )}
       {...props}
@@ -128,7 +128,7 @@ function TableCell({ className, sticky, ...props }: TableCellProps) {
       data-slot="table-cell"
       data-sticky={sticky}
       className={cn(
-        "h-12 px-3 py-0 text-start align-middle whitespace-nowrap [&:has([role=checkbox])]:pe-0 data-[sticky=right]:sticky data-[sticky=right]:right-0 data-[sticky=right]:z-10 data-[sticky=right]:border-l data-[sticky=right]:bg-card",
+        "h-12 px-3 py-0 text-start align-middle whitespace-nowrap [&:has([role=checkbox])]:pe-0 data-[sticky=right]:sticky data-[sticky=right]:right-0 data-[sticky=right]:z-10 data-[sticky=right]:bg-card",
         className
       )}
       {...props}

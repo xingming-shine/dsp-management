@@ -16,6 +16,9 @@ import { DeliveryTaskMap } from "@/features/live-dashboard/components/delivery-t
 import { DriverDeliveryStatusBadge } from "@/features/live-dashboard/components/driver-delivery-status-badge"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import { MonitorWaybillCard, MonitorWaybillOverlay } from "@/features/live-dashboard/components/monitor-waybill-card"
+import { DeliveryDriverFilters, useDeliveryDriverFilters } from "./delivery-driver-filters"
+import { DeliveryDriverCard, DeliveryDriverCardGroup } from "./delivery-driver-card"
+import { WaybillPodMedia } from "./waybill-pod-media"
 import { monitorDrivers, monitorWaybills, summarizeWaybills, statusLabels, alertLabels, emptyMonitorQuery, filterMonitorWaybills, waybillCoordinate, type MonitorQuery, type MonitorSort, type MonitorWaybill, type WaybillAlert } from "@/features/live-dashboard/driver-monitor-data"
 import { cn } from "@/lib/utils"
 
@@ -24,9 +27,11 @@ const sortOptions = [
 ]
 
 const rateRingColors = [["--chart-1", "--muted"]]
+const clearanceRingColors = [["--chart-2", "--muted"]]
 const waybillBatchSize = 20
+type MonitorViewMode = "waybill" | "map"
 
-function MonitorRateRing({ value, label }: { value: number; label: string }) {
+function MonitorRateRing({ value, label, isClearance = false }: { value: number; label: string; isClearance?: boolean }) {
   const rate = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0
   const option = useMemo<EChartsOption>(() => {
     return {
@@ -40,12 +45,14 @@ function MonitorRateRing({ value, label }: { value: number; label: string }) {
       }],
     }
   }, [rate])
-  return <div className="relative size-20 shrink-0">
-    <EChartsChart option={option} dataColors={rateRingColors} className="size-full min-h-0" ariaLabel={`${label} ${rate.toFixed(2)}%`} />
-    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5" aria-hidden="true">
-      <strong className="whitespace-nowrap text-sm font-medium tabular-nums">{rate.toFixed(2)}%</strong>
-      <span className="text-xs text-muted-foreground">{label}</span>
+  return <div className="flex w-20 shrink-0 flex-col items-center">
+    <div className="relative size-14">
+      <EChartsChart option={option} dataColors={isClearance ? clearanceRingColors : rateRingColors} className="size-full min-h-0" ariaLabel={`${label} ${rate.toFixed(2)}%`} />
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+        <strong className="whitespace-nowrap text-xs font-medium tabular-nums">{rate.toFixed(2)}%</strong>
+      </div>
     </div>
+    <span className="whitespace-nowrap text-xs text-muted-foreground" aria-hidden="true">{label}</span>
   </div>
 }
 
@@ -66,7 +73,7 @@ function MonitorAlertSelect({ value, onChange }: { value: WaybillAlert[]; onChan
   />
 }
 
-export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertType }: { onBack: () => void; initialDriverId?: string | null; initialAlertType?: WaybillAlert | null }) {
+export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertType, initialViewMode }: { onBack: () => void; initialDriverId?: string | null; initialAlertType?: WaybillAlert | null; initialViewMode?: MonitorViewMode }) {
   const initialDriver = monitorDrivers.some((driver) => driver.id === initialDriverId) ? initialDriverId! : "all"
   const initialQuery: MonitorQuery = { ...emptyMonitorQuery, alerts: initialAlertType ? [initialAlertType] : [] }
   const [driverId, setDriverId] = useState(initialDriver)
@@ -80,7 +87,12 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<{ id: string; revision: number } | null>(null)
   const [mobileView, setMobileView] = useState("list")
-  const [dialog, setDialog] = useState<{ row: MonitorWaybill; tab: "details" | "pod" } | null>(null)
+  const startingViewMode = initialViewMode ?? (initialAlertType ? "waybill" : "map")
+  const [viewMode, setViewMode] = useState<MonitorViewMode>(startingViewMode)
+  const [mapMounted, setMapMounted] = useState(startingViewMode === "map")
+  const driverFilters = useDeliveryDriverFilters(monitorDrivers)
+  const driverScrollRef = useRef<HTMLDivElement>(null)
+  const [dialog, setDialog] = useState<{ row: MonitorWaybill; tab: "details" | "pod"; photoId?: string } | null>(null)
   const [addresses, setAddresses] = useState<Record<string, string>>({})
   const [addressBusy, setAddressBusy] = useState<string[]>([])
   const [queryBusy, setQueryBusy] = useState(false)
@@ -89,6 +101,8 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const markerSelection = useRef(false)
+  const viewScroll = useRef<Partial<Record<MonitorViewMode, { top: number; selectedId: string | null }>>>({})
+  const restoreViewScroll = useRef(false)
 
   const scopedDrivers = useMemo(() => driverId === "all" ? monitorDrivers : monitorDrivers.filter((driver) => driver.id === driverId), [driverId])
   const scopedRows = useMemo(() => driverId === "all" ? monitorWaybills : monitorWaybills.filter((row) => row.driverId === driverId), [driverId])
@@ -96,6 +110,36 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
   const filtered = useMemo(() => filterMonitorWaybills(scopedRows, query, addressMatches, sort), [scopedRows, query, addressMatches, sort])
   const visibleRows = filtered.slice(0, visibleCount)
   const selectedDriver = driverId === "all" ? null : scopedDrivers[0]
+  const matchingDrivers = driverFilters.visibleDrivers
+
+  useEffect(() => {
+    if (!restoreViewScroll.current) return
+    const frame = requestAnimationFrame(() => {
+      const list = scrollRef.current
+      if (!list) return
+      const saved = viewScroll.current[viewMode]
+      const card = selectedId ? document.getElementById(`map-waybill-${selectedId}`) : null
+      list.scrollTop = card && saved?.selectedId !== selectedId
+        ? list.scrollTop + card.getBoundingClientRect().top - list.getBoundingClientRect().top - 8
+        : saved?.top ?? 0
+      restoreViewScroll.current = false
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [viewMode, selectedId])
+
+  function changeViewMode(nextMode: MonitorViewMode) {
+    if (nextMode === viewMode) return
+    viewScroll.current[viewMode] = { top: scrollRef.current?.scrollTop ?? 0, selectedId }
+    restoreViewScroll.current = true
+    if (nextMode === "map") {
+      setMapMounted(true)
+      if (selectedId && showWaybills && driverId !== "all" && viewScroll.current.map?.selectedId !== selectedId) {
+        setFocusRequest((current) => ({ id: selectedId, revision: (current?.revision ?? 0) + 1 }))
+      }
+    }
+    setViewMode(nextMode)
+    setMobileView("list")
+  }
 
   useEffect(() => {
     const root = scrollRef.current
@@ -106,7 +150,7 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
     }, { root, rootMargin: "0px 0px 240px 0px" })
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [filtered.length, visibleCount, mobileView])
+  }, [filtered.length, visibleCount, mobileView, viewMode])
 
   useEffect(() => {
     const requests = addressRequests.current
@@ -127,9 +171,10 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
     return () => cancelAnimationFrame(frame)
   }, [visibleCount, selectedId, mobileView])
 
-  function clearSelection() { setSelectedId(null); setFocusRequest(null); markerSelection.current = false; setVisibleCount(waybillBatchSize); scrollRef.current?.scrollTo({ top: 0 }) }
+  function clearSelection() { setSelectedId(null); setFocusRequest(null); markerSelection.current = false; viewScroll.current = {}; setVisibleCount(waybillBatchSize); scrollRef.current?.scrollTo({ top: 0 }) }
 
   function changeDriver(nextId: string) {
+    if (nextId === driverId) { setMobileView("list"); return }
     const url = new URL(window.location.href)
     if (nextId === "all") url.searchParams.delete("driverId")
     else url.searchParams.set("driverId", nextId)
@@ -138,7 +183,7 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
     addressRequests.current.forEach((controller) => controller.abort())
     addressRequests.current.clear()
     setAddressBusy([]); setQueryBusy(false); setAddresses({})
-    setDriverId(nextId); setShowWaybills(nextId !== "all"); clearSelection()
+    setDriverId(nextId); setShowWaybills(nextId !== "all"); setMobileView("list"); clearSelection()
   }
 
   function syncAlertType(alerts: WaybillAlert[]) {
@@ -211,42 +256,87 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
 
   function selectCard(row: MonitorWaybill) {
     setSelectedId(row.id)
-    if (showWaybills && driverId !== "all") {
+    if (viewMode === "map" && showWaybills && driverId !== "all") {
       if (!waybillCoordinate(row)) { toast.info("该运单暂无有效坐标"); return }
       setFocusRequest((current) => ({ id: row.id, revision: (current?.revision ?? 0) + 1 }))
     }
   }
 
+  function viewDriverDetail(nextId: string, alertType?: WaybillAlert) {
+    changeDriver(nextId)
+    if (!alertType) { changeViewMode("map"); setMobileView("map"); return }
+    const nextQuery = { ...emptyMonitorQuery, alerts: [alertType] }
+    queryRequest.current?.abort()
+    setQueryBusy(false)
+    setDraft(nextQuery); setQuery(nextQuery); setAddressMatches(null); syncAlertType(nextQuery.alerts); clearSelection()
+    changeViewMode("waybill")
+  }
+
   return <div className="delivery-monitor-page flex min-w-0 flex-col gap-3" data-testid="driver-monitor-detail">
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3"><Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button><h1 className="min-w-0 break-words text-xl font-semibold">司机监控地图{selectedDriver ? ` - ${selectedDriver.name}` : ""}</h1></div>
-      <div className="flex flex-wrap items-center gap-2"><Field orientation="horizontal" className="w-auto"><FieldLabel htmlFor="monitor-map-driver">司机</FieldLabel><Select value={driverId} onValueChange={changeDriver}><SelectTrigger id="monitor-map-driver" className="w-48 border-brand"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">全部司机（{monitorDrivers.length}）</SelectItem>{monitorDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>{selectedDriver && selectedDriver.status !== "派送正常" ? <DriverDeliveryStatusBadge status={selectedDriver.status} latestAction={selectedDriver.latestAction} latestActionAt={selectedDriver.latestActionAt} /> : null}</div>
+      <div className="flex min-w-0 items-center gap-3"><Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button><h1 className="min-w-0 break-words text-xl font-semibold">司机监控{selectedDriver ? ` - ${selectedDriver.name}` : ""}</h1></div>
+      <div className="flex flex-wrap items-center gap-2"><ToggleGroup type="single" variant="outline" value={viewMode} onValueChange={(value) => { if (value) changeViewMode(value as MonitorViewMode) }} aria-label="司机监控视图"><ToggleGroupItem value="waybill"><ListIcon />运单视图</ToggleGroupItem><ToggleGroupItem value="map"><MapIcon />地图视图</ToggleGroupItem></ToggleGroup>{viewMode === "map" && <Field orientation="horizontal" className="w-auto"><FieldLabel htmlFor="monitor-map-driver">司机</FieldLabel><Select value={driverId} onValueChange={changeDriver}><SelectTrigger id="monitor-map-driver" className="w-48 border-brand"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">全部司机（{monitorDrivers.length}）</SelectItem>{monitorDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>}{viewMode === "map" && selectedDriver && selectedDriver.status !== "派送正常" ? <DriverDeliveryStatusBadge status={selectedDriver.status} latestAction={selectedDriver.latestAction} latestActionAt={selectedDriver.latestActionAt} /> : null}</div>
     </div>
-    <section className="grid min-w-0 shrink-0 auto-cols-max grid-flow-col justify-between gap-3 overflow-x-auto rounded-lg border bg-card p-4 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none" aria-label="司机派送指标汇总" tabIndex={0}>
-      {[
-        { label: "应派件", value: summary.total },
-        { label: "已签收", value: summary.delivered, alerts: [{ label: "POD 不合规", value: summary.pod }, { label: "妥投位置异常", value: summary.location }] },
-        { label: "派送异常", value: summary.exception, alerts: [{ label: "虚假问题件", value: summary.fake }] },
-        { label: "待派件", value: summary.pending },
-        { label: "妥投率", value: `${summary.deliveredRate.toFixed(2)}%`, progress: summary.deliveredRate, tooltip: "已签收 ÷ 应派件" },
-        { label: "日清率", value: `${summary.clearanceRate.toFixed(2)}%`, progress: summary.clearanceRate, tooltip: "（已签收 + 派送异常）÷ 应派件" },
-      ].map((item) => <div key={item.label} className="flex min-w-0 flex-col justify-center gap-1 px-2" title={item.tooltip}>
-        {item.progress !== undefined ? <MonitorRateRing value={item.progress} label={item.label} /> : <>
-        <span className="text-xs text-muted-foreground">{item.label}</span>
-        <div className="flex min-h-10 min-w-0 items-center gap-3">
-          <strong className="shrink-0 whitespace-nowrap text-2xl font-medium tabular-nums">{item.value}</strong>
-          {item.alerts?.some((alert) => alert.value > 0) && <div className="flex shrink-0 flex-col items-start text-xs leading-5">
-            {item.alerts.filter((alert) => alert.value > 0).map((alert) => <span key={alert.label} className="shrink-0 whitespace-nowrap text-destructive">{alert.label} {alert.value}</span>)}
-          </div>}
+    <section className="min-w-0 shrink-0 overflow-x-auto rounded-lg border bg-card px-4 py-2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none" aria-label="司机派送指标汇总" tabIndex={0}>
+      <div className="flex w-full min-w-max items-center gap-4">
+      <div className="flex h-24 min-w-28 shrink-0 flex-col items-start justify-center gap-1 py-3 pl-3">
+        <span className="text-xs text-muted-foreground">应派件</span>
+        <div className="flex min-h-10 items-center gap-3">
+          <strong className="whitespace-nowrap text-2xl font-medium tabular-nums">{summary.total}</strong>
+          <span className="monitor-current-source-bubble flex items-center gap-2 whitespace-nowrap px-3 py-1.5 text-xs" title="2400妥投率的分母为当期应派件量">
+            <span className="text-muted-foreground">当期应派</span>
+            <span className="font-medium tabular-nums">{summary.currentExpected.toLocaleString("en-US")}</span>
+          </span>
         </div>
-        </>}
+      </div>
+      <div role="group" aria-label="派件结果" className="grid h-24 min-w-max flex-1 auto-cols-auto grid-flow-col items-center gap-6 rounded-md bg-muted/60 px-4 py-3">
+        {[
+          { status: "delivered", label: "已签收", value: summary.delivered, alerts: [{ label: "POD 不合规", value: summary.pod }, { label: "妥投位置异常", value: summary.location }] },
+          { status: "exception", label: "派送异常", value: summary.exception, alerts: [{ label: "虚假问题件", value: summary.fake }] },
+          { status: "nonstandard_return", label: "非标退回", value: summary.nonStandardReturn },
+          { status: "pending", label: "待派件", value: summary.pending },
+        ].map((item) => <div key={item.status} className="flex min-w-20 flex-col items-start gap-1 pl-3.5 text-left">
+          <span className="relative whitespace-nowrap text-xs text-muted-foreground">
+            <i aria-hidden="true" className="delivery-status-dot absolute -left-3.5 top-1/2 -translate-y-1/2" data-status={item.status} />
+            {item.label}
+          </span>
+          <div className="flex min-h-10 items-center gap-3">
+            <strong className="shrink-0 whitespace-nowrap text-2xl font-medium tabular-nums">{item.value}</strong>
+            {item.alerts?.some((alert) => alert.value > 0) && <div className="flex shrink-0 flex-col items-start text-xs leading-5">
+              {item.alerts.filter((alert) => alert.value > 0).map((alert) => <span key={alert.label} className="whitespace-nowrap text-destructive">{alert.label} {alert.value}</span>)}
+            </div>}
+          </div>
+        </div>)}
+      </div>
+      <div className="flex shrink-0 items-center gap-4">
+      {[
+        { label: "2400妥投率", progress: summary.delivered2400Rate, tooltip: `当期已签收 ${summary.currentDelivered.toLocaleString("en-US")} 件 ÷ 当期应派 ${summary.currentExpected.toLocaleString("en-US")} 件（分母）` },
+        { label: "妥投率", progress: summary.deliveredRate, tooltip: "已签收 ÷ 应派件" },
+        { label: "日清率", progress: summary.clearanceRate, isClearance: true, tooltip: "（已签收 + 派送异常）÷ 应派件" },
+      ].map((item) => <div key={item.label} className="shrink-0" title={item.tooltip}>
+        <MonitorRateRing value={item.progress} label={item.label} isClearance={item.isClearance} />
       </div>)}
+      </div>
+      </div>
     </section>
-    <ToggleGroup type="single" variant="outline" value={mobileView} onValueChange={(value) => { if (value) setMobileView(value) }} className="lg:hidden" aria-label="切换运单列表与地图"><ToggleGroupItem value="list"><ListIcon className="size-4" />运单列表</ToggleGroupItem><ToggleGroupItem value="map"><MapIcon className="size-4" />地图</ToggleGroupItem></ToggleGroup>
-    <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[28rem_minmax(0,1fr)]">
-      <section className={cn("flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card", mobileView === "map" && "hidden lg:flex")} aria-label="运单明细列表">
-        <form className="flex shrink-0 flex-col gap-3 border-b p-3" onSubmit={(event) => { event.preventDefault(); void submitQuery() }}>
-          <FieldGroup className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
+    <ToggleGroup type="single" variant="outline" value={mobileView} onValueChange={(value) => { if (value) setMobileView(value) }} className="lg:hidden" aria-label="选择监控区域">
+      {viewMode === "waybill" && <ToggleGroupItem value="drivers">司机列表</ToggleGroupItem>}
+      <ToggleGroupItem value="list">运单列表</ToggleGroupItem>
+      {viewMode === "map" && <ToggleGroupItem value="map">地图</ToggleGroupItem>}
+    </ToggleGroup>
+    <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[28rem_minmax(0,1fr)]" data-view={viewMode}>
+      <section className={cn("min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card", viewMode === "waybill" ? mobileView === "drivers" ? "flex" : "hidden lg:flex" : "hidden")} aria-label="司机列表">
+        <div className="flex shrink-0 flex-col gap-3 border-b p-3">
+          <DeliveryDriverFilters filters={driverFilters} drivers={monitorDrivers} idPrefix="monitor-driver" compact showQuickStatuses={false} onResultsChange={() => driverScrollRef.current?.scrollTo({ top: 0 })} />
+        </div>
+        <div ref={driverScrollRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 max-lg:max-h-[65dvh]">
+          <DeliveryDriverCardGroup>{matchingDrivers.map((driver) => <DeliveryDriverCard key={driver.id} variant="compact" driver={driver} selected={driver.id === driverId} onSelect={() => changeDriver(driver.id)} onViewDetail={(alertType) => viewDriverDetail(driver.id, alertType)} />)}</DeliveryDriverCardGroup>
+          {!matchingDrivers.length && <Empty><EmptyHeader><EmptyTitle>暂无匹配司机</EmptyTitle><EmptyDescription>请调整司机姓名或异常状态。</EmptyDescription></EmptyHeader><Button variant="outline" size="sm" onClick={driverFilters.resetFilters}>重置司机筛选</Button></Empty>}
+        </div>
+      </section>
+      <section className={cn("min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card", mobileView === "list" ? "flex" : "hidden lg:flex")} aria-label="运单明细列表">
+        <form className="@container/waybill-query flex shrink-0 flex-col gap-3 border-b p-3" onSubmit={(event) => { event.preventDefault(); void submitQuery() }}>
+          <FieldGroup className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_8rem] @min-[600px]/waybill-query:grid-cols-[minmax(0,1fr)_8rem_minmax(8rem,0.65fr)]">
             <Field>
               <FieldLabel htmlFor="map-waybill-query" className="sr-only">查询内容</FieldLabel>
               <InputGroup>
@@ -257,7 +347,7 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
               </InputGroup>
             </Field>
             <Field><FieldLabel className="sr-only">派件状态</FieldLabel><MonitorSelect label="派件状态" value={draft.status} onChange={(value) => setDraft((current) => ({ ...current, status: value }))} options={[["all", "全部派件状态"], ...Object.entries(statusLabels)]} /></Field>
-            <Field className="sm:col-span-2 sm:w-[calc(50%-0.25rem)]"><FieldLabel className="sr-only">异常状态</FieldLabel><MonitorAlertSelect value={draft.alerts} onChange={(alerts) => setDraft((current) => ({ ...current, alerts }))} /></Field>
+            <Field className="sm:col-span-2 sm:w-[calc(50%-0.25rem)] @min-[600px]/waybill-query:col-span-1 @min-[600px]/waybill-query:w-full"><FieldLabel className="sr-only">异常状态</FieldLabel><MonitorAlertSelect value={draft.alerts} onChange={(alerts) => setDraft((current) => ({ ...current, alerts }))} /></Field>
           </FieldGroup>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <DropdownMenu>
@@ -278,13 +368,22 @@ export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertT
           </div>
         </form>
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-3 max-lg:max-h-[65dvh]" aria-busy={queryBusy}>
-          <div className="flex flex-col gap-2">{visibleRows.map((row) => <MonitorWaybillCard key={row.id} row={row} driver={monitorDrivers.find((driver) => driver.id === row.driverId)!} selected={row.id === selectedId} address={addresses[row.id]} addressLoading={addressBusy.includes(row.id)} onAddress={() => void toggleAddress(row.id)} onSelect={() => selectCard(row)} onDetail={() => setDialog({ row, tab: "details" })} onPod={() => setDialog({ row, tab: "pod" })} />)}</div>
+          <div className="flex flex-col gap-3">{visibleRows.map((row) => <MonitorWaybillCard
+            key={row.id} row={row} driver={monitorDrivers.find((driver) => driver.id === row.driverId)!}
+            layout={viewMode === "waybill" ? "list" : "map"} selected={row.id === selectedId}
+            address={addresses[row.id]} addressLoading={addressBusy.includes(row.id)}
+            onAddress={() => void toggleAddress(row.id)} onSelect={() => selectCard(row)}
+            onDetail={() => { setSelectedId(row.id); setDialog({ row, tab: "details" }) }}
+            onPod={() => { setSelectedId(row.id); setDialog({ row, tab: "pod" }) }}
+            selectable
+            media={viewMode === "waybill" ? <WaybillPodMedia row={row} onOpen={(photoId) => { setSelectedId(row.id); setDialog({ row, tab: "pod", photoId }) }} /> : undefined}
+          />)}</div>
           {visibleCount < filtered.length && <div ref={loadMoreRef} className="h-px" aria-hidden="true" />}
           {!filtered.length && <Empty><EmptyHeader><EmptyMedia variant="icon"><PackageSearchIcon /></EmptyMedia><EmptyTitle>暂无匹配运单</EmptyTitle><EmptyDescription>请调整查询内容或派件、异常状态组合。</EmptyDescription></EmptyHeader><Button variant="outline" size="sm" onClick={resetQuery}>重置查询</Button></Empty>}
         </div>
       </section>
-      <div className={cn("min-h-0 min-w-0 max-lg:h-[65dvh]", mobileView === "list" && "hidden lg:block")}><DeliveryTaskMap drivers={scopedDrivers} waybills={filtered} showWaybills={showWaybills} onShowWaybills={toggleWaybills} selectedId={selectedId} focusRequest={focusRequest} onSelect={selectMarker} /></div>
+      <div className={cn("min-h-0 min-w-0 max-lg:h-[65dvh]", viewMode === "waybill" ? "hidden" : mobileView === "list" ? "hidden lg:block" : "block")}>{mapMounted && <DeliveryTaskMap drivers={scopedDrivers} waybills={filtered} showWaybills={showWaybills} onShowWaybills={toggleWaybills} selectedId={selectedId} focusRequest={focusRequest} onSelect={selectMarker} />}</div>
     </div>
-    <MonitorWaybillOverlay row={dialog?.row ?? null} driver={monitorDrivers.find((driver) => driver.id === dialog?.row.driverId)} initialTab={dialog?.tab ?? "details"} address={dialog ? addresses[dialog.row.id] : undefined} onClose={() => setDialog(null)} />
+    <MonitorWaybillOverlay row={dialog?.row ?? null} driver={monitorDrivers.find((driver) => driver.id === dialog?.row.driverId)} initialTab={dialog?.tab ?? "details"} initialPhotoId={dialog?.photoId} address={dialog ? addresses[dialog.row.id] : undefined} onClose={() => setDialog(null)} />
   </div>
 }

@@ -107,6 +107,7 @@ export function EChartsChart({
   gradientDirection = "horizontal",
   dataColors,
   ariaLabel = "数据图表",
+  focusTooltip,
 }: {
   option: EChartsOption
   className?: string
@@ -118,8 +119,16 @@ export function EChartsChart({
   gradientDirection?: "horizontal" | "vertical"
   dataColors?: Array<Array<string | null> | null>
   ariaLabel?: string
+  focusTooltip?: { seriesIndex?: number; dataIndex?: number }
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<echarts.ECharts | null>(null)
+  const showFocusTooltip = () => {
+    if (!focusTooltip) return
+    window.requestAnimationFrame(() => {
+      chartRef.current?.dispatchAction({ type: "showTip", seriesIndex: focusTooltip.seriesIndex ?? 0, dataIndex: focusTooltip.dataIndex ?? 0 })
+    })
+  }
 
   useEffect(() => {
     const container = containerRef.current
@@ -192,6 +201,7 @@ export function EChartsChart({
       if (chart || !isIntersecting || container.clientWidth === 0 || container.clientHeight === 0) return
 
       chart = echarts.init(container, theme)
+      chartRef.current = chart
       setChartOption()
       if (onChartClick) chart.on("click", onChartClick)
     }
@@ -214,6 +224,7 @@ export function EChartsChart({
       resizeObserver.disconnect()
       intersectionObserver.disconnect()
       chart?.dispose()
+      chartRef.current = null
     }
   }, [colors, dataColors, gradientDirection, labelColors, onChartClick, option, seriesColors, seriesGradients])
 
@@ -223,6 +234,10 @@ export function EChartsChart({
       className={cn("h-72 min-h-64 w-full", className)}
       role="img"
       aria-label={ariaLabel}
+      tabIndex={focusTooltip ? 0 : undefined}
+      onFocus={showFocusTooltip}
+      onClick={showFocusTooltip}
+      onBlur={() => chartRef.current?.dispatchAction({ type: "hideTip" })}
     />
   )
 }

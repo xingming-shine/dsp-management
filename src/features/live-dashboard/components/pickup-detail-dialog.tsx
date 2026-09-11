@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
-import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { WaybillWorkspace, useWaybillSelection } from "@/features/live-dashboard/components/waybill-workspace"
 import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 import { cn } from "@/lib/utils"
 import { formatDate, formatTime } from "@/lib/date-time"
@@ -473,7 +473,7 @@ export function PickupDetailView({ onBack, period = "current", initialDriverId }
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [waybillSortKey, setWaybillSortKey] = useState<PickupWaybillSortKey | null>(null)
   const [waybillSortDirection, setWaybillSortDirection] = useState<SortDirection>("asc")
-  const [selectedWaybill, setSelectedWaybill] = useState<PickupWaybillRow | null>(null)
+  const [selectedWaybill, setSelectedWaybill] = useWaybillSelection<PickupWaybillRow>()
   const [contactDriver, setContactDriver] = useState<PickupDriverRow | null>(null)
 
   const filteredDriverRows = useMemo(() => {
@@ -749,6 +749,7 @@ export function PickupDetailView({ onBack, period = "current", initialDriverId }
 
   return (
     <>
+      <WaybillWorkspace rows={filteredWaybillRows} selected={selectedWaybill} onSelect={setSelectedWaybill} pageSize={waybillPageSize} onPageChange={setWaybillPage} scene={submittedWaybillPickupStatuses.length > 0 && !submittedWaybillPickupStatuses.includes("已领件") ? "uncollected" : "pickup"} title="领件运单">
       <section
         className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 duration-200"
         aria-label="领件详情下钻"
@@ -1025,16 +1026,11 @@ export function PickupDetailView({ onBack, period = "current", initialDriverId }
           </Tabs>
       </section>
 
+      </WaybillWorkspace>
       <ContactDriverDialog
         driver={contactDriver}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setContactDriver(null)
-        }}
-      />
-      <WaybillDetailSheet
-        row={selectedWaybill}
-        onOpenChange={(open) => {
-          if (!open) setSelectedWaybill(null)
         }}
       />
     </>

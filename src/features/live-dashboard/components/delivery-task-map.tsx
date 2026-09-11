@@ -192,7 +192,7 @@ export function DeliveryTaskMap({ drivers, waybills, showWaybills, onShowWaybill
       {runtime && singleDriver && showWaybills && waybills.map((row) => {
         const point = waybillCoordinate(row)
         const number = row.deliveryNumber.replace(/^B/, "")
-        return point ? <MapMarker key={row.id} runtime={runtime} coordinate={point} selected={row.id === selectedId}><button type="button" className="delivery-waybill-marker" data-status={row.status} data-selected={row.id === selectedId} aria-label={`编号 ${number} ${statusLabels[row.status]} ${row.id}`} aria-pressed={row.id === selectedId} title={`${row.id} · ${statusLabels[row.status]}${!row.collectedPosition && row.status !== "pending" ? " · 收件地址定位" : ""}`} onClick={(event) => { replayWaybillSelection(event.currentTarget); onSelect(row.id) }}>
+        return point ? <MapMarker key={row.id} runtime={runtime} coordinate={point} selected={row.id === selectedId}><button type="button" className="delivery-waybill-marker" data-status={row.status} data-selected={row.id === selectedId} aria-label={`编号 ${number} ${statusLabels[row.status]} ${row.id}${row.status === "nonstandard_return" ? "，标记位置为收件地址" : ""}`} aria-pressed={row.id === selectedId} title={`${row.id} · ${statusLabels[row.status]}${row.status === "nonstandard_return" || (!row.collectedPosition && row.status !== "pending") ? " · 标记位置：收件地址" : ""}`} onClick={(event) => { replayWaybillSelection(event.currentTarget); onSelect(row.id) }}>
           <span>{number}</span>
           <span className="delivery-waybill-ground-shadow" aria-hidden="true" />
           <svg className="delivery-waybill-pin" viewBox="0 0 32 44" aria-hidden="true">

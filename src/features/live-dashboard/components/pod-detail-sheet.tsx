@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react"
 import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, ImageIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -53,7 +53,7 @@ function Thumbnails({ photos, selected, onSelect, label }: { photos: PodPhoto[];
   </ToggleGroup>
 }
 
-export function PodDetailSheet({ row, address, onClose, initialPhotoId }: { row: MonitorWaybill; address?: string; onClose: () => void; initialPhotoId?: string }) {
+export function PodDetailSheet({ row, address, onClose, initialPhotoId, embedded = false }: { row: MonitorWaybill; address?: string; onClose: () => void; initialPhotoId?: string; embedded?: boolean }) {
   const record = getDemoPodRecord(row)
   const [submissionId, setSubmissionId] = useState(record.latestSubmissionId)
   const [selected, setSelected] = useState(record.photos.find((photo) => photo.id === initialPhotoId)?.id ?? record.photos[0]?.id ?? "")
@@ -104,7 +104,7 @@ export function PodDetailSheet({ row, address, onClose, initialPhotoId }: { row:
   }
 
   return <Sheet open onOpenChange={(open) => { if (!open) onClose() }}>
-    <SheetContent side="right" className="pod-detail-sheet gap-0 p-0" showCloseButton={false}
+    <PodDetailSurface embedded={embedded} side="right" className="pod-detail-sheet gap-0 p-0" showCloseButton={false}
       onOpenAutoFocus={(event) => { event.preventDefault(); openerRef.current = document.activeElement as HTMLElement | null; closeRef.current?.focus() }}
       onCloseAutoFocus={(event) => { event.preventDefault(); openerRef.current?.focus({ preventScroll: true }) }}>
       <SheetHeader className="shrink-0 flex-row items-center justify-between gap-3 border-b px-6 py-4 sm:px-10">
@@ -112,7 +112,7 @@ export function PodDetailSheet({ row, address, onClose, initialPhotoId }: { row:
           <SheetTitle className="min-w-0 break-all">{row.id}</SheetTitle>
           <Button variant="ghost" size="icon-sm" className="pod-header-action" aria-label="复制运单号" onClick={() => void copyNumber()}><CopyIcon /></Button>
         </div><SheetDescription className="sr-only">查看签收信息、POD 图片和审核记录</SheetDescription></div>
-        <SheetClose asChild><Button ref={closeRef} variant="ghost" size="icon-sm" className="pod-header-action" aria-label="关闭 POD 抽屉"><XIcon /></Button></SheetClose>
+        <SheetClose asChild><Button ref={closeRef} variant="ghost" size="icon-sm" className="pod-header-action" aria-label={embedded ? "关闭 POD 详情" : "关闭 POD 抽屉"}><XIcon /></Button></SheetClose>
       </SheetHeader>
       <div className="pod-detail-body">
         <aside className="pod-detail-info flex min-w-0 flex-col gap-5 px-6 py-4 sm:px-10 sm:py-5" aria-label="POD 签收信息与审核记录">
@@ -156,6 +156,11 @@ export function PodDetailSheet({ row, address, onClose, initialPhotoId }: { row:
           </div>
         </section>
       </div>
-    </SheetContent>
+    </PodDetailSurface>
   </Sheet>
+}
+
+function PodDetailSurface({ embedded, children, ...props }: ComponentProps<typeof SheetContent> & { embedded: boolean }) {
+  if (embedded) return <div className="pod-detail-sheet pod-detail-embedded flex h-full min-h-0 min-w-0 flex-col">{children}</div>
+  return <SheetContent {...props}>{children}</SheetContent>
 }

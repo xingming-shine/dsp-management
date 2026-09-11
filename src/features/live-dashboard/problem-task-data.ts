@@ -45,7 +45,7 @@ function createProblemTask(waybill: MonitorWaybill, index: number, status: Probl
     responsibleOrg: "LAV-FUS",
     currentOrg: "LAV-FUS",
     driver: driver.name,
-    route: driver.route,
+    route: waybill.route ?? "—",
     latestAction: status === "处理中" ? "已接收处理指令" : index % 2 ? "下发处理指令" : "转交 DSP 处理",
     actionAt: new Date(Date.parse(reportedAt) + 5 * 60_000).toISOString(),
     operator: status === "处理中" ? driver.name : index % 2 ? "站点客服" : "系统",

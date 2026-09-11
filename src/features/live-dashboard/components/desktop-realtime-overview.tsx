@@ -1,25 +1,22 @@
 "use client"
 
+import { DeliveryDriverFilters, useDeliveryDriverFilters } from "./delivery-driver-filters"
+import { DeliveryDriverCard } from "./delivery-driver-card"
 import { alertMetricGroups } from "../alert-metric-config"
 import { overviewCardsByMode, overviewCardTitles, type OverviewCardId, type OverviewDetailAction, type PickupPeriod } from "../overview-card-config"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
+import type { ReactNode } from "react"
 import type { EChartsOption } from "echarts"
 import {
   ArrowRightIcon,
-  ArrowUpRightIcon,
-  ArrowDownUpIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   ChevronUpIcon,
   ChartNoAxesColumnIcon,
   CircleHelpIcon,
-  CopyIcon,
   PackageCheckIcon,
-  SearchIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,8 +27,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyDescription,
@@ -39,9 +34,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -53,17 +46,14 @@ import {
 } from "@/components/ui/tabs"
 import { EChartsChart } from "@/features/data-cockpit/components/echarts-chart"
 import { DriverLiveMap } from "@/features/live-dashboard/components/driver-live-map"
-import { DriverDeliveryStatusBadge } from "@/features/live-dashboard/components/driver-delivery-status-badge"
 import type { WaybillAlert } from "@/features/live-dashboard/driver-monitor-data"
 import { CurrentPickupMonitor } from "@/features/live-dashboard/components/current-pickup-monitor"
 import { AnimatedSegmentedProgress } from "@/features/live-dashboard/components/animated-segmented-progress"
-import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import {
   createDeliveryDetailKey,
   type DeliveryDetailSource,
 } from "@/features/live-dashboard/components/delivery-detail-view"
 import {
-  assessmentMetrics,
   exceptionReasons,
   realtimeOverview,
   type MonitorView,
@@ -72,52 +62,8 @@ import {
 import { cn } from "@/lib/utils"
 import { formatDate, formatTime } from "@/lib/date-time"
 
-import { driverRows, type RouteDifficulty, type DriverRouteAssignment, type DashboardDriverSnapshot } from "@/features/live-dashboard/driver-rows"
-
-const routeDifficultyLabels: Record<RouteDifficulty, string> = {
-  S: "S级 极难",
-  A: "A级 难",
-  B: "B级 中",
-  C: "C级 易",
-  D: "D级 极易",
-}
-
-const routeDifficultyClassNames: Record<RouteDifficulty, string> = {
-  S: "border-destructive text-destructive",
-  A: "border-destructive/70 text-destructive/80",
-  B: "border-brand text-brand",
-  C: "border-success text-success",
-  D: "border-success/60 text-success/70",
-}
-
-const routeDifficultyTextClassNames: Record<RouteDifficulty, string> = {
-  S: "text-destructive",
-  A: "text-destructive/80",
-  B: "text-brand",
-  C: "text-success",
-  D: "text-success/70",
-}
-
-const driverStatusFilterOptions = [
-  { value: "not-started", label: "未开始派送" },
-  { value: "30min", label: "30min 未派送" },
-  { value: "1h", label: "1h 未派送" },
-  { value: "2h", label: "2h 未派送" },
-  { value: "pod", label: "POD 不合规" },
-  { value: "location", label: "妥投位置异常" },
-  { value: "fake", label: "虚假问题件" },
-] as const
-
-type DriverStatusFilter = (typeof driverStatusFilterOptions)[number]["value"]
-
-const driverSortOptions = [
-  { value: "default", label: "默认排序" },
-  { value: "pending-desc", label: "待派件量 从高到低" },
-  { value: "pending-asc", label: "待派件量 从低到高" },
-  { value: "clearance-desc", label: "日清率 从高到低" },
-  { value: "clearance-asc", label: "日清率 从低到高" },
-] as const
-type DriverSort = (typeof driverSortOptions)[number]["value"]
+import { driverRows } from "@/features/live-dashboard/driver-rows"
+import { calculateDeliveryResultRates } from "@/features/live-dashboard/delivery-result-metrics"
 
 const driverMonitorTabs: Array<{ value: MonitorView; label: string; description: string }> = [
   {
@@ -270,7 +216,7 @@ export function DesktopRealtimeOverview({ mode, onDetail }: { mode: WorkMode; on
       </div>
       <div className="grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] xl:col-span-12">
         <div className="min-w-0">
-          <DriverMonitor selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onViewDriver={(driverId, alertType) => onDetail("司机监控地图", driverId, "current", alertType)} onViewPickup={(driverId, period) => onDetail("领件详情", driverId, period)} />
+          <DriverMonitor selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onViewDriver={(driverId, alertType) => onDetail("司机监控地图", driverId, "current", alertType, "waybill")} onViewPickup={(driverId, period) => onDetail("领件详情", driverId, period)} />
         </div>
         <div className="min-w-0">
           <DriverMapPanel selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onDetail={onDetail} />
@@ -343,6 +289,43 @@ function OverviewCards({ mode, onDetail }: { mode: WorkMode; onDetail: OverviewD
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("en-US").format(value)
+}
+
+function createClearanceTooltip(data: { total: number; pending: number; delivered: number; exception: number; nonStandardReturn: number; clearanceRate: number }) {
+  const rates = calculateDeliveryResultRates({
+    pending: data.pending,
+    delivered: data.delivered,
+    exception: data.exception,
+    nonstandard_return: data.nonStandardReturn,
+  })
+  const rows = [
+    ["已签收", data.delivered, rates.delivered, "--delivery-delivered", ""],
+    ["派送异常", data.exception, rates.exception, "--delivery-exception", ""],
+    ["非标退回", data.nonStandardReturn, rates.nonstandard_return, "--delivery-nonstandard-return", "不计入日清"],
+    ["待派件", data.pending, rates.pending, "--delivery-pending", ""],
+  ] as const
+
+  return <div className="delivery-clearance-tooltip">
+    <strong>派件结果详情</strong>
+    <div className="delivery-clearance-tooltip__row"><span>应派件</span><b>{formatCount(data.total)} 件</b></div>
+    {rows.map(([label, value, rate, token, note]) => <div key={label} className="delivery-clearance-tooltip__row"><span><i style={{ background: `var(${token})` }} />{label}</span><b>{formatCount(value)} 件 · {rate.toFixed(2)}%{note && <small>{note}</small>}</b></div>)}
+    <div className="delivery-clearance-tooltip__summary"><div className="delivery-clearance-tooltip__row"><span>日清率</span><b>{data.clearanceRate.toFixed(2)}%</b></div><p>（已签收 + 派送异常）÷ 应派件</p></div>
+  </div>
+}
+
+function OverviewRateTooltip({ label, children, content }: { label: string; children: ReactNode; content: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return <TooltipProvider><Tooltip open={open} onOpenChange={setOpen}>
+    <TooltipTrigger asChild>
+      <div role="button" tabIndex={0} aria-label={`查看${label}详情`} aria-expanded={open}
+        className="flex w-24 flex-col items-center rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOpen((current) => !current) }}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); setOpen((current) => !current) } }}>
+        {children}
+      </div>
+    </TooltipTrigger>
+    <TooltipContent variant="complex" className="has-[.delivery-clearance-tooltip]:w-fit" onClick={(event) => event.stopPropagation()}>{content}</TooltipContent>
+  </Tooltip></TooltipProvider>
 }
 
 function KpiCardTitle({ order, title }: { order: number; title: string }) {
@@ -525,13 +508,18 @@ function StationHandoffCard({ className, id, order, period, compact = false, pic
 
 function DeliveryOperationCard({ className, order, compact = false, expanded, onToggle, onDetail }: { className?: string; order: number; compact?: boolean; expanded: boolean; onToggle: () => void; onDetail: (title: string) => void }) {
   const data = realtimeOverview.delivery
-  const pod2400 = assessmentMetrics.find((metric) => metric.label === "2400 妥投率")
+  // This fixture snapshot is before midnight: all current-scope deliveries count toward 2400.
+  const delivered2400 = data.scopes.current.delivered
+  const pod2400Rate = data.currentSource > 0 ? delivered2400 / data.currentSource * 100 : 0
+  const deliveryRates = calculateDeliveryResultRates({
+    pending: data.pending,
+    delivered: data.delivered,
+    exception: data.exception,
+    nonstandard_return: data.nonStandardReturn,
+  })
   const clearanceOption: EChartsOption = {
     animationDuration: 320,
-    tooltip: {
-      trigger: "item",
-      valueFormatter: (value) => `${formatCount(Number(value))} 件`,
-    },
+    tooltip: { show: false },
     series: [
       {
         type: "pie",
@@ -545,22 +533,24 @@ function DeliveryOperationCard({ className, order, compact = false, expanded, on
         itemStyle: { borderRadius: 6 },
         emphasis: { scale: false },
         data: [
-          { name: "已签收", value: data.delivered },
-          { name: "派送异常", value: data.exception },
-          { name: "待派件", value: data.pending },
+          { name: "已签收", value: deliveryRates.delivered },
+          { name: "派送异常", value: deliveryRates.exception },
+          { name: "非标退回", value: deliveryRates.nonstandard_return },
+          { name: "待派件", value: deliveryRates.pending },
         ],
       },
     ],
   }
 
   const pod2400Option: EChartsOption = {
+    tooltip: { show: false },
     series: [{
       type: "pie", radius: ["70%", "90%"], center: ["50%", "50%"],
       label: { show: false }, labelLine: { show: false },
       itemStyle: { borderRadius: 6 }, emphasis: { scale: false },
       data: [
-        { name: "2400 内妥投", value: pod2400?.value ?? 0 },
-        { name: "未妥投", value: 100 - (pod2400?.value ?? 0) },
+        { name: "2400 内妥投", value: pod2400Rate },
+        { name: "未妥投", value: 100 - pod2400Rate },
       ],
     }],
   }
@@ -595,17 +585,31 @@ function DeliveryOperationCard({ className, order, compact = false, expanded, on
           </button>
         </div>
         {[
-          { label: "日清率", value: data.clearanceRate, option: clearanceOption, colors: ["--delivery-delivered", "--delivery-exception", "--border"] },
-          ...(pod2400 ? [{ label: "2400妥投率", value: pod2400.value, option: pod2400Option, colors: ["--chart-2", "--border"] }] : []),
+          { label: "日清率", value: data.clearanceRate, option: clearanceOption, colors: ["--delivery-delivered", "--delivery-exception", "--delivery-nonstandard-return", "--delivery-pending"], clearance: true },
+          { label: "2400妥投率", value: pod2400Rate, option: pod2400Option, colors: ["--delivery-delivered", "--border"], clearance: false },
         ].map((metric) => (
           <div key={metric.label} className="flex min-h-28 min-w-0 -translate-y-3 flex-col items-center">
-            <div className="relative size-24 shrink-0">
-              <EChartsChart option={metric.option} colors={metric.colors} className="size-24 min-h-0" ariaLabel={`${metric.label} ${metric.value.toFixed(2)}%`} />
+            <OverviewRateTooltip label={metric.label} content={metric.clearance ? createClearanceTooltip(data) : <>
+              <p className="font-medium">2400妥投率</p>
+              <dl className="grid grid-cols-[minmax(0,1fr)_max-content] items-start gap-x-3 gap-y-2">
+                <dt className="text-muted-foreground">当期应派</dt><dd className="tabular-nums">{formatCount(data.currentSource)} 件</dd>
+                <dt className="text-muted-foreground">当期应派中已签收</dt><dd className="tabular-nums">{formatCount(delivered2400)} 件</dd>
+                <dt className="text-muted-foreground">2400妥投率＝当期应派中已签收／当期应派</dt><dd className="tabular-nums">{pod2400Rate.toFixed(2)}%</dd>
+              </dl>
+            </>}>
+            <div className="pointer-events-none relative size-24 shrink-0">
+              <EChartsChart
+                option={metric.option}
+                colors={metric.colors}
+                className="size-24 min-h-0"
+                ariaLabel={metric.clearance ? `日清率 ${data.clearanceRate.toFixed(2)}%；应派件 ${formatCount(data.total)} 件；已签收 ${formatCount(data.delivered)} 件，占 ${deliveryRates.delivered.toFixed(2)}%；派送异常 ${formatCount(data.exception)} 件，占 ${deliveryRates.exception.toFixed(2)}%；非标退回 ${formatCount(data.nonStandardReturn)} 件，占 ${deliveryRates.nonstandard_return.toFixed(2)}%，不计入日清；待派件 ${formatCount(data.pending)} 件，占 ${deliveryRates.pending.toFixed(2)}%` : `${metric.label} ${metric.value.toFixed(2)}%`}
+              />
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <span className="font-heading text-sm font-medium tabular-nums text-foreground">{metric.value.toFixed(2)}%</span>
               </span>
             </div>
             <span className="text-xs text-muted-foreground">{metric.label}</span>
+            </OverviewRateTooltip>
           </div>
         ))}
       </div>
@@ -1221,15 +1225,12 @@ function EquationMetric({ label, value, tone = "default", onClick }: {
 function DeliveryDetail({ onDetail }: { onDetail: (title: string) => void }) {
   const data = realtimeOverview.delivery
   const [scope, setScope] = useState<DeliveryDetailSource>("all")
-  const scopeTotal = scope === "all" ? data.total : scope === "current" ? data.currentSource : data.historySource
-  const exception = scope === "all" ? data.exception : Math.round(scopeTotal * data.exceptionRate / 100)
-  const pending = scope === "all" ? data.pending : Math.round(scopeTotal * data.pendingRate / 100)
-  const delivered = scopeTotal - pending - exception
-  const deliveredRate = Number((delivered / scopeTotal * 100).toFixed(2))
-  const pendingRate = Number((pending / scopeTotal * 100).toFixed(2))
-  const exceptionRate = Number((exception / scopeTotal * 100).toFixed(2))
+  const scopeData = data.scopes[scope]
+  const { pending, delivered, exception, nonStandardReturn } = scopeData
+  const rates = calculateDeliveryResultRates({ pending, delivered, exception, nonstandard_return: nonStandardReturn })
   const scopeLabel = scope === "all" ? "全部应派件" : scope === "current" ? "当期应派" : "历史未派"
   const openDeliveryDetail = (metric: "expected" | "pending" | "delivered" | "exception") => onDetail(createDeliveryDetailKey(metric, scope))
+  const openNonStandardReturnDetail = () => onDetail(createDeliveryDetailKey("expected", scope, { status: "nonstandard_return", view: "driver" }))
 
   return (
     <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(20rem,1fr)]">
@@ -1248,33 +1249,42 @@ function DeliveryDetail({ onDetail }: { onDetail: (title: string) => void }) {
           </Tabs>
         </div>
 
-        <div className="relative h-[18px] w-full overflow-hidden rounded-full bg-delivery-delivered" role="group" aria-label={`${scopeLabel}派件结果：已签收 ${formatCount(delivered)} 件，派送异常 ${formatCount(exception)} 件，待派件 ${formatCount(pending)} 件`}>
-          <button
-            type="button"
-            className="absolute inset-0 rounded-full bg-delivery-delivered outline-none transition-opacity hover:opacity-85 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
-            aria-label={`查看已签收明细，共 ${formatCount(delivered)} 件`}
-            onClick={() => openDeliveryDetail("delivered")}
+        <div className="relative">
+          <AnimatedSegmentedProgress
+            value={100}
+            className="h-[18px] w-full"
+            ariaLabel={`${scopeLabel}派件结果：已签收 ${formatCount(delivered)} 件，占 ${rates.delivered.toFixed(2)}%；派送异常 ${formatCount(exception)} 件，占 ${rates.exception.toFixed(2)}%；非标退回 ${formatCount(nonStandardReturn)} 件，占 ${rates.nonstandard_return.toFixed(2)}%；待派件 ${formatCount(pending)} 件，占 ${rates.pending.toFixed(2)}%`}
+            segments={[
+              { className: "bg-delivery-delivered", value: rates.delivered },
+              { className: "bg-delivery-exception", value: rates.exception },
+              { className: "bg-delivery-nonstandard-return", value: rates.nonstandard_return },
+              { className: "bg-delivery-pending", value: rates.pending },
+            ]}
           />
-          <button
-            type="button"
-            className="absolute inset-y-0 right-0 rounded-full bg-delivery-exception outline-none transition-opacity hover:opacity-85 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
-            style={{ width: `${pendingRate + exceptionRate}%` }}
-            aria-label={`查看派送异常明细，共 ${formatCount(exception)} 件`}
-            onClick={() => openDeliveryDetail("exception")}
-          />
-          <button
-            type="button"
-            className="absolute inset-y-0 right-0 rounded-full bg-border outline-none transition-opacity hover:opacity-85 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
-            style={{ width: `${pendingRate}%` }}
-            aria-label={`查看待派件明细，共 ${formatCount(pending)} 件`}
-            onClick={() => openDeliveryDetail("pending")}
-          />
+          <div className="absolute inset-0 flex overflow-hidden rounded-full" aria-label="派件结果快捷下钻">
+            {[
+              { label: "已签收", rate: rates.delivered, onClick: () => openDeliveryDetail("delivered") },
+              { label: "派送异常", rate: rates.exception, onClick: () => openDeliveryDetail("exception") },
+              { label: "非标退回", rate: rates.nonstandard_return, onClick: openNonStandardReturnDetail },
+              { label: "待派件", rate: rates.pending, onClick: () => openDeliveryDetail("pending") },
+            ].map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className="h-full shrink-0 bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                style={{ width: `${item.rate}%` }}
+                aria-label={`查看${item.label}明细，占 ${item.rate.toFixed(2)}%`}
+                onClick={item.onClick}
+              />
+            ))}
+          </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          <DeliveryResultMetric label="已签收" value={delivered} rate={deliveredRate} tone="delivered" onClick={() => openDeliveryDetail("delivered")} />
-          <DeliveryResultMetric label="派送异常" value={exception} rate={exceptionRate} tone="exception" onClick={() => openDeliveryDetail("exception")} />
-          <DeliveryResultMetric label="待派件" value={pending} rate={pendingRate} tone="pending" onClick={() => openDeliveryDetail("pending")} />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <DeliveryResultMetric label="已签收" value={delivered} rate={rates.delivered} rateNote={scope === "current" ? "2400妥投率" : undefined} tone="delivered" onClick={() => openDeliveryDetail("delivered")} />
+          <DeliveryResultMetric label="派送异常" value={exception} rate={rates.exception} tone="exception" onClick={() => openDeliveryDetail("exception")} />
+          <DeliveryResultMetric label="非标退回" value={nonStandardReturn} rate={rates.nonstandard_return} tone="nonstandard" onClick={openNonStandardReturnDetail} />
+          <DeliveryResultMetric label="待派件" value={pending} rate={rates.pending} tone="pending" onClick={() => openDeliveryDetail("pending")} />
         </div>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground" aria-label="应派件来源构成">
@@ -1301,7 +1311,7 @@ function DeliveryDetail({ onDetail }: { onDetail: (title: string) => void }) {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1 text-xs font-medium leading-5 text-foreground">
                   <p>应派件 = 当期应派 + 历史未派</p>
-                  <p>应派件 = 待派件 + 已签收 + 派送异常</p>
+                  <p>应派件 = 待派件 + 已签收 + 派送异常 + 非标退回</p>
                 </div>
                 <div className="flex flex-col gap-3 border-l pl-3">
                   <DeliveryDefinition title="当期应派">昨天12:00到今日12:00首次收件的快递。</DeliveryDefinition>
@@ -1317,6 +1327,7 @@ function DeliveryDetail({ onDetail }: { onDetail: (title: string) => void }) {
                   <DeliveryDefinition title="待派件">应派件中还未尝试派送的快递。</DeliveryDefinition>
                   <DeliveryDefinition title="已签收">应派件中完成派送，已签收的快递。</DeliveryDefinition>
                   <DeliveryDefinition title="派送异常">应派件中尝试派送失败，登记派送异常的快递。</DeliveryDefinition>
+                  <DeliveryDefinition title="非标退回">待派件未登记派送异常，直接退回站点的快递；不计入日清率。</DeliveryDefinition>
                 </div>
               </div>
             </div>
@@ -1327,21 +1338,22 @@ function DeliveryDetail({ onDetail }: { onDetail: (title: string) => void }) {
   )
 }
 
-function DeliveryResultMetric({ label, value, rate, tone, onClick }: {
+function DeliveryResultMetric({ label, value, rate, rateNote, tone, onClick }: {
   label: string
   value: number
   rate: number
-  tone: "delivered" | "pending" | "exception"
+  rateNote?: string
+  tone: "delivered" | "pending" | "exception" | "nonstandard"
   onClick: () => void
 }) {
   return (
     <button type="button" className="flex min-w-0 flex-col items-start gap-2 text-left outline-none hover:text-brand focus-visible:ring-1 focus-visible:ring-ring" onClick={onClick}>
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span aria-hidden="true" className={cn("size-2 rounded-sm", tone === "delivered" && "bg-delivery-delivered", tone === "pending" && "bg-border", tone === "exception" && "bg-delivery-exception")} />
+        <span aria-hidden="true" className={cn("size-2 rounded-sm", tone === "delivered" && "bg-delivery-delivered", tone === "pending" && "bg-delivery-pending", tone === "exception" && "bg-delivery-exception", tone === "nonstandard" && "bg-delivery-nonstandard-return")} />
         {label}
       </span>
       <strong className="font-heading text-2xl font-semibold tabular-nums text-foreground">{formatCount(value)}</strong>
-      <span className="text-xs tabular-nums text-muted-foreground">{rate.toFixed(2)}%</span>
+      <span className="text-xs tabular-nums text-muted-foreground">{rate.toFixed(2)}{rateNote ? ` %（${rateNote}）` : "%"}</span>
     </button>
   )
 }
@@ -1557,28 +1569,8 @@ function ExceptionDistribution({ option, onDetail }: { option: EChartsOption; on
 
 function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewPickup }: { selectedDriverId: string | null; onSelectDriver: (driverId: string | null) => void; onViewDriver: (driverId: string, alertType?: WaybillAlert) => void; onViewPickup: (driverId: string, period: PickupPeriod) => void }) {
   const [view, setView] = useState<MonitorView>("delivery")
-  const [query, setQuery] = useState("")
-  const [statusFilters, setStatusFilters] = useState<DriverStatusFilter[]>([])
-  const [sort, setSort] = useState<DriverSort>("default")
-  const sortLabel = driverSortOptions.find((option) => option.value === sort)!.label
-  const visibleDrivers = driverRows.filter((driver) => {
-    const matchesQuery = driver.name.toLowerCase().includes(query.trim().toLowerCase())
-    const matchesStatus = statusFilters.length === 0 || statusFilters.some((filter) => {
-      if (filter === "not-started") return driver.status === "未开始派送"
-      if (filter === "30min" || filter === "1h" || filter === "2h") return driver.status.startsWith(filter)
-      if (filter === "pod") return Boolean(driver.podIssues)
-      if (filter === "location") return Boolean(driver.locationIssues)
-      return Boolean(driver.fakeIssues)
-    })
-    return matchesQuery && matchesStatus
-  }).sort((a, b) => {
-    if (sort === "default") return 0
-    const value = (driver: DashboardDriverSnapshot) => sort.startsWith("pending")
-      ? driver.pending
-      : driver.total > 0 ? (driver.delivered + driver.exception) / driver.total : 0
-    return sort.endsWith("asc") ? value(a) - value(b) : value(b) - value(a)
-  })
-  function resetFilters() { setQuery(""); setStatusFilters([]); setSort("default"); toast.success("筛选条件已重置") }
+  const filters = useDeliveryDriverFilters(driverRows)
+  const { visibleDrivers } = filters
 
   useEffect(() => {
     if (!selectedDriverId) return
@@ -1593,67 +1585,27 @@ function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewP
           <TooltipProvider>
             <TabsList variant="line" className="grid w-full grid-cols-3">
               {driverMonitorTabs.map((tab) => (
-                <div key={tab.value} className="flex min-w-0 items-center justify-center">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                <Tooltip key={tab.value}>
+                  {/* Keep Tooltip's data-state off the Tab's active-state element. */}
+                  <TooltipTrigger asChild>
+                    <div className="flex min-w-0 items-center justify-center">
                       <TabsTrigger value={tab.value} className="flex-none">
                         {tab.label}
                         <CircleHelpIcon aria-hidden="true" className="text-muted-foreground" />
                       </TabsTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>{tab.description}</TooltipContent>
-                  </Tooltip>
-                </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{tab.description}</TooltipContent>
+                </Tooltip>
               ))}
             </TabsList>
           </TooltipProvider>
           <TabsContent value="delivery" className="flex flex-col gap-3 rounded-lg bg-muted/30 p-3">
-            <DriverSummary onQueryStatus={(status) => setStatusFilters([status])} />
-            <div className="grid gap-2 lg:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1fr)_auto_auto]">
-              <Field>
-                <FieldLabel htmlFor="driver-search" className="sr-only">司机姓名</FieldLabel>
-                <div className="relative">
-                  <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="driver-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="请输入司机的名字" className="pl-9" />
-                </div>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="driver-status-filter" className="sr-only">异常状态筛选</FieldLabel>
-                <StatusMultiSelect
-                  id="driver-status-filter"
-                  ariaLabel="异常状态筛选"
-                  options={driverStatusFilterOptions.map((option) => option.value)}
-                  value={statusFilters}
-                  getOptionLabel={(value) => driverStatusFilterOptions.find((option) => option.value === value)?.label ?? value}
-                  maxVisible={1}
-                  emptyLabel="全部异常状态"
-                  onValueChange={setStatusFilters}
-                />
-              </Field>
-              <Button onClick={() => toast.success(`查询到 ${visibleDrivers.length} 名司机`)}>查询</Button>
-              <Button variant="outline" onClick={resetFilters}>重置</Button>
-            </div>
-            <div className="-my-1 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="xs" aria-label={`司机排序：${sortLabel}`} title={sortLabel}>
-                    <ArrowDownUpIcon data-icon="inline-start" className={cn(sort !== "default" && "text-brand")} />{sortLabel}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52">
-                  <DropdownMenuGroup>
-                    <DropdownMenuRadioGroup value={sort} onValueChange={(value) => setSort(value as DriverSort)}>
-                      {driverSortOptions.map((option) => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <span>共 {visibleDrivers.length} 名司机</span>
-            </div>
+            <DeliveryDriverFilters filters={filters} drivers={driverRows} idPrefix="driver" />
             <ScrollArea className="h-[40rem] rounded-lg">
               <div className="flex flex-col gap-2 pr-3">
                 {visibleDrivers.map((driver) => (
-                  <CompactDriverRow
+                  <DeliveryDriverCard
                     key={driver.id}
                     driver={driver}
                     selected={driver.id === selectedDriverId}
@@ -1670,308 +1622,6 @@ function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewP
         </Tabs>
       </CardContent>
     </Card>
-  )
-}
-
-function DriverSummary({ onQueryStatus }: { onQueryStatus: (status: DriverStatusFilter) => void }) {
-  const items = [
-    { label: "未开始派送", status: "not-started", value: driverRows.filter((driver) => driver.status === "未开始派送").length },
-    { label: "30min 未派送", status: "30min", value: driverRows.filter((driver) => driver.status.startsWith("30min")).length },
-    { label: "1h 未派送", status: "1h", value: driverRows.filter((driver) => driver.status.startsWith("1h")).length },
-    { label: "2h 未派送", status: "2h", value: driverRows.filter((driver) => driver.status.startsWith("2h")).length },
-  ] as const
-  return (
-    <div className="grid grid-cols-4 overflow-hidden rounded-lg border">
-      {items.map((item) => <Button key={item.label} type="button" variant="ghost" className="h-auto min-w-0 cursor-pointer gap-3 rounded-none border-0 border-r border-border px-3 py-3 whitespace-normal last:border-r-0 hover:bg-brand-hover focus-visible:bg-brand-hover" aria-label={`查询${item.label}司机 ${item.value} 名`} onClick={() => onQueryStatus(item.status)}><span className="text-xs text-muted-foreground">{item.label}</span><span className="text-sm font-semibold tabular-nums text-destructive">{item.value}</span></Button>)}
-    </div>
-  )
-}
-
-function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver: DashboardDriverSnapshot; selected: boolean; onSelect: () => void; onViewDetail: (alertType?: WaybillAlert) => void }) {
-  const [contactOpen, setContactOpen] = useState(false)
-  const [draggingRoutes, setDraggingRoutes] = useState(false)
-  const contactCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const routeDrag = useRef<{ pointerId: number; startX: number; scrollLeft: number; moved: boolean } | null>(null)
-  const suppressRouteClick = useRef(false)
-  const historyDue = Math.min(17, driver.total)
-  const currentDue = Math.max(driver.total - historyDue, 0)
-  const pod2400Rate = assessmentMetrics.find((metric) => metric.label === "2400 妥投率")?.value ?? 0
-  const completed = driver.delivered + driver.exception
-  const deliveredRate = driver.total ? (driver.delivered / driver.total) * 100 : 0
-  const exceptionRate = driver.total ? (driver.exception / driver.total) * 100 : 0
-  const pendingRate = driver.total ? (driver.pending / driver.total) * 100 : 0
-  const completion = driver.total ? Math.round((completed / driver.total) * 100) : 0
-  const hasIssueTags = Boolean(driver.locationIssues || driver.podIssues || driver.fakeIssues)
-
-  useEffect(() => () => {
-    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
-  }, [])
-
-  const openContact = () => {
-    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
-    setContactOpen(true)
-  }
-
-  const scheduleContactClose = () => {
-    if (contactCloseTimer.current) clearTimeout(contactCloseTimer.current)
-    contactCloseTimer.current = setTimeout(() => setContactOpen(false), 150)
-  }
-
-  const copyPhone = async () => {
-    try {
-      await navigator.clipboard.writeText(driver.phone)
-      toast.success(`${driver.name} 的手机号已复制`)
-    } catch {
-      toast.error("复制失败，请手动复制手机号")
-    }
-  }
-
-  const startRouteDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (event.pointerType === "touch" || event.button !== 0 || event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return
-    routeDrag.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      scrollLeft: event.currentTarget.scrollLeft,
-      moved: false,
-    }
-    suppressRouteClick.current = false
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setDraggingRoutes(true)
-  }
-
-  const moveRouteDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    const drag = routeDrag.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    const distance = event.clientX - drag.startX
-    if (Math.abs(distance) > 3) drag.moved = true
-    if (!drag.moved) return
-    event.preventDefault()
-    suppressRouteClick.current = true
-    event.currentTarget.scrollLeft = drag.scrollLeft - distance
-  }
-
-  const finishRouteDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    const drag = routeDrag.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    routeDrag.current = null
-    setDraggingRoutes(false)
-  }
-
-  return (
-    <Popover open={contactOpen} onOpenChange={setContactOpen}>
-      <article
-        id={`monitor-driver-${driver.id}`}
-        aria-label={`${driver.name}派件监控`}
-        className={cn(
-          "relative flex min-w-0 flex-col gap-3 rounded-md border bg-card p-4 text-left transition-colors hover:bg-brand-hover",
-          selected && "border-brand/30 bg-brand-selected"
-        )}
-      >
-      <button type="button" aria-pressed={selected} aria-current={selected ? "true" : undefined} className="flex w-full min-w-0 flex-col gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50" onFocus={openContact} onClick={onSelect}>
-      <div className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 pr-10">
-        <span className="flex h-7 w-[50px] min-w-[50px] items-center justify-center rounded-md bg-warning/15 px-2 font-heading [font-size:var(--button-font-size)] font-medium tabular-nums text-brand-ink">
-          {driver.rating}★
-        </span>
-        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <PopoverTrigger asChild>
-            <span
-              className="max-w-28 shrink-0 truncate font-heading text-base font-medium"
-              onPointerEnter={openContact}
-              onPointerLeave={scheduleContactClose}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                openContact()
-              }}
-            >
-              {driver.name}
-            </span>
-          </PopoverTrigger>
-          <span
-            className={cn(
-              "flex min-w-0 flex-1 touch-pan-x items-center gap-2 overflow-x-auto overscroll-x-contain scroll-smooth select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-              draggingRoutes ? "cursor-grabbing" : "cursor-grab"
-            )}
-            aria-label={`${driver.name}路区列表`}
-            title="按住并横向拖动查看更多路区"
-            onPointerDown={startRouteDrag}
-            onPointerMove={moveRouteDrag}
-            onPointerUp={finishRouteDrag}
-            onPointerCancel={finishRouteDrag}
-            onLostPointerCapture={() => {
-              routeDrag.current = null
-              setDraggingRoutes(false)
-            }}
-            onClick={(event) => {
-              if (!suppressRouteClick.current) return
-              event.preventDefault()
-              event.stopPropagation()
-              suppressRouteClick.current = false
-            }}
-          >
-            <DriverRouteBadges routes={driver.routeAssignments} />
-          </span>
-        </div>
-        {driver.status !== "派送正常" ? (
-          <DriverDeliveryStatusBadge
-            status={driver.status}
-            latestAction={driver.latestAction}
-            latestActionAt={driver.latestActionAt}
-            focusable={false}
-          />
-        ) : null}
-      </div>
-
-      <div className="grid min-w-0 gap-y-4 md:grid-cols-[max-content_auto_minmax(0,1fr)] md:gap-x-3">
-        <div className="flex flex-col justify-center gap-3">
-          <DriverInlineStat label="PPH-派送" value={driver.efficiency} />
-          <DriverInlineStat label="派件时长" value={driver.activeHours} />
-        </div>
-        <span aria-hidden="true" className="h-full border-l border-dashed border-border" />
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
-            <span className="text-muted-foreground">应派件</span>
-            <strong className="font-heading font-semibold tabular-nums">{driver.total}</strong>
-            <span className="text-muted-foreground">=</span>
-            <span className="text-muted-foreground">当期应派</span>
-            <strong className="font-medium tabular-nums">{currentDue}</strong>
-            <span
-              className="relative ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-sm border border-data-accent/40 bg-data-accent/10 px-2 font-medium text-foreground before:absolute before:top-1/2 before:-left-1 before:size-2 before:-translate-y-1/2 before:rotate-45 before:border-b before:border-l before:border-data-accent/40 before:bg-data-accent/10"
-              aria-label={`2400妥投率 ${pod2400Rate.toFixed(2)}%`}
-            >
-              <span className="text-muted-foreground">2400妥投率</span>
-              <span aria-hidden="true" className="h-3 w-px bg-data-accent/30" />
-              <strong className="font-heading font-semibold tabular-nums text-data-accent">{pod2400Rate.toFixed(2)}%</strong>
-            </span>
-            <span className="text-muted-foreground">+</span>
-            <span className="text-muted-foreground">历史未派</span>
-            <strong className="font-medium tabular-nums">{historyDue}</strong>
-            <span className="ml-auto text-xs tabular-nums text-muted-foreground">{completed}/{driver.total}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <AnimatedSegmentedProgress
-              value={completion}
-              ariaLabel={`${driver.name}派件进度 ${completion}%`}
-              className="h-2.5 min-w-0 flex-1"
-              segments={[
-                { className: "bg-delivery-delivered", value: deliveredRate },
-                { className: "bg-delivery-exception", value: exceptionRate },
-              ]}
-            />
-            <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">{completion}%</span>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <DriverResultStat label="已签收" rate={deliveredRate} value={driver.delivered} tone="delivered" />
-            <DriverResultStat label="派送异常" rate={exceptionRate} value={driver.exception} tone="exception" />
-            <DriverResultStat label="待派件" rate={pendingRate} value={driver.pending} tone="muted" />
-          </div>
-        </div>
-      </div>
-
-      </button>
-      {hasIssueTags ? (
-        <>
-          <div aria-hidden="true" className="mx-4 border-t border-dashed border-border" />
-          <div className="flex flex-wrap gap-2">
-            {driver.locationIssues ? <Badge asChild variant="destructive"><button type="button" className="cursor-pointer hover:bg-destructive/20" onClick={() => onViewDetail("location")} aria-label={`查看${driver.name}的妥投位置异常运单`}>妥投位置异常 {driver.locationIssues}</button></Badge> : null}
-            {driver.podIssues ? <Badge asChild variant="destructive"><button type="button" className="cursor-pointer hover:bg-destructive/20" onClick={() => onViewDetail("pod")} aria-label={`查看${driver.name}的POD不合规运单`}>POD 不合规 {driver.podIssues}</button></Badge> : null}
-            {driver.fakeIssues ? <Badge asChild variant="destructive"><button type="button" className="cursor-pointer hover:bg-destructive/20" onClick={() => onViewDetail("fake")} aria-label={`查看${driver.name}的虚假问题件运单`}>虚假问题件 {driver.fakeIssues}</button></Badge> : null}
-          </div>
-        </>
-      ) : null}
-      <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4 border-0 bg-transparent" aria-label={`查看${driver.name}的派件地图详情`} onClick={() => onViewDetail()}><ArrowUpRightIcon /></Button></TooltipTrigger><TooltipContent>查看派件地图详情</TooltipContent></Tooltip></TooltipProvider>
-      </article>
-      <PopoverContent
-        align="start"
-        side="top"
-        sideOffset={8}
-        className="w-72 max-w-[calc(100vw-2rem)] gap-3 p-3"
-        aria-label={`${driver.name}的联系方式`}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onPointerEnter={openContact}
-        onPointerLeave={scheduleContactClose}
-      >
-        <PopoverHeader>
-          <PopoverTitle>司机联系方式</PopoverTitle>
-          <PopoverDescription>{driver.name}</PopoverDescription>
-        </PopoverHeader>
-        <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
-          <span className="text-muted-foreground">手机号</span>
-          <span className="truncate font-medium tabular-nums">{driver.phone || "暂无手机号"}</span>
-          <Button type="button" variant="outline" size="sm" disabled={!driver.phone} onClick={copyPhone} aria-label={`复制${driver.name}的手机号`}>
-            <CopyIcon data-icon="inline-start" />复制
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function DriverRouteBadges({ routes }: { routes: DriverRouteAssignment[] }) {
-  return (
-    <TooltipProvider>
-      {routes.map((route) => (
-        <Tooltip key={route.name}>
-          <TooltipTrigger asChild>
-            <Badge
-              variant="outline"
-              className={cn(
-                "shrink-0 rounded-sm bg-transparent font-medium",
-                route.difficulty
-                  ? routeDifficultyClassNames[route.difficulty]
-                  : "border-border bg-muted text-muted-foreground"
-              )}
-            >
-              {route.name}
-              {route.difficulty ? ` · ${routeDifficultyLabels[route.difficulty]}` : null}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent variant="complex" aria-label={`${route.name}路区信息`}>
-            <div className="flex items-center gap-2 [font-size:var(--button-font-size)] font-medium">
-              <span>路区信息</span>
-              <span className="font-semibold">{route.name}</span>
-            </div>
-            <Separator />
-            <dl className="grid grid-cols-[4.75rem_minmax(0,1fr)] gap-x-2.5 gap-y-1">
-              <dt className="text-muted-foreground">难易度</dt><dd className={route.difficulty ? routeDifficultyTextClassNames[route.difficulty] : undefined}>{route.difficulty ? routeDifficultyLabels[route.difficulty] : "—"}</dd>
-              <dt className="text-muted-foreground">安全度</dt><dd>{route.safety}</dd>
-              <dt className="text-muted-foreground">派送异常率</dt><dd className="tabular-nums">{route.deliveryExceptionRate}</dd>
-              <dt className="text-muted-foreground">DNR率</dt><dd className="tabular-nums">{route.dnrRate}</dd>
-              <dt className="text-muted-foreground">PPH（派送）</dt><dd className="tabular-nums">{route.deliveryPph}</dd>
-            </dl>
-          </TooltipContent>
-        </Tooltip>
-      ))}
-    </TooltipProvider>
-  )
-}
-
-function DriverInlineStat({ label, value }: { label: string; value: string | number }) {
-  return <span className="grid grid-cols-[4rem_max-content] items-baseline gap-1"><span className="whitespace-nowrap text-xs text-muted-foreground">{label}</span><strong className="whitespace-nowrap text-xs font-medium tabular-nums">{value}</strong></span>
-}
-
-function DriverResultStat({ label, rate, value, tone }: {
-  label: string
-  rate: number
-  value: number
-  tone: "delivered" | "exception" | "muted"
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-1 text-xs">
-      <span
-        aria-hidden="true"
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          tone === "delivered" && "bg-delivery-delivered",
-          tone === "exception" && "bg-delivery-exception",
-          tone === "muted" && "bg-muted-foreground/40"
-        )}
-      />
-      <span className="truncate text-muted-foreground">{label}</span>
-      <span className="tabular-nums text-muted-foreground">{Math.round(rate)}%</span>
-      <strong className="font-medium tabular-nums">{value}</strong>
-    </span>
   )
 }
 

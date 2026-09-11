@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
-import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { WaybillWorkspace, useWaybillSelection } from "@/features/live-dashboard/components/waybill-workspace"
 import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 import { formatDate, formatTime } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
@@ -145,7 +145,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
   const [driverPageSize, setDriverPageSize] = useState(10)
   const [waybillPage, setWaybillPage] = useState(1)
   const [waybillPageSize, setWaybillPageSize] = useState(10)
-  const [selectedWaybill, setSelectedWaybill] = useState<ReturnWaybillRow | null>(null)
+  const [selectedWaybill, setSelectedWaybill] = useWaybillSelection<ReturnWaybillRow>()
   const [contactDriver, setContactDriver] = useState<ReturnDriverRow | null>(null)
   const [sortKey, setSortKey] = useState<ReturnSortKey | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -208,6 +208,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
 
   return (
     <>
+      <WaybillWorkspace rows={filteredWaybills} selected={selectedWaybill} onSelect={setSelectedWaybill} pageSize={waybillPageSize} onPageChange={setWaybillPage} scene="return" title="退回运单">
       <section className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 duration-200" aria-label="应退回详情下钻">
         <div className="flex items-start gap-3">
           <Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button>
@@ -320,7 +321,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
         </Tabs>
       </section>
 
-      <WaybillDetailSheet row={selectedWaybill ? { trackingNumber: selectedWaybill.trackingNumber, pushedAt: selectedWaybill.reportedAt, pickupCourier: selectedWaybill.driver, pickupStatus: selectedWaybill.returnStatus, actionAt: selectedWaybill.actionAt, route: selectedWaybill.route, postalCode: selectedWaybill.postalCode } : null} onOpenChange={(open) => { if (!open) setSelectedWaybill(null) }} />
+      </WaybillWorkspace>
       <Dialog open={Boolean(contactDriver)} onOpenChange={(open) => { if (!open) setContactDriver(null) }}>
         <DialogContent className="sm:max-w-sm" showCloseButton={false} onOpenAutoFocus={(event) => { event.preventDefault(); copyPhoneButtonRef.current?.focus() }}>
           <DialogClose asChild><Button variant="ghost" size="icon-sm" className="absolute top-2 right-2 border-transparent bg-transparent shadow-none" aria-label="关闭联系司机弹窗"><XIcon /></Button></DialogClose>

@@ -31,8 +31,11 @@ export function AlertMetricDetailView({
   onNavigate: (title: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [workspaceMetric, setWorkspaceMetric] = useState<string | null>(null)
   const activeMetric = parseAlertMetricDetailTitle(title)
   if (!activeMetric) return null
+  const workspaceActive = workspaceMetric === activeMetric.key
+  const setWorkspaceActive = (active: boolean) => setWorkspaceMetric(active ? activeMetric.key : null)
   const isDeliveryAlert = activeMetric.key === "pod" || activeMetric.key === "delivery-location"
   const isProblemTask = activeMetric.key === "pending" || activeMetric.key === "in-progress" || activeMetric.key === "suspected-lost" || activeMetric.key === "fake-delivery" || activeMetric.key === "dsp-tracking"
   const hasContent = isDeliveryAlert || isProblemTask
@@ -76,10 +79,10 @@ export function AlertMetricDetailView({
 
   return (
     <section
-      className="animate-in fade-in slide-in-from-right-4 min-w-0 rounded-xl bg-card p-5 duration-200"
+      className={cn("min-w-0", !workspaceActive && "animate-in fade-in slide-in-from-right-4 rounded-xl bg-card p-5 duration-200")}
       aria-label={activeMetric.detailTitle ?? `${activeMetric.label}详情`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className={cn("flex flex-wrap items-start justify-between gap-3", workspaceActive && "hidden")}>
         <div className="flex min-w-0 items-start gap-3">
           <Button variant="outline" size="sm" onClick={onBack}>
             <ArrowLeftIcon data-icon="inline-start" />
@@ -92,9 +95,9 @@ export function AlertMetricDetailView({
         </div>
       </div>
 
-      <div className={cn("mt-5 grid min-w-0 gap-5 lg:items-start", collapsed ? "lg:grid-cols-[minmax(0,1fr)_3rem]" : "lg:grid-cols-[minmax(0,1fr)_10rem]")}>
+      <div className={cn("grid min-w-0 gap-5 lg:items-start", !workspaceActive && "mt-5", !workspaceActive && (collapsed ? "lg:grid-cols-[minmax(0,1fr)_3rem]" : "lg:grid-cols-[minmax(0,1fr)_10rem]"))}>
         <div className={cn("flex min-h-[32rem] min-w-0 flex-col gap-4 lg:order-first", hasContent ? "order-first" : "order-last")}>
-          {isDeliveryAlert ? <DeliveryAlertList key={activeMetric.key} metric={activeMetric.key as "pod" | "delivery-location"} /> : isProblemTask ? <ProblemTaskList key={activeMetric.key} metric={activeMetric.key as "pending" | "in-progress" | "suspected-lost" | "fake-delivery" | "dsp-tracking"} /> : <>
+          {isDeliveryAlert ? <DeliveryAlertList key={activeMetric.key} metric={activeMetric.key as "pod" | "delivery-location"} onWorkspaceChange={setWorkspaceActive} /> : isProblemTask ? <ProblemTaskList key={activeMetric.key} metric={activeMetric.key as "pending" | "in-progress" | "suspected-lost" | "fake-delivery" | "dsp-tracking"} onWorkspaceChange={setWorkspaceActive} /> : <>
           <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-4 py-3">
             <div className="flex min-w-0 flex-col gap-1">
               <span className="text-xs text-muted-foreground">当前指标</span>
@@ -116,7 +119,7 @@ export function AlertMetricDetailView({
           </>}
         </div>
 
-        <aside className={cn("sticky top-16 order-first min-w-0 self-start lg:fixed lg:top-14 lg:right-0 lg:z-30 lg:order-last lg:h-[calc(100dvh-3.5rem)]", collapsed ? "lg:w-12" : "lg:w-40", hasContent && "static order-last")} aria-label="异常指标切换">
+        <aside className={cn("sticky top-16 order-first min-w-0 self-start lg:fixed lg:top-14 lg:right-0 lg:z-30 lg:order-last lg:h-[calc(100dvh-3.5rem)]", collapsed ? "lg:w-12" : "lg:w-40", hasContent && "static order-last", workspaceActive && "hidden")} aria-label="异常指标切换">
           <nav className="alert-nav-glass flex flex-col rounded-lg lg:h-full lg:rounded-none">
             <div className={cn("flex shrink-0 items-center gap-2 p-2", collapsed ? "justify-center" : "justify-between pl-3")}>
               {!collapsed && <span className="text-sm font-semibold">异常指标</span>}

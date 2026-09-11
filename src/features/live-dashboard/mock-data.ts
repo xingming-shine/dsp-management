@@ -27,15 +27,22 @@ export const realtimeOverview = {
   },
   delivery: {
     total: 1781,
-    clearanceRate: 82.65,
-    pending: 301,
-    pendingRate: 17.35,
+    clearanceRate: 83.10,
+    pending: 281,
+    pendingRate: 15.78,
     delivered: 1378,
-    deliveredRate: 76.92,
+    deliveredRate: 77.37,
     exception: 102,
     exceptionRate: 5.73,
+    nonStandardReturn: 20,
+    nonStandardReturnRate: 1.12,
     currentSource: 1657,
     historySource: 124,
+    scopes: {
+      all: { total: 1781, pending: 281, delivered: 1378, exception: 102, nonStandardReturn: 20 },
+      current: { total: 1657, pending: 259, delivered: 1290, exception: 90, nonStandardReturn: 18 },
+      history: { total: 124, pending: 22, delivered: 88, exception: 12, nonStandardReturn: 2 },
+    },
     normalIssues: 78,
     fakeIssues: 24,
   },
@@ -80,6 +87,7 @@ export interface DriverSnapshot {
   delivered: number
   pending: number
   exception: number
+  nonStandardReturn: number
   total: number
   efficiency: string
   activeHours: string
@@ -212,8 +220,9 @@ export const drivers: DriverSnapshot[] = [
     status: "2h 未派送",
     statusLevel: "danger",
     delivered: 72,
-    pending: 18,
+    pending: 16,
     exception: 4,
+    nonStandardReturn: 2,
     total: 94,
     efficiency: "18.4 PPH",
     activeHours: "5h 06m",
@@ -233,8 +242,9 @@ export const drivers: DriverSnapshot[] = [
     status: "派送正常",
     statusLevel: "normal",
     delivered: 91,
-    pending: 7,
+    pending: 6,
     exception: 2,
+    nonStandardReturn: 1,
     total: 100,
     efficiency: "22.1 PPH",
     activeHours: "4h 31m",
@@ -254,8 +264,9 @@ export const drivers: DriverSnapshot[] = [
     status: "30min 未派送",
     statusLevel: "warning",
     delivered: 63,
-    pending: 25,
+    pending: 23,
     exception: 6,
+    nonStandardReturn: 2,
     total: 94,
     efficiency: "15.9 PPH",
     activeHours: "5h 54m",

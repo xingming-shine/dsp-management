@@ -43,7 +43,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
-import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { WaybillWorkspace, useWaybillSelection } from "@/features/live-dashboard/components/waybill-workspace"
 import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 import { formatDate, formatTime } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
@@ -51,7 +51,9 @@ import { cn } from "@/lib/utils"
 export type DeliveryDetailMetric = "expected" | "pending" | "delivered" | "exception"
 export type DeliveryDetailSource = "all" | "current" | "history"
 
-type DeliveryStatus = "待派件" | "已签收" | "派送异常"
+type DeliveryStatus = "待派件" | "已签收" | "派送异常" | "非标退回"
+type DeliveryStatusKey = "pending" | "delivered" | "exception" | "nonstandard_return"
+type WaybillStatus = "运输中" | "已妥投" | "已下架"
 type OverdueDays = "未超期" | "超1天" | "超2天" | "超3天" | "超4天"
 type WaybillType = "普件" | "货代" | "Locker" | "PUDO"
 type DeliveryIssue = "无" | "POD不合规" | "妥投位置异常"
@@ -60,9 +62,18 @@ type ProblemType = (typeof problemTypes)[number]
 type SortDirection = "asc" | "desc"
 
 export type DeliveryDetailDrilldown = {
+  view?: "driver" | "waybill"
   driverName?: string
   problemType?: ProblemType
   fake?: boolean
+  status?: DeliveryStatusKey
+}
+
+const deliveryStatusByKey: Record<DeliveryStatusKey, DeliveryStatus> = {
+  pending: "待派件",
+  delivered: "已签收",
+  exception: "派送异常",
+  nonstandard_return: "非标退回",
 }
 
 const detailTitleByMetric: Record<DeliveryDetailMetric, string> = {
@@ -77,23 +88,29 @@ export function createDeliveryDetailKey(metric: DeliveryDetailMetric, source: De
   if (drilldown?.driverName) params.set("driver", drilldown.driverName)
   if (drilldown?.problemType) params.set("problemType", drilldown.problemType)
   if (drilldown?.fake !== undefined) params.set("fake", drilldown.fake ? "yes" : "no")
+  if (drilldown?.status) params.set("status", drilldown.status)
+  if (drilldown?.view) params.set("view", drilldown.view)
   const query = params.toString()
   return `派件作业:${metric}:${source}${query ? `?${query}` : ""}`
 }
 
-export function parseDeliveryDetailKey(value: string) {
+export function parseDeliveryDetailKey(value: string): ({ metric: DeliveryDetailMetric; source: DeliveryDetailSource } & DeliveryDetailDrilldown) | null {
   const [key, query = ""] = value.split("?")
   const [prefix, metric, source] = key.split(":")
   if (prefix !== "派件作业" || !["expected", "pending", "delivered", "exception"].includes(metric) || !["all", "current", "history"].includes(source)) return null
   const params = new URLSearchParams(query)
   const problemType = params.get("problemType")
   const fake = params.get("fake")
+  const status = params.get("status")
+  const view = params.get("view")
   return {
     metric: metric as DeliveryDetailMetric,
     source: source as DeliveryDetailSource,
+    view: view === "driver" || view === "waybill" ? view : undefined,
     driverName: params.get("driver") ?? undefined,
     problemType: problemType && problemTypes.includes(problemType as ProblemType) ? problemType as ProblemType : undefined,
     fake: fake === "yes" ? true : fake === "no" ? false : undefined,
+    status: status && Object.hasOwn(deliveryStatusByKey, status) ? status as DeliveryStatusKey : undefined,
   }
 }
 
@@ -112,10 +129,12 @@ type DeliveryDriver = {
   history: number
   pending: number
   exception: number
+  nonStandardReturn: number
 }
 
 type DeliveryWaybill = {
   trackingNumber: string
+  waybillStatus: WaybillStatus
   status: DeliveryStatus
   pickupAt: string
   deliveredAt: string | null
@@ -136,24 +155,31 @@ type DeliveryWaybill = {
   latestAction: string
   actionAt: string
   operator: string
+  nonStandardReturnInfo: {
+    returnedAt: string
+    stationName: string
+    reason: string
+    operator: string
+  } | null
 }
 
 const deliveryDrivers: DeliveryDriver[] = [
-  { id: "DRV-FANLIN-WU", name: "Fanlin Wu", phone: "+1 (415) 555-0126", route: "ABQ01-003", postalCode: "94101", total: 187, history: 10, pending: 40, exception: 10 },
-  { id: "DRV-MARIA-GARCIA", name: "Maria Garcia", phone: "+1 (415) 555-0148", route: "ABQ01-004", postalCode: "94102", total: 209, history: 12, pending: 35, exception: 12 },
-  { id: "DRV-JAMES-WILSON", name: "James Wilson", phone: "+1 (415) 555-0182", route: "ABQ01-005", postalCode: "94103", total: 167, history: 8, pending: 30, exception: 9 },
-  { id: "DRV-VIVIAN-HO", name: "Vivian Ho", phone: "+1 (415) 555-0165", route: "ABQ01-006", postalCode: "94104", total: 190, history: 16, pending: 36, exception: 11 },
-  { id: "DRV-AXX", name: "Axx", phone: "+1 (415) 555-0171", route: "ABQ01-001-A", postalCode: "94105", total: 321, history: 20, pending: 55, exception: 18 },
-  { id: "DRV-ALICE-CHEN", name: "Alice Chen", phone: "+1 (415) 555-0134", route: "SLE-CH-01", postalCode: "94106", total: 234, history: 18, pending: 42, exception: 14 },
-  { id: "DRV-MIKE-LIU", name: "Mike Liu", phone: "+1 (415) 555-0193", route: "SLE-LI-02", postalCode: "94107", total: 211, history: 16, pending: 28, exception: 12 },
-  { id: "DRV-SOPHIA-ZHANG", name: "Sophia Zhang", phone: "+1 (415) 555-0119", route: "SLE-ZH-03", postalCode: "94108", total: 262, history: 24, pending: 35, exception: 16 },
+  { id: "DRV-FANLIN-WU", name: "Fanlin Wu", phone: "+1 (415) 555-0126", route: "ABQ01-003", postalCode: "94101", total: 187, history: 10, pending: 38, exception: 10, nonStandardReturn: 2 },
+  { id: "DRV-MARIA-GARCIA", name: "Maria Garcia", phone: "+1 (415) 555-0148", route: "ABQ01-004", postalCode: "94102", total: 209, history: 12, pending: 32, exception: 12, nonStandardReturn: 3 },
+  { id: "DRV-JAMES-WILSON", name: "James Wilson", phone: "+1 (415) 555-0182", route: "ABQ01-005", postalCode: "94103", total: 167, history: 8, pending: 28, exception: 9, nonStandardReturn: 2 },
+  { id: "DRV-VIVIAN-HO", name: "Vivian Ho", phone: "+1 (415) 555-0165", route: "ABQ01-006", postalCode: "94104", total: 190, history: 16, pending: 34, exception: 11, nonStandardReturn: 2 },
+  { id: "DRV-AXX", name: "Axx", phone: "+1 (415) 555-0171", route: "ABQ01-001-A", postalCode: "94105", total: 321, history: 20, pending: 51, exception: 18, nonStandardReturn: 4 },
+  { id: "DRV-ALICE-CHEN", name: "Alice Chen", phone: "+1 (415) 555-0134", route: "SLE-CH-01", postalCode: "94106", total: 234, history: 18, pending: 39, exception: 14, nonStandardReturn: 3 },
+  { id: "DRV-MIKE-LIU", name: "Mike Liu", phone: "+1 (415) 555-0193", route: "SLE-LI-02", postalCode: "94107", total: 211, history: 16, pending: 26, exception: 12, nonStandardReturn: 2 },
+  { id: "DRV-SOPHIA-ZHANG", name: "Sophia Zhang", phone: "+1 (415) 555-0119", route: "SLE-ZH-03", postalCode: "94108", total: 262, history: 24, pending: 33, exception: 16, nonStandardReturn: 2 },
 ]
 
 function shuffledStatuses(driver: DeliveryDriver, seed: number) {
   const statuses: DeliveryStatus[] = [
     ...Array.from({ length: driver.pending }, () => "待派件" as const),
     ...Array.from({ length: driver.exception }, () => "派送异常" as const),
-    ...Array.from({ length: driver.total - driver.pending - driver.exception }, () => "已签收" as const),
+    ...Array.from({ length: driver.nonStandardReturn }, () => "非标退回" as const),
+    ...Array.from({ length: driver.total - driver.pending - driver.exception - driver.nonStandardReturn }, () => "已签收" as const),
   ]
   let state = seed
   for (let index = statuses.length - 1; index > 0; index -= 1) {
@@ -188,6 +214,7 @@ function createDeliveryWaybills() {
       const actionAt = `2026-08-21T${String(9 + (index % 8)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}:00-04:00`
       rows.push({
         trackingNumber: `GL20260821${String(sequence).padStart(8, "0")}`,
+        waybillStatus: status === "已签收" ? "已妥投" : status === "非标退回" ? "已下架" : "运输中",
         status,
         pickupAt,
         deliveredAt: status === "已签收" ? actionAt : null,
@@ -205,9 +232,15 @@ function createDeliveryWaybills() {
         problemType,
         fakeProblem: status === "派送异常" && exceptionSequence % 4 === 0,
         issueInstruction: problemType ? `按${problemType}流程处理并回传凭证` : "—",
-        latestAction: status === "已签收" ? "完成签收" : status === "派送异常" ? "上报问题件" : "快递员取件",
+        latestAction: status === "已签收" ? "完成签收" : status === "派送异常" ? "上报问题件" : status === "非标退回" ? "非标退回入库" : "快递员取件",
         actionAt,
         operator: driver.name,
+        nonStandardReturnInfo: status === "非标退回" ? {
+          returnedAt: actionAt,
+          stationName: `SLE-${String((driverIndex % 3) + 1).padStart(2, "0")}`,
+          reason: ["未登记异常直接退回", "操作流程不规范", "站点临时召回"][index % 3],
+          operator: `站点操作员 ${String((index % 5) + 1).padStart(2, "0")}`,
+        } : null,
       })
     })
   })
@@ -227,6 +260,7 @@ type DriverSummary = {
   pending: number
   delivered: number
   exception: number
+  nonStandardReturn: number
   deliveryRate: number
   clearanceRate: number
   notOverdue: number
@@ -254,6 +288,7 @@ function summarizeDriver(driver: DeliveryDriver, rows: DeliveryWaybill[]): Drive
   const delivered = count((row) => row.status === "已签收")
   const exception = count((row) => row.status === "派送异常")
   const pending = count((row) => row.status === "待派件")
+  const nonStandardReturn = count((row) => row.status === "非标退回")
   return {
     id: driver.id,
     name: driver.name,
@@ -265,6 +300,7 @@ function summarizeDriver(driver: DeliveryDriver, rows: DeliveryWaybill[]): Drive
     pending,
     delivered,
     exception,
+    nonStandardReturn,
     deliveryRate: delivered + exception === 0 ? 0 : delivered / (delivered + exception) * 100,
     clearanceRate: expected === 0 ? 0 : (delivered + exception) / expected * 100,
     notOverdue: count((row) => row.status === "待派件" && row.overdueDays === "未超期"),
@@ -305,7 +341,7 @@ function createWaybillFilters(source: DeliveryDetailSource, drilldown?: Delivery
   return {
     driverId,
     query: "",
-    statuses: [],
+    statuses: drilldown?.status ? [deliveryStatusByKey[drilldown.status]] : [],
     source,
     overdue: "all",
     waybillType: "all",
@@ -320,13 +356,15 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
   const config = parseDeliveryDetailKey(detailKey) ?? {
     metric: "expected" as const,
     source: "all" as const,
+    view: undefined,
     driverName: undefined,
     problemType: undefined,
     fake: undefined,
+    status: undefined,
   }
-  const hasDrilldown = Boolean(config.driverName || config.problemType || config.fake !== undefined)
+  const hasDrilldown = Boolean(config.driverName || config.problemType || config.fake !== undefined || config.status)
   const initialWaybillFilters = createWaybillFilters(config.source, config)
-  const [view, setView] = useState(hasDrilldown ? "waybill" : "driver")
+  const [view, setView] = useState<string>(config.view ?? (hasDrilldown ? "waybill" : "driver"))
   const [sourceTab, setSourceTab] = useState<DeliveryDetailSource>(config.source)
   const [driverFilter, setDriverFilter] = useState("all")
   const [driverSource, setDriverSource] = useState<DeliveryDetailSource>(config.source)
@@ -343,7 +381,7 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
   const [waybillPage, setWaybillPage] = useState(1)
   const [waybillPageSize, setWaybillPageSize] = useState(10)
   const [contactDriver, setContactDriver] = useState<DriverSummary | null>(null)
-  const [selectedWaybill, setSelectedWaybill] = useState<DeliveryWaybill | null>(null)
+  const [selectedWaybill, setSelectedWaybill] = useWaybillSelection<DeliveryWaybill>()
   const copyPhoneRef = useRef<HTMLButtonElement>(null)
   const title = detailTitleByMetric[config.metric]
   const effectiveSource = config.metric === "expected" ? sourceTab : appliedDriverSource
@@ -430,7 +468,7 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
     fields={<>
       <FilterSelect id="delivery-waybill-driver" label="司机" value={waybillFilters.driverId} onChange={(value) => setWaybillFilters((current) => ({ ...current, driverId: value }))} options={deliveryDrivers.map((driver) => [driver.id, driver.name])} />
       <Field><FieldLabel htmlFor="delivery-waybill-query" className="text-xs font-normal">运单编号</FieldLabel><Input id="delivery-waybill-query" value={waybillFilters.query} onChange={(event) => setWaybillFilters((current) => ({ ...current, query: event.target.value }))} placeholder="请输入完整运单编号" /></Field>
-      {config.metric === "expected" ? <Field><FieldLabel htmlFor="delivery-status-filter" className="text-xs font-normal">派件状态</FieldLabel><StatusMultiSelect id="delivery-status-filter" ariaLabel="选择派件状态，可多选" options={["待派件", "已签收", "派送异常"] as const} value={waybillFilters.statuses} onValueChange={(statuses) => setWaybillFilters((current) => ({ ...current, statuses }))} /></Field> : null}
+      {config.metric === "expected" ? <Field><FieldLabel htmlFor="delivery-status-filter" className="text-xs font-normal">派件状态</FieldLabel><StatusMultiSelect id="delivery-status-filter" ariaLabel="选择派件状态，可多选" options={["已签收", "派送异常", "非标退回", "待派件"] as const} value={waybillFilters.statuses} onValueChange={(statuses) => setWaybillFilters((current) => ({ ...current, statuses }))} /></Field> : null}
       <FilterSelect id="delivery-waybill-source" label="派件来源" value={waybillFilters.source} onChange={(value) => setWaybillFilters((current) => ({ ...current, source: value as DeliveryDetailSource }))} options={[["current", "当期应派"], ["history", "历史未派"]]} />
       {(config.metric === "expected" || config.metric === "pending") ? <FilterSelect id="delivery-overdue" label="超期天数" value={waybillFilters.overdue} onChange={(value) => setWaybillFilters((current) => ({ ...current, overdue: value as WaybillFilters["overdue"] }))} options={[["未超期", config.metric === "expected" ? "超0天" : "未超期"], ["超1天", "超1天"], ["超2天", "超2天"], ["超3天", "超3天"], ["超4天", "超4天"]]} /> : null}
       {config.metric === "expected" ? <FilterSelect id="delivery-waybill-type" label="运单类型" value={waybillFilters.waybillType} onChange={(value) => setWaybillFilters((current) => ({ ...current, waybillType: value as WaybillFilters["waybillType"] }))} options={[["普件", "普件"], ["货代", "货代"], ["Locker", "Locker"], ["PUDO", "PUDO"]]} /> : null}
@@ -444,6 +482,7 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
   />
 
   return <>
+    <WaybillWorkspace rows={filteredWaybills} selected={selectedWaybill} onSelect={setSelectedWaybill} pageSize={waybillPageSize} onPageChange={setWaybillPage} scene={appliedWaybillFilters.statuses.length === 1 && appliedWaybillFilters.statuses[0] === "非标退回" ? "nonstandard-return" : config.metric} title={title}>
     <section className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 duration-200" aria-label={`${title}详情下钻`}>
       <div className="flex items-center gap-3"><Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button><h2 className="flex min-h-8 items-center font-heading text-xl font-semibold text-foreground">{title}</h2></div>
       <Tabs value={view} onValueChange={setView} className="min-w-0 gap-3">
@@ -466,25 +505,25 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
         </TabsContent>
       </Tabs>
     </section>
+    </WaybillWorkspace>
     <ContactDialog row={contactDriver} copyButtonRef={copyPhoneRef} onOpenChange={(open) => { if (!open) setContactDriver(null) }} />
-    <WaybillDetailSheet row={selectedWaybill ? { trackingNumber: selectedWaybill.trackingNumber, pushedAt: selectedWaybill.pickupAt, pickupCourier: selectedWaybill.driver, pickupStatus: selectedWaybill.status, actionAt: selectedWaybill.actionAt, route: selectedWaybill.route, postalCode: selectedWaybill.postalCode } : null} onOpenChange={(open) => { if (!open) setSelectedWaybill(null) }} />
   </>
 }
 
 function DriverTableHeader({ metric, source, sortKey, direction, onSort }: { metric: DeliveryDetailMetric; source: DeliveryDetailSource; sortKey: DriverSortKey | null; direction: SortDirection; onSort: (key: DriverSortKey) => void }) {
-  return <TableHeader><TableRow><TableHead>司机</TableHead>{metric === "expected" ? <><SortableHead label={source === "all" ? "应派件" : source === "current" ? "当期应派" : "历史未派"} sortKey={source === "all" ? "expected" : source} activeSortKey={sortKey} direction={direction} onSort={onSort} />{source === "history" ? <TableHead><span className="inline-flex items-center gap-1">今日转派<TransferHelp /></span></TableHead> : null}<SortableHead label="待派件" sortKey="pending" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="已签收" sortKey="delivered" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="派送异常" sortKey="exception" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="妥投率" sortKey="deliveryRate" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="日清率" sortKey="clearanceRate" activeSortKey={sortKey} direction={direction} onSort={onSort} /></> : null}{metric === "pending" ? <><SortableHead label="待派件" sortKey="pending" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="未超期" sortKey="notOverdue" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超1天" sortKey="overdue1" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超2天" sortKey="overdue2" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超3天" sortKey="overdue3" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超4天" sortKey="overdue4" activeSortKey={sortKey} direction={direction} onSort={onSort} /><TableHead>司机最新操作</TableHead><TableHead>最新操作时间</TableHead></> : null}{metric === "delivered" ? <><SortableHead label="已签收" sortKey="delivered" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="POD不合规" sortKey="pod" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="妥投位置异常" sortKey="location" activeSortKey={sortKey} direction={direction} onSort={onSort} /></> : null}{metric === "exception" ? <><SortableHead label="派送异常总数" sortKey="exception" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="虚假问题件" sortKey="fake" activeSortKey={sortKey} direction={direction} onSort={onSort} /><TableHead>商业地址关门</TableHead><TableHead>地址错误/不详</TableHead><TableHead>无法投递</TableHead><TableHead>收件人拒收</TableHead><TableHead>无法进入</TableHead></> : null}<TableHead sticky="right" className="w-24 min-w-24 text-center">操作</TableHead></TableRow></TableHeader>
+  return <TableHeader><TableRow><TableHead>司机</TableHead>{metric === "expected" ? <><SortableHead label={source === "all" ? "应派件" : source === "current" ? "当期应派" : "历史未派"} sortKey={source === "all" ? "expected" : source} activeSortKey={sortKey} direction={direction} onSort={onSort} />{source === "history" ? <TableHead><span className="inline-flex items-center gap-1">今日转派<TransferHelp /></span></TableHead> : null}<SortableHead label="已签收" sortKey="delivered" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="派送异常" sortKey="exception" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="非标退回" sortKey="nonStandardReturn" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="待派件" sortKey="pending" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="妥投率" sortKey="deliveryRate" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="日清率" sortKey="clearanceRate" activeSortKey={sortKey} direction={direction} onSort={onSort} /></> : null}{metric === "pending" ? <><SortableHead label="待派件" sortKey="pending" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="未超期" sortKey="notOverdue" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超1天" sortKey="overdue1" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超2天" sortKey="overdue2" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超3天" sortKey="overdue3" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="超4天" sortKey="overdue4" activeSortKey={sortKey} direction={direction} onSort={onSort} /><TableHead>司机最新操作</TableHead><TableHead>最新操作时间</TableHead></> : null}{metric === "delivered" ? <><SortableHead label="已签收" sortKey="delivered" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="POD不合规" sortKey="pod" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="妥投位置异常" sortKey="location" activeSortKey={sortKey} direction={direction} onSort={onSort} /></> : null}{metric === "exception" ? <><SortableHead label="派送异常总数" sortKey="exception" activeSortKey={sortKey} direction={direction} onSort={onSort} /><SortableHead label="虚假问题件" sortKey="fake" activeSortKey={sortKey} direction={direction} onSort={onSort} /><TableHead>商业地址关门</TableHead><TableHead>地址错误/不详</TableHead><TableHead>无法投递</TableHead><TableHead>收件人拒收</TableHead><TableHead>无法进入</TableHead></> : null}<TableHead sticky="right" className="w-24 min-w-24 text-center">操作</TableHead></TableRow></TableHeader>
 }
 
 function DriverTableRow({ row, metric, source, onMetric, onContact }: { row: DriverSummary; metric: DeliveryDetailMetric; source: DeliveryDetailSource; onMetric: (filters?: Partial<WaybillFilters>) => void; onContact: () => void }) {
-  return <TableRow><TableCell>{row.name}</TableCell>{metric === "expected" ? <><MetricCell value={source === "all" ? row.expected : source === "current" ? row.current : row.history} onClick={() => onMetric()} />{source === "history" ? <MetricCell value={row.transfer} onClick={() => onMetric({ transfer: "yes" })} /> : null}<MetricCell value={row.pending} onClick={() => onMetric({ statuses: ["待派件"] })} /><MetricCell value={row.delivered} onClick={() => onMetric({ statuses: ["已签收"] })} /><MetricCell value={row.exception} onClick={() => onMetric({ statuses: ["派送异常"] })} /><RateCell value={row.deliveryRate} /><RateCell value={row.clearanceRate} /></> : null}{metric === "pending" ? <><MetricCell value={row.pending} onClick={() => onMetric()} /><MetricCell value={row.notOverdue} onClick={() => onMetric({ overdue: "未超期" })} /><MetricCell value={row.overdue1} onClick={() => onMetric({ overdue: "超1天" })} /><MetricCell value={row.overdue2} onClick={() => onMetric({ overdue: "超2天" })} /><MetricCell value={row.overdue3} onClick={() => onMetric({ overdue: "超3天" })} /><MetricCell value={row.overdue4} onClick={() => onMetric({ overdue: "超4天" })} /><TableCell>{row.latestAction}</TableCell><TableCell className="tabular-nums">{formatDateTime(row.actionAt)}</TableCell></> : null}{metric === "delivered" ? <><MetricCell value={row.delivered} onClick={() => onMetric()} /><MetricCell value={row.pod} onClick={() => onMetric({ deliveryIssue: "POD不合规" })} /><MetricCell value={row.location} onClick={() => onMetric({ deliveryIssue: "妥投位置异常" })} /></> : null}{metric === "exception" ? <><MetricCell value={row.exception} onClick={() => onMetric()} /><MetricCell value={row.fake} onClick={() => onMetric({ fake: "yes" })} /><MetricCell value={row.businessClosed} onClick={() => onMetric({ problemType: "商业地址关门" })} /><MetricCell value={row.badAddress} onClick={() => onMetric({ problemType: "地址错误/不详" })} /><MetricCell value={row.cannotDeliver} onClick={() => onMetric({ problemType: "无法投递" })} /><MetricCell value={row.rejected} onClick={() => onMetric({ problemType: "收件人拒收" })} /><MetricCell value={row.cannotEnter} onClick={() => onMetric({ problemType: "无法进入" })} /></> : null}<TableCell sticky="right" className="w-24 min-w-24 text-center"><Button variant="link" size="xs" className="px-0" onClick={onContact}>联系司机</Button></TableCell></TableRow>
+  return <TableRow><TableCell>{row.name}</TableCell>{metric === "expected" ? <><MetricCell value={source === "all" ? row.expected : source === "current" ? row.current : row.history} onClick={() => onMetric()} />{source === "history" ? <MetricCell value={row.transfer} onClick={() => onMetric({ transfer: "yes" })} /> : null}<MetricCell value={row.delivered} onClick={() => onMetric({ statuses: ["已签收"] })} /><MetricCell value={row.exception} onClick={() => onMetric({ statuses: ["派送异常"] })} /><MetricCell value={row.nonStandardReturn} onClick={() => onMetric({ statuses: ["非标退回"] })} /><MetricCell value={row.pending} onClick={() => onMetric({ statuses: ["待派件"] })} /><RateCell value={row.deliveryRate} /><RateCell value={row.clearanceRate} /></> : null}{metric === "pending" ? <><MetricCell value={row.pending} onClick={() => onMetric()} /><MetricCell value={row.notOverdue} onClick={() => onMetric({ overdue: "未超期" })} /><MetricCell value={row.overdue1} onClick={() => onMetric({ overdue: "超1天" })} /><MetricCell value={row.overdue2} onClick={() => onMetric({ overdue: "超2天" })} /><MetricCell value={row.overdue3} onClick={() => onMetric({ overdue: "超3天" })} /><MetricCell value={row.overdue4} onClick={() => onMetric({ overdue: "超4天" })} /><TableCell>{row.latestAction}</TableCell><TableCell className="tabular-nums">{formatDateTime(row.actionAt)}</TableCell></> : null}{metric === "delivered" ? <><MetricCell value={row.delivered} onClick={() => onMetric()} /><MetricCell value={row.pod} onClick={() => onMetric({ deliveryIssue: "POD不合规" })} /><MetricCell value={row.location} onClick={() => onMetric({ deliveryIssue: "妥投位置异常" })} /></> : null}{metric === "exception" ? <><MetricCell value={row.exception} onClick={() => onMetric()} /><MetricCell value={row.fake} onClick={() => onMetric({ fake: "yes" })} /><MetricCell value={row.businessClosed} onClick={() => onMetric({ problemType: "商业地址关门" })} /><MetricCell value={row.badAddress} onClick={() => onMetric({ problemType: "地址错误/不详" })} /><MetricCell value={row.cannotDeliver} onClick={() => onMetric({ problemType: "无法投递" })} /><MetricCell value={row.rejected} onClick={() => onMetric({ problemType: "收件人拒收" })} /><MetricCell value={row.cannotEnter} onClick={() => onMetric({ problemType: "无法进入" })} /></> : null}<TableCell sticky="right" className="w-24 min-w-24 text-center"><Button variant="link" size="xs" className="px-0" onClick={onContact}>联系司机</Button></TableCell></TableRow>
 }
 
 function WaybillTableHeader({ metric, sortKey, direction, onSort }: { metric: DeliveryDetailMetric; sortKey: "pickupAt" | "overdueDays" | null; direction: SortDirection; onSort: (key: "pickupAt" | "overdueDays") => void }) {
-  return <TableHeader><TableRow><TableHead>运单编号</TableHead><TableHead>运单状态</TableHead>{metric === "pending" ? <SortableHead label="超期天数" sortKey="overdueDays" activeSortKey={sortKey} direction={direction} onSort={onSort} /> : null}{metric !== "exception" ? <SortableHead label={metric === "delivered" ? "签收时间" : "领件时间"} sortKey="pickupAt" activeSortKey={sortKey} direction={direction} onSort={onSort} /> : null}<TableHead>派件来源</TableHead>{metric === "exception" ? <><TableHead>问题件类型</TableHead><TableHead className="text-center">是否虚假问题件</TableHead><TableHead>问题件指令</TableHead></> : null}{metric !== "delivered" && metric !== "exception" ? <TableHead className="text-center"><span className="inline-flex items-center justify-center gap-1">今日转派<TransferHelp /></span></TableHead> : null}{metric === "pending" ? <TableHead>派送次数</TableHead> : null}<TableHead>司机</TableHead><TableHead>路区</TableHead><TableHead>邮编</TableHead><TableHead>快递员路线</TableHead>{metric === "expected" ? <><SortableHead label="超期天数" sortKey="overdueDays" activeSortKey={sortKey} direction={direction} onSort={onSort} /><TableHead>运单类型</TableHead></> : null}{metric === "pending" ? <TableHead>问题件类型</TableHead> : null}{metric === "delivered" ? <TableHead>妥投异常</TableHead> : null}<TableHead>最新操作</TableHead><TableHead>操作时间</TableHead><TableHead>操作人</TableHead></TableRow></TableHeader>
+  return <TableHeader><TableRow><TableHead>运单编号</TableHead><TableHead>运单状态</TableHead><TableHead>派件状态</TableHead>{metric === "pending" ? <SortableHead label="超期天数" sortKey="overdueDays" activeSortKey={sortKey} direction={direction} onSort={onSort} /> : null}{metric !== "exception" ? <SortableHead label={metric === "delivered" ? "签收时间" : "领件时间"} sortKey="pickupAt" activeSortKey={sortKey} direction={direction} onSort={onSort} /> : null}<TableHead>派件来源</TableHead>{metric === "exception" ? <><TableHead>问题件类型</TableHead><TableHead className="text-center">是否虚假问题件</TableHead><TableHead>问题件指令</TableHead></> : null}{metric !== "delivered" && metric !== "exception" ? <TableHead className="text-center"><span className="inline-flex items-center justify-center gap-1">今日转派<TransferHelp /></span></TableHead> : null}{metric === "pending" ? <TableHead>派送次数</TableHead> : null}<TableHead>司机</TableHead><TableHead>路区</TableHead><TableHead>邮编</TableHead><TableHead>快递员路线</TableHead>{metric === "expected" ? <><SortableHead label="超期天数" sortKey="overdueDays" activeSortKey={sortKey} direction={direction} onSort={onSort} /><TableHead>运单类型</TableHead></> : null}{metric === "pending" ? <TableHead>问题件类型</TableHead> : null}{metric === "delivered" ? <TableHead>妥投异常</TableHead> : null}<TableHead>最新操作</TableHead><TableHead>操作时间</TableHead><TableHead>操作人</TableHead></TableRow></TableHeader>
 }
 
 function WaybillTableRow({ row, metric, onSelect }: { row: DeliveryWaybill; metric: DeliveryDetailMetric; onSelect: () => void }) {
-  return <TableRow><TableCell><Button variant="link" size="xs" className="px-0" onClick={onSelect}>{row.trackingNumber}</Button></TableCell><TableCell>{row.status}</TableCell>{metric === "pending" ? <TableCell className="tabular-nums">{row.overdueDays}</TableCell> : null}{metric !== "exception" ? <TableCell className="tabular-nums">{formatDateTime(metric === "delivered" ? row.deliveredAt : row.pickupAt)}</TableCell> : null}<TableCell>{sourceLabel(row.source)}</TableCell>{metric === "exception" ? <><TableCell>{row.problemType ?? "—"}</TableCell><TableCell className="text-center">{row.fakeProblem ? "是" : "否"}</TableCell><TableCell>{row.issueInstruction}</TableCell></> : null}{metric !== "delivered" && metric !== "exception" ? <TableCell className="text-center">{row.receivedTransfer ? "是" : "否"}</TableCell> : null}{metric === "pending" ? <TableCell className="tabular-nums">{row.deliveryAttempts}</TableCell> : null}<TableCell>{row.driver}</TableCell><TableCell>{row.route}</TableCell><TableCell>{row.postalCode}</TableCell><TableCell>{row.courierRoute}</TableCell>{metric === "expected" ? <><TableCell>{row.overdueDays}</TableCell><TableCell>{row.waybillType}</TableCell></> : null}{metric === "pending" ? <TableCell>{row.problemType ?? "—"}</TableCell> : null}{metric === "delivered" ? <TableCell>{row.deliveryIssue}</TableCell> : null}<TableCell>{row.latestAction}</TableCell><TableCell className="tabular-nums">{formatDateTime(row.actionAt)}</TableCell><TableCell>{row.operator}</TableCell></TableRow>
+  return <TableRow><TableCell><Button variant="link" size="xs" className="px-0" onClick={onSelect}>{row.trackingNumber}</Button></TableCell><TableCell>{row.waybillStatus}</TableCell><TableCell>{row.status}</TableCell>{metric === "pending" ? <TableCell className="tabular-nums">{row.overdueDays}</TableCell> : null}{metric !== "exception" ? <TableCell className="tabular-nums">{formatDateTime(metric === "delivered" ? row.deliveredAt : row.pickupAt)}</TableCell> : null}<TableCell>{sourceLabel(row.source)}</TableCell>{metric === "exception" ? <><TableCell>{row.problemType ?? "—"}</TableCell><TableCell className="text-center">{row.fakeProblem ? "是" : "否"}</TableCell><TableCell>{row.issueInstruction}</TableCell></> : null}{metric !== "delivered" && metric !== "exception" ? <TableCell className="text-center">{row.receivedTransfer ? "是" : "否"}</TableCell> : null}{metric === "pending" ? <TableCell className="tabular-nums">{row.deliveryAttempts}</TableCell> : null}<TableCell>{row.driver}</TableCell><TableCell>{row.route}</TableCell><TableCell>{row.postalCode}</TableCell><TableCell>{row.courierRoute}</TableCell>{metric === "expected" ? <><TableCell>{row.overdueDays}</TableCell><TableCell>{row.waybillType}</TableCell></> : null}{metric === "pending" ? <TableCell>{row.problemType ?? "—"}</TableCell> : null}{metric === "delivered" ? <TableCell>{row.deliveryIssue}</TableCell> : null}<TableCell>{row.latestAction}</TableCell><TableCell className="tabular-nums">{formatDateTime(row.actionAt)}</TableCell><TableCell>{row.operator}</TableCell></TableRow>
 }
 
 function SortableHead<T extends string>({ label, sortKey, activeSortKey, direction, onSort }: { label: string; sortKey: T; activeSortKey: T | null; direction: SortDirection; onSort: (key: T) => void }) {
@@ -525,7 +564,7 @@ function formatDateTime(value: string | null) {
 }
 
 function exportDeliveryWaybills(title: string, rows: DeliveryWaybill[]) {
-  const values = [["运单编号", "运单状态", "领件时间", "派件来源", "司机", "路区", "邮编", "最新操作", "操作时间", "操作人"], ...rows.map((row) => [row.trackingNumber, row.status, formatDateTime(row.pickupAt), sourceLabel(row.source), row.driver, row.route, row.postalCode, row.latestAction, formatDateTime(row.actionAt), row.operator])]
+  const values = [["运单编号", "运单状态", "派件状态", "领件时间", "派件来源", "司机", "路区", "邮编", "最新操作", "操作时间", "操作人"], ...rows.map((row) => [row.trackingNumber, row.waybillStatus, row.status, formatDateTime(row.pickupAt), sourceLabel(row.source), row.driver, row.route, row.postalCode, row.latestAction, formatDateTime(row.actionAt), row.operator])]
   const csv = values.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n")
   const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }))
   const link = document.createElement("a")

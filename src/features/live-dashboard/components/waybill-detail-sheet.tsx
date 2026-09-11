@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, type ComponentProps } from "react"
 import { CopyIcon, ImageIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -39,17 +39,26 @@ export type WaybillDetailSheetRow = {
   pushedAt: string
   pickupCourier: string | null
   pickupStatus: string
+  waybillStatus?: string
   actionAt: string
   route: string
   postalCode: string
+  nonStandardReturnInfo?: {
+    returnedAt: string
+    stationName: string
+    reason: string
+    operator: string
+  } | null
 }
 
 export function WaybillDetailSheet({
   row,
   onOpenChange,
+  embedded = false,
 }: {
   row: WaybillDetailSheetRow | null
   onOpenChange: (open: boolean) => void
+  embedded?: boolean
 }) {
   const [podPage, setPodPage] = useState(1)
   const [podPageSize, setPodPageSize] = useState(20)
@@ -59,7 +68,12 @@ export function WaybillDetailSheet({
   const sheetContentRef = useRef<HTMLDivElement>(null)
   const operationRecords = row
     ? [
-        { label: row.pickupStatus, time: row.actionAt, operator: row.pickupCourier ?? "系统", location: row.route },
+        {
+          label: row.pickupStatus,
+          time: row.nonStandardReturnInfo?.returnedAt ?? row.actionAt,
+          operator: row.nonStandardReturnInfo?.operator ?? row.pickupCourier ?? "系统",
+          location: row.nonStandardReturnInfo?.stationName ?? row.route,
+        },
         { label: "快递员取件", time: row.actionAt, operator: row.pickupCourier ?? "—", location: row.route },
         { label: "扫描分拣", time: row.pushedAt, operator: "站点操作员", location: row.route },
         { label: "站点签入", time: row.pushedAt, operator: "系统", location: row.route },
@@ -87,7 +101,8 @@ export function WaybillDetailSheet({
           onOpenChange(open)
         }}
       >
-        <SheetContent
+        <DetailSurface
+          embedded={embedded}
           ref={sheetContentRef}
           className="w-full gap-0 p-0 sm:!w-[85vw] sm:!max-w-none"
           showCloseButton={false}
@@ -125,7 +140,7 @@ export function WaybillDetailSheet({
                     </Button>
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">
-                    运单状态：{row.pickupStatus}
+                    运单状态：{row.waybillStatus ?? row.pickupStatus}
                   </span>
                 </div>
                 <SheetDescription className="sr-only">
@@ -133,8 +148,8 @@ export function WaybillDetailSheet({
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="grid min-h-0 flex-1 xl:grid-cols-[minmax(0,1fr)_28rem]">
-                <div className="min-h-0 overflow-y-auto px-6 pb-5 sm:px-10">
+              <div className={cn("min-h-0 min-w-0 flex-1", embedded ? "block overflow-y-auto @[52rem]:grid @[52rem]:grid-cols-[minmax(0,1fr)_28rem]" : "grid xl:grid-cols-[minmax(0,1fr)_28rem]")}>
+                <div className={cn("min-h-0 min-w-0 px-6 pb-5 sm:px-10", embedded ? "@[52rem]:overflow-y-auto" : "overflow-y-auto")}>
                   <section aria-labelledby="recipient-information-title">
                     <h3 id="recipient-information-title" className="font-heading text-base font-medium">
                       收件人信息
@@ -254,7 +269,7 @@ export function WaybillDetailSheet({
                           <TableBody className="[&_tr:last-child]:border-b">
                             <TableRow className="hover:bg-transparent">
                               <TableCell colSpan={10} className="h-60 p-0">
-                                <Empty className="sticky left-0 min-h-60 w-[calc(100vw-2.5rem)] rounded-none sm:w-[calc(85vw-2.5rem)] xl:w-[calc(85vw-30.5rem)]">
+                                <Empty className={cn("sticky left-0 min-h-60 rounded-none", !embedded && "w-[calc(100vw-2.5rem)] sm:w-[calc(85vw-2.5rem)] xl:w-[calc(85vw-30.5rem)]")}>
                                   <EmptyDescription>暂无数据</EmptyDescription>
                                 </Empty>
                               </TableCell>
@@ -266,7 +281,7 @@ export function WaybillDetailSheet({
                   </section>
                 </div>
 
-                <aside className="min-h-0 border-t px-6 py-5 sm:px-10 xl:border-t-0 xl:border-s" aria-labelledby="operation-record-title">
+                <aside className={cn("min-h-0 border-t px-6 py-5 sm:px-10", embedded ? "@[52rem]:overflow-y-auto @[52rem]:border-t-0 @[52rem]:border-s" : "xl:border-t-0 xl:border-s")} aria-labelledby="operation-record-title">
                   <h3 id="operation-record-title" className="font-heading text-base font-medium">
                     操作记录
                   </h3>
@@ -299,7 +314,7 @@ export function WaybillDetailSheet({
               </div>
             </>
           ) : null}
-        </SheetContent>
+        </DetailSurface>
       </Sheet>
 
       <Dialog
@@ -323,4 +338,10 @@ export function WaybillDetailSheet({
       </Dialog>
     </>
   )
+}
+
+/** The same detail content can live in a workspace without creating a portal or overlay. */
+function DetailSurface({ embedded, children, ...props }: ComponentProps<typeof SheetContent> & { embedded: boolean }) {
+  if (embedded) return <div className="@container relative flex h-full min-w-0 flex-col">{children}</div>
+  return <SheetContent {...props}>{children}</SheetContent>
 }

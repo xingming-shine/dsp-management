@@ -49,7 +49,7 @@ import { AlertMetricDetailView } from "@/features/live-dashboard/components/aler
 import { ExceptionDistributionDetailView } from "@/features/live-dashboard/components/exception-distribution-detail-view"
 import { parseAlertMetricDetailTitle } from "@/features/live-dashboard/alert-metric-config"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
-import { WaybillDetailSheet } from "@/features/live-dashboard/components/waybill-detail-sheet"
+import { WaybillWorkspace, useWaybillSelection } from "@/features/live-dashboard/components/waybill-workspace"
 import { QueryFilterLayout } from "@/features/live-dashboard/components/query-filter-layout"
 
 function csvCell(value: string) {
@@ -384,7 +384,7 @@ function TaskWaybillDetail({
   initialPickupStatuses?: TaskWaybillPickupStatus[]
 }) {
   const [query, setQuery] = useState("")
-  const [selectedWaybill, setSelectedWaybill] = useState<TaskWaybillRow | null>(null)
+  const [selectedWaybill, setSelectedWaybill] = useWaybillSelection<TaskWaybillRow>()
   const [submittedQuery, setSubmittedQuery] = useState("")
   const [pickupStatuses, setPickupStatuses] = useState<TaskWaybillPickupStatus[]>(
     () => [...initialPickupStatuses]
@@ -434,6 +434,7 @@ function TaskWaybillDetail({
   }
 
   return (
+    <WaybillWorkspace rows={filteredRows} selected={selectedWaybill} onSelect={setSelectedWaybill} pageSize={pageSize} onPageChange={setPage} scene="task" title={`任务 ${task.taskId}`}>
     <section
       className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-5 rounded-xl bg-card p-5 duration-200"
       aria-label={`${task.taskId}运单列表`}
@@ -576,15 +577,8 @@ function TaskWaybillDetail({
         />
       </div>
 
-      <WaybillDetailSheet
-        row={selectedWaybill}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedWaybill(null)
-          }
-        }}
-      />
     </section>
+    </WaybillWorkspace>
   )
 }
 
