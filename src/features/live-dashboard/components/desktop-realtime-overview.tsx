@@ -4,7 +4,7 @@ import { alertMetricGroups } from "../alert-metric-config"
 import { overviewCardsByMode, overviewCardTitles, type OverviewCardId, type OverviewDetailAction, type PickupPeriod } from "../overview-card-config"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { ReactNode } from "react"
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import type { EChartsOption } from "echarts"
 import {
   ArrowRightIcon,
@@ -53,6 +53,8 @@ import {
 } from "@/components/ui/tabs"
 import { EChartsChart } from "@/features/data-cockpit/components/echarts-chart"
 import { DriverLiveMap } from "@/features/live-dashboard/components/driver-live-map"
+import { DriverDeliveryStatusBadge } from "@/features/live-dashboard/components/driver-delivery-status-badge"
+import type { WaybillAlert } from "@/features/live-dashboard/driver-monitor-data"
 import { CurrentPickupMonitor } from "@/features/live-dashboard/components/current-pickup-monitor"
 import { AnimatedSegmentedProgress } from "@/features/live-dashboard/components/animated-segmented-progress"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
@@ -86,6 +88,14 @@ const routeDifficultyClassNames: Record<RouteDifficulty, string> = {
   B: "border-brand text-brand",
   C: "border-success text-success",
   D: "border-success/60 text-success/70",
+}
+
+const routeDifficultyTextClassNames: Record<RouteDifficulty, string> = {
+  S: "text-destructive",
+  A: "text-destructive/80",
+  B: "text-brand",
+  C: "text-success",
+  D: "text-success/70",
 }
 
 const driverStatusFilterOptions = [
@@ -260,7 +270,7 @@ export function DesktopRealtimeOverview({ mode, onDetail }: { mode: WorkMode; on
       </div>
       <div className="grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] xl:col-span-12">
         <div className="min-w-0">
-          <DriverMonitor selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onViewDriver={(driverId) => onDetail("司机监控地图", driverId)} onViewPickup={(driverId, period) => onDetail("领件详情", driverId, period)} />
+          <DriverMonitor selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onViewDriver={(driverId, alertType) => onDetail("司机监控地图", driverId, "current", alertType)} onViewPickup={(driverId, period) => onDetail("领件详情", driverId, period)} />
         </div>
         <div className="min-w-0">
           <DriverMapPanel selectedDriverId={selectedMapDriverId} onSelectDriver={setSelectedMapDriverId} onDetail={onDetail} />
@@ -1538,7 +1548,6 @@ function ExceptionDistribution({ option, onDetail }: { option: EChartsOption; on
             ]}
             labelColors={["--brand-foreground", "--brand-foreground"]}
             className="h-50 min-h-0"
-            onChartClick={(event) => onDetail(`${String(event.name)}异常明细`)}
           />
         </CardContent>
       </Card>
@@ -1546,7 +1555,7 @@ function ExceptionDistribution({ option, onDetail }: { option: EChartsOption; on
   )
 }
 
-function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewPickup }: { selectedDriverId: string | null; onSelectDriver: (driverId: string | null) => void; onViewDriver: (driverId: string) => void; onViewPickup: (driverId: string, period: PickupPeriod) => void }) {
+function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewPickup }: { selectedDriverId: string | null; onSelectDriver: (driverId: string | null) => void; onViewDriver: (driverId: string, alertType?: WaybillAlert) => void; onViewPickup: (driverId: string, period: PickupPeriod) => void }) {
   const [view, setView] = useState<MonitorView>("delivery")
   const [query, setQuery] = useState("")
   const [statusFilters, setStatusFilters] = useState<DriverStatusFilter[]>([])
@@ -1585,20 +1594,12 @@ function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewP
             <TabsList variant="line" className="grid w-full grid-cols-3">
               {driverMonitorTabs.map((tab) => (
                 <div key={tab.value} className="flex min-w-0 items-center justify-center">
-                  <TabsTrigger value={tab.value} className="flex-none">
-                    {tab.label}
-                  </TabsTrigger>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="-ml-4 border-transparent bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-brand focus-visible:bg-transparent"
-                        aria-label={`查看${tab.label}说明`}
-                      >
-                        <CircleHelpIcon />
-                      </Button>
+                      <TabsTrigger value={tab.value} className="flex-none">
+                        {tab.label}
+                        <CircleHelpIcon aria-hidden="true" className="text-muted-foreground" />
+                      </TabsTrigger>
                     </TooltipTrigger>
                     <TooltipContent>{tab.description}</TooltipContent>
                   </Tooltip>
@@ -1657,7 +1658,7 @@ function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewP
                     driver={driver}
                     selected={driver.id === selectedDriverId}
                     onSelect={() => onSelectDriver(driver.id === selectedDriverId ? null : driver.id)}
-                    onViewDetail={() => onViewDriver(driver.id)}
+                    onViewDetail={(alertType) => onViewDriver(driver.id, alertType)}
                   />
                 ))}
                 {visibleDrivers.length === 0 ? <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">暂无匹配司机</div> : null}
@@ -1686,11 +1687,15 @@ function DriverSummary({ onQueryStatus }: { onQueryStatus: (status: DriverStatus
   )
 }
 
-function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver: DashboardDriverSnapshot; selected: boolean; onSelect: () => void; onViewDetail: () => void }) {
+function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver: DashboardDriverSnapshot; selected: boolean; onSelect: () => void; onViewDetail: (alertType?: WaybillAlert) => void }) {
   const [contactOpen, setContactOpen] = useState(false)
+  const [draggingRoutes, setDraggingRoutes] = useState(false)
   const contactCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const routeDrag = useRef<{ pointerId: number; startX: number; scrollLeft: number; moved: boolean } | null>(null)
+  const suppressRouteClick = useRef(false)
   const historyDue = Math.min(17, driver.total)
   const currentDue = Math.max(driver.total - historyDue, 0)
+  const pod2400Rate = assessmentMetrics.find((metric) => metric.label === "2400 妥投率")?.value ?? 0
   const completed = driver.delivered + driver.exception
   const deliveredRate = driver.total ? (driver.delivered / driver.total) * 100 : 0
   const exceptionRate = driver.total ? (driver.exception / driver.total) * 100 : 0
@@ -1719,6 +1724,38 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
     } catch {
       toast.error("复制失败，请手动复制手机号")
     }
+  }
+
+  const startRouteDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (event.pointerType === "touch" || event.button !== 0 || event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return
+    routeDrag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      scrollLeft: event.currentTarget.scrollLeft,
+      moved: false,
+    }
+    suppressRouteClick.current = false
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDraggingRoutes(true)
+  }
+
+  const moveRouteDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const drag = routeDrag.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const distance = event.clientX - drag.startX
+    if (Math.abs(distance) > 3) drag.moved = true
+    if (!drag.moved) return
+    event.preventDefault()
+    suppressRouteClick.current = true
+    event.currentTarget.scrollLeft = drag.scrollLeft - distance
+  }
+
+  const finishRouteDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const drag = routeDrag.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    routeDrag.current = null
+    setDraggingRoutes(false)
   }
 
   return (
@@ -1752,22 +1789,41 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
             </span>
           </PopoverTrigger>
           <span
-            className="flex min-w-0 flex-1 touch-pan-x items-center gap-2 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className={cn(
+              "flex min-w-0 flex-1 touch-pan-x items-center gap-2 overflow-x-auto overscroll-x-contain scroll-smooth select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              draggingRoutes ? "cursor-grabbing" : "cursor-grab"
+            )}
             aria-label={`${driver.name}路区列表`}
-            title="横向滑动查看更多路区"
+            title="按住并横向拖动查看更多路区"
+            onPointerDown={startRouteDrag}
+            onPointerMove={moveRouteDrag}
+            onPointerUp={finishRouteDrag}
+            onPointerCancel={finishRouteDrag}
+            onLostPointerCapture={() => {
+              routeDrag.current = null
+              setDraggingRoutes(false)
+            }}
+            onClick={(event) => {
+              if (!suppressRouteClick.current) return
+              event.preventDefault()
+              event.stopPropagation()
+              suppressRouteClick.current = false
+            }}
           >
             <DriverRouteBadges routes={driver.routeAssignments} />
           </span>
         </div>
         {driver.status !== "派送正常" ? (
-          <Badge variant="destructive" className="h-[26px] rounded-[2.8px]">
-            {driver.status}
-            <ChevronRightIcon data-icon="inline-end" aria-hidden="true" />
-          </Badge>
+          <DriverDeliveryStatusBadge
+            status={driver.status}
+            latestAction={driver.latestAction}
+            latestActionAt={driver.latestActionAt}
+            focusable={false}
+          />
         ) : null}
       </div>
 
-      <div className="grid min-w-0 gap-4 md:grid-cols-[8rem_auto_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-y-4 md:grid-cols-[max-content_auto_minmax(0,1fr)] md:gap-x-3">
         <div className="flex flex-col justify-center gap-3">
           <DriverInlineStat label="PPH-派送" value={driver.efficiency} />
           <DriverInlineStat label="派件时长" value={driver.activeHours} />
@@ -1780,6 +1836,14 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
             <span className="text-muted-foreground">=</span>
             <span className="text-muted-foreground">当期应派</span>
             <strong className="font-medium tabular-nums">{currentDue}</strong>
+            <span
+              className="relative ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-sm border border-data-accent/40 bg-data-accent/10 px-2 font-medium text-foreground before:absolute before:top-1/2 before:-left-1 before:size-2 before:-translate-y-1/2 before:rotate-45 before:border-b before:border-l before:border-data-accent/40 before:bg-data-accent/10"
+              aria-label={`2400妥投率 ${pod2400Rate.toFixed(2)}%`}
+            >
+              <span className="text-muted-foreground">2400妥投率</span>
+              <span aria-hidden="true" className="h-3 w-px bg-data-accent/30" />
+              <strong className="font-heading font-semibold tabular-nums text-data-accent">{pod2400Rate.toFixed(2)}%</strong>
+            </span>
             <span className="text-muted-foreground">+</span>
             <span className="text-muted-foreground">历史未派</span>
             <strong className="font-medium tabular-nums">{historyDue}</strong>
@@ -1805,18 +1869,18 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
         </div>
       </div>
 
+      </button>
       {hasIssueTags ? (
         <>
           <div aria-hidden="true" className="mx-4 border-t border-dashed border-border" />
           <div className="flex flex-wrap gap-2">
-            {driver.locationIssues ? <Badge variant="destructive">妥投位置异常 {driver.locationIssues}</Badge> : null}
-            {driver.podIssues ? <Badge variant="destructive">POD 不合规 {driver.podIssues}</Badge> : null}
-            {driver.fakeIssues ? <Badge variant="destructive">虚假问题件 {driver.fakeIssues}</Badge> : null}
+            {driver.locationIssues ? <Badge asChild variant="destructive"><button type="button" className="cursor-pointer hover:bg-destructive/20" onClick={() => onViewDetail("location")} aria-label={`查看${driver.name}的妥投位置异常运单`}>妥投位置异常 {driver.locationIssues}</button></Badge> : null}
+            {driver.podIssues ? <Badge asChild variant="destructive"><button type="button" className="cursor-pointer hover:bg-destructive/20" onClick={() => onViewDetail("pod")} aria-label={`查看${driver.name}的POD不合规运单`}>POD 不合规 {driver.podIssues}</button></Badge> : null}
+            {driver.fakeIssues ? <Badge asChild variant="destructive"><button type="button" className="cursor-pointer hover:bg-destructive/20" onClick={() => onViewDetail("fake")} aria-label={`查看${driver.name}的虚假问题件运单`}>虚假问题件 {driver.fakeIssues}</button></Badge> : null}
           </div>
         </>
       ) : null}
-      </button>
-      <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4 border-0 bg-transparent" aria-label={`查看${driver.name}的派件地图详情`} onClick={onViewDetail}><ArrowUpRightIcon /></Button></TooltipTrigger><TooltipContent>查看派件地图详情</TooltipContent></Tooltip></TooltipProvider>
+      <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4 border-0 bg-transparent" aria-label={`查看${driver.name}的派件地图详情`} onClick={() => onViewDetail()}><ArrowUpRightIcon /></Button></TooltipTrigger><TooltipContent>查看派件地图详情</TooltipContent></Tooltip></TooltipProvider>
       </article>
       <PopoverContent
         align="start"
@@ -1845,25 +1909,46 @@ function CompactDriverRow({ driver, selected, onSelect, onViewDetail }: { driver
 }
 
 function DriverRouteBadges({ routes }: { routes: DriverRouteAssignment[] }) {
-  return routes.map((route) => (
-    <Badge
-      key={route.name}
-      variant="outline"
-      className={cn(
-        "shrink-0 rounded-sm bg-transparent font-medium",
-        route.difficulty
-          ? routeDifficultyClassNames[route.difficulty]
-          : "border-border bg-muted text-muted-foreground"
-      )}
-    >
-      {route.name}
-      {route.difficulty ? ` · ${routeDifficultyLabels[route.difficulty]}` : null}
-    </Badge>
-  ))
+  return (
+    <TooltipProvider>
+      {routes.map((route) => (
+        <Tooltip key={route.name}>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className={cn(
+                "shrink-0 rounded-sm bg-transparent font-medium",
+                route.difficulty
+                  ? routeDifficultyClassNames[route.difficulty]
+                  : "border-border bg-muted text-muted-foreground"
+              )}
+            >
+              {route.name}
+              {route.difficulty ? ` · ${routeDifficultyLabels[route.difficulty]}` : null}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent variant="complex" aria-label={`${route.name}路区信息`}>
+            <div className="flex items-center gap-2 [font-size:var(--button-font-size)] font-medium">
+              <span>路区信息</span>
+              <span className="font-semibold">{route.name}</span>
+            </div>
+            <Separator />
+            <dl className="grid grid-cols-[4.75rem_minmax(0,1fr)] gap-x-2.5 gap-y-1">
+              <dt className="text-muted-foreground">难易度</dt><dd className={route.difficulty ? routeDifficultyTextClassNames[route.difficulty] : undefined}>{route.difficulty ? routeDifficultyLabels[route.difficulty] : "—"}</dd>
+              <dt className="text-muted-foreground">安全度</dt><dd>{route.safety}</dd>
+              <dt className="text-muted-foreground">派送异常率</dt><dd className="tabular-nums">{route.deliveryExceptionRate}</dd>
+              <dt className="text-muted-foreground">DNR率</dt><dd className="tabular-nums">{route.dnrRate}</dd>
+              <dt className="text-muted-foreground">PPH（派送）</dt><dd className="tabular-nums">{route.deliveryPph}</dd>
+            </dl>
+          </TooltipContent>
+        </Tooltip>
+      ))}
+    </TooltipProvider>
+  )
 }
 
 function DriverInlineStat({ label, value }: { label: string; value: string | number }) {
-  return <span className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2"><span className="whitespace-nowrap text-xs text-muted-foreground">{label}</span><strong className="whitespace-nowrap text-xs font-medium tabular-nums">{value}</strong></span>
+  return <span className="grid grid-cols-[4rem_max-content] items-baseline gap-1"><span className="whitespace-nowrap text-xs text-muted-foreground">{label}</span><strong className="whitespace-nowrap text-xs font-medium tabular-nums">{value}</strong></span>
 }
 
 function DriverResultStat({ label, rate, value, tone }: {

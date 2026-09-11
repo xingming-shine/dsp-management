@@ -169,9 +169,12 @@ export function CurrentPickupMonitor({ drivers, period = "current", onViewDetail
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-4">
                   <div className="flex min-w-0 flex-col gap-2 sm:pr-1">
-                    <div className="grid grid-cols-[minmax(0,1fr)_3.25rem] items-center gap-x-1.5 gap-y-2 text-xs">
+                    <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-x-1.5 gap-y-2 text-xs">
                       <span>应领件 <strong className="ml-2 font-medium tabular-nums">{row.due}</strong></span>
-                      <span className="text-right tabular-nums text-muted-foreground">{row.collected}/{row.due}</span>
+                      <span className="flex items-center justify-end gap-1 whitespace-nowrap text-muted-foreground">
+                        <span>领件率</span>
+                        <span className="font-medium tabular-nums text-foreground">{row.rate.toFixed(2)}%</span>
+                      </span>
                       <AnimatedSegmentedProgress
                         value={row.rate}
                         ariaLabel={`${collectedLabel} ${row.collected}，已分拣未领件 ${row.sorted}，未分拣未领件 ${row.unsorted}，领件率 ${row.rate.toFixed(2)}%`}
@@ -182,7 +185,7 @@ export function CurrentPickupMonitor({ drivers, period = "current", onViewDetail
                           { className: "bg-border", value: row.unsorted / row.due * 100 },
                         ]}
                       />
-                      <span className="text-right tabular-nums text-muted-foreground">{row.rate.toFixed(2)}%</span>
+                      <span className="text-right tabular-nums text-muted-foreground">{row.collected}/{row.due}</span>
                       <div className="grid grid-cols-3 items-start gap-2 text-xs text-muted-foreground">
                         {[
                           { label: "未分拣未领件", value: row.unsorted, color: "bg-border", abnormal: true },

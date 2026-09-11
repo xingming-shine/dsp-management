@@ -1052,7 +1052,7 @@ export function MetricDetailView({
   }
 
   if (title === "派送异常分布详情" || title === "派送异常原因分布详情") {
-    return <ExceptionDistributionDetailView onBack={onBack} />
+    return <ExceptionDistributionDetailView onBack={onBack} onNavigate={onNavigateDetail} />
   }
 
   if (

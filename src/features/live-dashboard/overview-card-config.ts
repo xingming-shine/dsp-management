@@ -1,8 +1,9 @@
 import type { WorkMode } from "./mock-data"
+import type { WaybillAlert } from "./driver-monitor-data"
 
 export type PickupPeriod = "current" | "next"
 export type OverviewCardId = "allocation" | "handoff" | "delivery" | "next-allocation" | "current-pickup" | "next-handoff"
-export type OverviewDetailAction = (title: string, driverId?: string, period?: PickupPeriod) => void
+export type OverviewDetailAction = (title: string, driverId?: string, period?: PickupPeriod, alertType?: WaybillAlert) => void
 
 export const overviewCardsByMode: Record<WorkMode, readonly OverviewCardId[]> = {
   "same-day": ["allocation", "handoff", "delivery", "next-allocation"],

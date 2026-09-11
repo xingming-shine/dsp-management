@@ -6,6 +6,7 @@ import { ArrowLeftIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { EChartsChart } from "@/features/data-cockpit/components/echarts-chart"
+import { createDeliveryDetailKey, type DeliveryDetailDrilldown } from "@/features/live-dashboard/components/delivery-detail-view"
 
 const driverNames = [
   "Vivian Ho",
@@ -78,6 +79,7 @@ function createDriverStackOption(normal: number[], fake: number[], max = 15, bar
         name: "正常问题件",
         type: "bar",
         stack: "issue",
+        cursor: "pointer",
         barMaxWidth,
         data: normalData,
         label: { show: true, position: "inside", fontSize: 10, formatter: ({ value }: { value: unknown }) => Number(value) > 0 ? String(value) : "" },
@@ -86,6 +88,7 @@ function createDriverStackOption(normal: number[], fake: number[], max = 15, bar
         name: "虚假问题件",
         type: "bar",
         stack: "issue",
+        cursor: "pointer",
         barMaxWidth,
         data: fakeData,
         label: { show: true, position: "inside", fontSize: 10, formatter: ({ value }: { value: unknown }) => Number(value) > 0 ? String(value) : "" },
@@ -94,7 +97,7 @@ function createDriverStackOption(normal: number[], fake: number[], max = 15, bar
   }
 }
 
-function ScrollableDriverChart({ option, ariaLabel }: { option: EChartsOption; ariaLabel: string }) {
+function ScrollableDriverChart({ option, ariaLabel, onDrilldown }: { option: EChartsOption; ariaLabel: string; onDrilldown: (drilldown: DeliveryDetailDrilldown) => void }) {
   const axis = option.xAxis as { data?: unknown[] }
   const driverCount = axis.data?.length ?? 0
 
@@ -108,6 +111,10 @@ function ScrollableDriverChart({ option, ariaLabel }: { option: EChartsOption; a
           labelColors={["--brand-foreground", "--brand-foreground"]}
           className="h-64"
           ariaLabel={ariaLabel}
+          onChartClick={(event) => {
+            if (event.componentType !== "series" || typeof event.name !== "string") return
+            onDrilldown({ driverName: event.name, fake: event.seriesName === "虚假问题件" })
+          }}
         />
       </div>
     </div>
@@ -119,7 +126,11 @@ function ScrollableDriverChart({ option, ariaLabel }: { option: EChartsOption; a
   )
 }
 
-export function ExceptionDistributionDetailView({ onBack }: { onBack: () => void }) {
+export function ExceptionDistributionDetailView({ onBack, onNavigate }: { onBack: () => void; onNavigate: (detailKey: string) => void }) {
+  const openExceptionWaybills = (drilldown: DeliveryDetailDrilldown) => {
+    onNavigate(createDeliveryDetailKey("exception", "all", drilldown))
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
   const reasonOption = useMemo<EChartsOption>(() => ({
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
     legend: { bottom: 0, icon: "roundRect", itemWidth: 18, itemHeight: 10, itemGap: 16 },
@@ -131,6 +142,7 @@ export function ExceptionDistributionDetailView({ onBack }: { onBack: () => void
         name: "正常问题件",
         type: "bar",
         stack: "issue",
+        cursor: "pointer",
         barWidth: 16,
         data: reasonRows.map((item) => ({
           value: item.normal,
@@ -142,6 +154,7 @@ export function ExceptionDistributionDetailView({ onBack }: { onBack: () => void
         name: "虚假问题件",
         type: "bar",
         stack: "issue",
+        cursor: "pointer",
         barWidth: 16,
         data: reasonRows.map((item) => ({
           value: item.fake,
@@ -186,6 +199,13 @@ export function ExceptionDistributionDetailView({ onBack }: { onBack: () => void
               labelColors={["--brand-foreground", "--brand-foreground"]}
               className="h-72"
               ariaLabel="派送异常原因分布堆叠条形图"
+              onChartClick={(event) => {
+                if (event.componentType !== "series" || typeof event.name !== "string") return
+                openExceptionWaybills({
+                  problemType: event.name as DeliveryDetailDrilldown["problemType"],
+                  fake: event.seriesName === "虚假问题件",
+                })
+              }}
             />
           </section>
           <section className="min-w-0" aria-labelledby="exception-driver-chart-title">
@@ -193,6 +213,7 @@ export function ExceptionDistributionDetailView({ onBack }: { onBack: () => void
             <ScrollableDriverChart
               option={personnelOption}
               ariaLabel="派送异常量人员分布堆叠柱状图"
+              onDrilldown={openExceptionWaybills}
             />
           </section>
         </div>
@@ -209,6 +230,7 @@ export function ExceptionDistributionDetailView({ onBack }: { onBack: () => void
                 <ScrollableDriverChart
                   option={detailOptions[index]}
                   ariaLabel={`${item.title}司机问题件分布堆叠柱状图`}
+                  onDrilldown={(drilldown) => openExceptionWaybills({ ...drilldown, problemType: item.title as DeliveryDetailDrilldown["problemType"] })}
                 />
               </section>
             ))}

@@ -55,8 +55,15 @@ type DeliveryStatus = "待派件" | "已签收" | "派送异常"
 type OverdueDays = "未超期" | "超1天" | "超2天" | "超3天" | "超4天"
 type WaybillType = "普件" | "货代" | "Locker" | "PUDO"
 type DeliveryIssue = "无" | "POD不合规" | "妥投位置异常"
-type ProblemType = "商业地址关门" | "地址错误/不详" | "无法投递" | "收件人拒收" | "无法进入"
+const problemTypes = ["商业地址关门", "地址错误/不详", "无法投递", "收件人拒收", "无法进入"] as const
+type ProblemType = (typeof problemTypes)[number]
 type SortDirection = "asc" | "desc"
+
+export type DeliveryDetailDrilldown = {
+  driverName?: string
+  problemType?: ProblemType
+  fake?: boolean
+}
 
 const detailTitleByMetric: Record<DeliveryDetailMetric, string> = {
   expected: "应派件",
@@ -65,14 +72,29 @@ const detailTitleByMetric: Record<DeliveryDetailMetric, string> = {
   exception: "派送异常",
 }
 
-export function createDeliveryDetailKey(metric: DeliveryDetailMetric, source: DeliveryDetailSource = "all") {
-  return `派件作业:${metric}:${source}`
+export function createDeliveryDetailKey(metric: DeliveryDetailMetric, source: DeliveryDetailSource = "all", drilldown?: DeliveryDetailDrilldown) {
+  const params = new URLSearchParams()
+  if (drilldown?.driverName) params.set("driver", drilldown.driverName)
+  if (drilldown?.problemType) params.set("problemType", drilldown.problemType)
+  if (drilldown?.fake !== undefined) params.set("fake", drilldown.fake ? "yes" : "no")
+  const query = params.toString()
+  return `派件作业:${metric}:${source}${query ? `?${query}` : ""}`
 }
 
 export function parseDeliveryDetailKey(value: string) {
-  const [prefix, metric, source] = value.split(":")
+  const [key, query = ""] = value.split("?")
+  const [prefix, metric, source] = key.split(":")
   if (prefix !== "派件作业" || !["expected", "pending", "delivered", "exception"].includes(metric) || !["all", "current", "history"].includes(source)) return null
-  return { metric: metric as DeliveryDetailMetric, source: source as DeliveryDetailSource }
+  const params = new URLSearchParams(query)
+  const problemType = params.get("problemType")
+  const fake = params.get("fake")
+  return {
+    metric: metric as DeliveryDetailMetric,
+    source: source as DeliveryDetailSource,
+    driverName: params.get("driver") ?? undefined,
+    problemType: problemType && problemTypes.includes(problemType as ProblemType) ? problemType as ProblemType : undefined,
+    fake: fake === "yes" ? true : fake === "no" ? false : undefined,
+  }
 }
 
 export function getDeliveryDetailTitle(value: string) {
@@ -276,13 +298,35 @@ type WaybillFilters = {
   fake: "all" | "yes" | "no"
 }
 
-function createWaybillFilters(source: DeliveryDetailSource): WaybillFilters {
-  return { driverId: "all", query: "", statuses: [], source, overdue: "all", waybillType: "all", transfer: "all", deliveryIssue: "all", problemType: "all", fake: "all" }
+function createWaybillFilters(source: DeliveryDetailSource, drilldown?: DeliveryDetailDrilldown): WaybillFilters {
+  const driverId = drilldown?.driverName
+    ? deliveryDrivers.find((driver) => driver.name === drilldown.driverName)?.id ?? "all"
+    : "all"
+  return {
+    driverId,
+    query: "",
+    statuses: [],
+    source,
+    overdue: "all",
+    waybillType: "all",
+    transfer: "all",
+    deliveryIssue: "all",
+    problemType: drilldown?.problemType ?? "all",
+    fake: drilldown?.fake === undefined ? "all" : drilldown.fake ? "yes" : "no",
+  }
 }
 
 export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; onBack: () => void }) {
-  const config = parseDeliveryDetailKey(detailKey) ?? { metric: "expected" as const, source: "all" as const }
-  const [view, setView] = useState("driver")
+  const config = parseDeliveryDetailKey(detailKey) ?? {
+    metric: "expected" as const,
+    source: "all" as const,
+    driverName: undefined,
+    problemType: undefined,
+    fake: undefined,
+  }
+  const hasDrilldown = Boolean(config.driverName || config.problemType || config.fake !== undefined)
+  const initialWaybillFilters = createWaybillFilters(config.source, config)
+  const [view, setView] = useState(hasDrilldown ? "waybill" : "driver")
   const [sourceTab, setSourceTab] = useState<DeliveryDetailSource>(config.source)
   const [driverFilter, setDriverFilter] = useState("all")
   const [driverSource, setDriverSource] = useState<DeliveryDetailSource>(config.source)
@@ -292,8 +336,8 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
   const [driverSortDirection, setDriverSortDirection] = useState<SortDirection>("asc")
   const [driverPage, setDriverPage] = useState(1)
   const [driverPageSize, setDriverPageSize] = useState(10)
-  const [waybillFilters, setWaybillFilters] = useState(() => createWaybillFilters(config.source))
-  const [appliedWaybillFilters, setAppliedWaybillFilters] = useState(() => createWaybillFilters(config.source))
+  const [waybillFilters, setWaybillFilters] = useState(() => initialWaybillFilters)
+  const [appliedWaybillFilters, setAppliedWaybillFilters] = useState(() => initialWaybillFilters)
   const [waybillSortKey, setWaybillSortKey] = useState<"pickupAt" | "overdueDays" | null>(null)
   const [waybillSortDirection, setWaybillSortDirection] = useState<SortDirection>("desc")
   const [waybillPage, setWaybillPage] = useState(1)
@@ -401,7 +445,7 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
 
   return <>
     <section className="animate-in fade-in slide-in-from-right-4 flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 duration-200" aria-label={`${title}详情下钻`}>
-      <div className="flex items-start gap-3"><Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button><h2 className="font-heading text-xl font-semibold text-foreground">{title}</h2></div>
+      <div className="flex items-center gap-3"><Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button><h2 className="flex min-h-8 items-center font-heading text-xl font-semibold text-foreground">{title}</h2></div>
       <Tabs value={view} onValueChange={setView} className="min-w-0 gap-3">
         <TabsList variant="line"><TabsTrigger value="driver">司机视图</TabsTrigger><TabsTrigger value="waybill">运单视图</TabsTrigger></TabsList>
         <TabsContent value="driver" className="flex min-w-0 flex-col gap-4">

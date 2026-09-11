@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDownUpIcon, ArrowLeftIcon, ListIcon, MapIcon, PackageSearchIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 import type { EChartsOption } from "echarts"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -14,6 +13,7 @@ import { EChartsChart } from "@/features/data-cockpit/components/echarts-chart"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { DeliveryTaskMap } from "@/features/live-dashboard/components/delivery-task-map"
+import { DriverDeliveryStatusBadge } from "@/features/live-dashboard/components/driver-delivery-status-badge"
 import { StatusMultiSelect } from "@/features/live-dashboard/components/status-multi-select"
 import { MonitorWaybillCard, MonitorWaybillOverlay } from "@/features/live-dashboard/components/monitor-waybill-card"
 import { monitorDrivers, monitorWaybills, summarizeWaybills, statusLabels, alertLabels, emptyMonitorQuery, filterMonitorWaybills, waybillCoordinate, type MonitorQuery, type MonitorSort, type MonitorWaybill, type WaybillAlert } from "@/features/live-dashboard/driver-monitor-data"
@@ -66,11 +66,12 @@ function MonitorAlertSelect({ value, onChange }: { value: WaybillAlert[]; onChan
   />
 }
 
-export function DriverMonitorDetailView({ onBack, initialDriverId }: { onBack: () => void; initialDriverId?: string | null }) {
+export function DriverMonitorDetailView({ onBack, initialDriverId, initialAlertType }: { onBack: () => void; initialDriverId?: string | null; initialAlertType?: WaybillAlert | null }) {
   const initialDriver = monitorDrivers.some((driver) => driver.id === initialDriverId) ? initialDriverId! : "all"
+  const initialQuery: MonitorQuery = { ...emptyMonitorQuery, alerts: initialAlertType ? [initialAlertType] : [] }
   const [driverId, setDriverId] = useState(initialDriver)
-  const [draft, setDraft] = useState<MonitorQuery>(emptyMonitorQuery)
-  const [query, setQuery] = useState<MonitorQuery>(emptyMonitorQuery)
+  const [draft, setDraft] = useState<MonitorQuery>(initialQuery)
+  const [query, setQuery] = useState<MonitorQuery>(initialQuery)
   const [addressMatches, setAddressMatches] = useState<string[] | null>(null)
   const [sort, setSort] = useState<MonitorSort>("sequence")
   const sortLabel = sortOptions.find(([value]) => value === sort)![1]
@@ -95,7 +96,6 @@ export function DriverMonitorDetailView({ onBack, initialDriverId }: { onBack: (
   const filtered = useMemo(() => filterMonitorWaybills(scopedRows, query, addressMatches, sort), [scopedRows, query, addressMatches, sort])
   const visibleRows = filtered.slice(0, visibleCount)
   const selectedDriver = driverId === "all" ? null : scopedDrivers[0]
-  const selectedDriverReminder = selectedDriver && /(?:\d+h|\d+min|小时).*未派送/.test(selectedDriver.status) ? selectedDriver.status : null
 
   useEffect(() => {
     const root = scrollRef.current
@@ -141,6 +141,13 @@ export function DriverMonitorDetailView({ onBack, initialDriverId }: { onBack: (
     setDriverId(nextId); setShowWaybills(nextId !== "all"); clearSelection()
   }
 
+  function syncAlertType(alerts: WaybillAlert[]) {
+    const url = new URL(window.location.href)
+    if (alerts.length === 1) url.searchParams.set("alertType", alerts[0])
+    else url.searchParams.delete("alertType")
+    window.history.replaceState({}, "", url)
+  }
+
   function toggleWaybills(show: boolean) {
     if (show && driverId === "all") {
       toast.info("请先选择单个司机，再显示运单位置。", { id: "monitor-waybill-layer" })
@@ -164,7 +171,7 @@ export function DriverMonitorDetailView({ onBack, initialDriverId }: { onBack: (
         matches = (await response.json()).ids
       }
       if (controller.signal.aborted) return
-      setAddressMatches(matches); setQuery(submitted); clearSelection()
+      setAddressMatches(matches); setQuery(submitted); syncAlertType(submitted.alerts); clearSelection()
     } catch (error) {
       if (!controller.signal.aborted) toast.error(error instanceof Error ? error.message : "查询失败")
     } finally { if (!controller.signal.aborted) setQueryBusy(false) }
@@ -172,7 +179,7 @@ export function DriverMonitorDetailView({ onBack, initialDriverId }: { onBack: (
 
   function resetQuery() {
     queryRequest.current?.abort(); setQueryBusy(false)
-    setDraft(emptyMonitorQuery); setQuery(emptyMonitorQuery); setAddressMatches(null); setSort("sequence"); clearSelection()
+    setDraft(emptyMonitorQuery); setQuery(emptyMonitorQuery); setAddressMatches(null); setSort("sequence"); syncAlertType([]); clearSelection()
   }
 
   async function toggleAddress(id: string) {
@@ -213,7 +220,7 @@ export function DriverMonitorDetailView({ onBack, initialDriverId }: { onBack: (
   return <div className="delivery-monitor-page flex min-w-0 flex-col gap-3" data-testid="driver-monitor-detail">
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3"><Button variant="outline" size="sm" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />返回</Button><h1 className="min-w-0 break-words text-xl font-semibold">司机监控地图{selectedDriver ? ` - ${selectedDriver.name}` : ""}</h1></div>
-      <div className="flex flex-wrap items-center gap-2"><Field orientation="horizontal" className="w-auto"><FieldLabel htmlFor="monitor-map-driver">司机</FieldLabel><Select value={driverId} onValueChange={changeDriver}><SelectTrigger id="monitor-map-driver" className="w-48 border-brand"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">全部司机（{monitorDrivers.length}）</SelectItem>{monitorDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>{selectedDriverReminder && <Badge variant="destructive">{selectedDriverReminder}</Badge>}</div>
+      <div className="flex flex-wrap items-center gap-2"><Field orientation="horizontal" className="w-auto"><FieldLabel htmlFor="monitor-map-driver">司机</FieldLabel><Select value={driverId} onValueChange={changeDriver}><SelectTrigger id="monitor-map-driver" className="w-48 border-brand"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">全部司机（{monitorDrivers.length}）</SelectItem>{monitorDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>{selectedDriver && selectedDriver.status !== "派送正常" ? <DriverDeliveryStatusBadge status={selectedDriver.status} latestAction={selectedDriver.latestAction} latestActionAt={selectedDriver.latestActionAt} /> : null}</div>
     </div>
     <section className="grid min-w-0 shrink-0 auto-cols-max grid-flow-col justify-between gap-3 overflow-x-auto rounded-lg border bg-card p-4 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none" aria-label="司机派送指标汇总" tabIndex={0}>
       {[

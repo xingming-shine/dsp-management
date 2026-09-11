@@ -1,10 +1,11 @@
 import { driverRows } from "@/features/live-dashboard/driver-rows"
+import type { DashboardDriverSnapshot } from "@/features/live-dashboard/driver-rows"
 import type { DriverSnapshot } from "@/features/live-dashboard/mock-data"
 
 export type DeliveryStatus = "pending" | "delivered" | "exception"
 export type WaybillAlert = "pod" | "location" | "fake"
 export type Coordinate = [longitude: number, latitude: number]
-export type MonitorDriver = DriverSnapshot & { expectedPickup: number; expectedReturn: number }
+export type MonitorDriver = DashboardDriverSnapshot & { expectedPickup: number; expectedReturn: number }
 export type MonitorWaybill = {
   id: string
   driverId: string
@@ -32,6 +33,9 @@ export type MonitorWaybill = {
 
 export const statusLabels: Record<DeliveryStatus, string> = { pending: "待派件", delivered: "已签收", exception: "派送异常" }
 export const alertLabels: Record<WaybillAlert, string> = { pod: "POD 不合规", location: "妥投位置异常", fake: "虚假问题件" }
+export function parseWaybillAlert(value: string | null): WaybillAlert | null {
+  return value === "pod" || value === "location" || value === "fake" ? value : null
+}
 export const monitorDrivers: MonitorDriver[] = driverRows.map((driver) => ({ ...driver, expectedPickup: driver.total, expectedReturn: driver.exception }))
   .filter((driver) => driver.expectedPickup > 0 || driver.total > 0 || driver.expectedReturn > 0)
 
@@ -91,7 +95,8 @@ export const monitorWaybills: MonitorWaybill[] = monitorDrivers.flatMap((driver,
     const exceptionIndex = index - driver.delivered
     const alerts: WaybillAlert[] = []
     if (status === "delivered" && (isLabelDemo ? [0, 113].includes(index) : index < driver.podIssues)) alerts.push("pod")
-    const deviation = status === "delivered" && (isLabelDemo ? [0, 36].includes(index) : index >= driver.podIssues && index < driver.podIssues + driver.locationIssues) ? 300 + index * 20 : null
+    const hasLocationAlert = status === "delivered" && (isLabelDemo ? [0, 36].includes(index) : index >= driver.podIssues && index < driver.podIssues + driver.locationIssues)
+    const deviation = hasLocationAlert ? 820 + ((index + driverIndex) % 10) * 40 : null
     if (deviation !== null && deviation > 800) alerts.push("location")
     if (status === "exception" && exceptionIndex < driver.fakeIssues) alerts.push("fake")
     const sequenceIndex = isLabelDemo && index === 149 ? 150 : isLabelDemo && index === 150 ? 149 : index
