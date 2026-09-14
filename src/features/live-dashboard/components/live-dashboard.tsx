@@ -18,7 +18,7 @@ import {
   parseAlertMetricKey,
 } from "@/features/live-dashboard/alert-metric-config"
 import { getDeliveryDetailTitle } from "@/features/live-dashboard/components/delivery-detail-view"
-import { parseWaybillAlert, type WaybillAlert } from "@/features/live-dashboard/driver-monitor-data"
+import { parseDeliveryStatus, parseWaybillAlert, type DeliveryStatus, type WaybillAlert } from "@/features/live-dashboard/driver-monitor-data"
 import {
   MetricDetailView,
   type TaskAssignmentRow,
@@ -37,6 +37,7 @@ export function LiveDashboard({ initialWorkMode = "same-day" }: { initialWorkMod
   const [taskPeriod, setTaskPeriod] = useState<PickupPeriod>("current")
   const [mapDriverId, setMapDriverId] = useState<string | null>(null)
   const [mapAlertType, setMapAlertType] = useState<WaybillAlert | null>(null)
+  const [mapDeliveryStatus, setMapDeliveryStatus] = useState<DeliveryStatus | null>(null)
   const [monitorView, setMonitorView] = useState<"waybill" | "map" | undefined>(undefined)
   const [pickupDriverId, setPickupDriverId] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<TaskAssignmentRow | null>(null)
@@ -86,6 +87,7 @@ export function LiveDashboard({ initialWorkMode = "same-day" }: { initialWorkMod
   const returnToDashboard = useCallback(() => {
     setMapDriverId(null)
     setMapAlertType(null)
+    setMapDeliveryStatus(null)
     setMonitorView(undefined)
     setPickupDriverId(null)
     setSelectedTask(null)
@@ -98,6 +100,7 @@ export function LiveDashboard({ initialWorkMode = "same-day" }: { initialWorkMod
       url.searchParams.delete("driverId")
       url.searchParams.delete("taskPeriod")
       url.searchParams.delete("alertType")
+      url.searchParams.delete("deliveryStatus")
       url.searchParams.delete("monitorView")
       window.history.replaceState({}, "", url)
     }
@@ -131,10 +134,12 @@ export function LiveDashboard({ initialWorkMode = "same-day" }: { initialWorkMod
       const detailView = url.searchParams.get("view")
       const driverId = url.searchParams.get("driverId")
       const alertType = parseWaybillAlert(url.searchParams.get("alertType"))
+      const deliveryStatus = parseDeliveryStatus(url.searchParams.get("deliveryStatus"))
       const metric = parseAlertMetricKey(url.searchParams.get("alertMetric"))
       setWorkMode(url.searchParams.get("workMode") === "next-day" ? "next-day" : "same-day")
       setMapDriverId(detailView === "driver-map" ? driverId : null)
       setMapAlertType(detailView === "driver-map" ? alertType : null)
+      setMapDeliveryStatus(detailView === "driver-map" ? deliveryStatus : null)
       const urlMonitorView = url.searchParams.get("monitorView")
       setMonitorView(detailView === "driver-map" && (urlMonitorView === "waybill" || urlMonitorView === "map") ? urlMonitorView : undefined)
       setPickupDriverId(detailView === "pickup" ? driverId : null)
@@ -251,7 +256,7 @@ export function LiveDashboard({ initialWorkMode = "same-day" }: { initialWorkMod
         <DesktopRealtimeOverview mode={workMode} onDetail={openDetail} />
       </div>
 
-      {detailTitle === "司机监控地图" ? <DriverMonitorDetailView key={`${mapDriverId ?? "all"}-${mapAlertType ?? "all"}-${monitorView ?? "default"}`} initialDriverId={mapDriverId} initialAlertType={mapAlertType} initialViewMode={monitorView} onBack={returnToDashboard} /> : detailTitle ? (
+      {detailTitle === "司机监控地图" ? <DriverMonitorDetailView key={`${mapDriverId ?? "all"}-${mapAlertType ?? "all"}-${mapDeliveryStatus ?? "all"}-${monitorView ?? "default"}`} initialDriverId={mapDriverId} initialAlertType={mapAlertType} initialDeliveryStatus={mapDeliveryStatus} initialViewMode={monitorView} onBack={returnToDashboard} /> : detailTitle ? (
         <MetricDetailView
           key={`${detailTitle}-${taskPeriod}-${pickupDriverId ?? "all"}`}
           title={detailTitle}

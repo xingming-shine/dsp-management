@@ -46,6 +46,9 @@ export const statusLabels: Record<DeliveryStatus, string> = {
   pending: "待派件",
 }
 export const alertLabels: Record<WaybillAlert, string> = { pod: "POD 不合规", location: "妥投位置异常", fake: "虚假问题件" }
+export function parseDeliveryStatus(value: string | null): DeliveryStatus | null {
+  return value === "pending" || value === "delivered" || value === "exception" || value === "nonstandard_return" ? value : null
+}
 export function parseWaybillAlert(value: string | null): WaybillAlert | null {
   return value === "pod" || value === "location" || value === "fake" ? value : null
 }
@@ -188,7 +191,7 @@ export function summarizeWaybills(rows: MonitorWaybill[]) {
   }
 }
 
-export type MonitorQuery = { field: "id" | "postalCode" | "address"; keyword: string; status: string; alerts: WaybillAlert[] }
+export type MonitorQuery = { field: "id" | "postalCode" | "address"; keyword: string; status: DeliveryStatus | "all"; alerts: WaybillAlert[] }
 export type MonitorSort = "sequence" | "overdue-desc" | "overdue-asc" | "signed-asc" | "signed-desc"
 export const emptyMonitorQuery: MonitorQuery = { field: "id", keyword: "", status: "all", alerts: [] }
 

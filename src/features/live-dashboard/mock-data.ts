@@ -27,6 +27,7 @@ export const realtimeOverview = {
   },
   delivery: {
     total: 1781,
+    deliveryPph: 14.7,
     clearanceRate: 83.10,
     pending: 281,
     pendingRate: 15.78,

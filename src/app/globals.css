@@ -399,6 +399,29 @@
   border-bottom: 1px solid color-mix(in srgb, var(--chart-2) 30%, var(--card));
   background: inherit;
 }
+/* Replay on card changes, not on filters or other dashboard updates. */
+.overview-detail-panel {
+  animation: overview-detail-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes overview-detail-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overview-detail-panel { animation: none; }
+}
+/* Only the delivery overview card receives this persistent visual emphasis. */
+.overview-delivery-highlight {
+  background: linear-gradient(180deg, var(--brand-selected) 0%, var(--card) 50%, var(--brand-selected) 100%);
+}
+.overview-delivery-highlight [data-slot="card-title"] {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+}
+.overview-delivery-highlight [data-slot="kpi-order"] {
+  background-color: var(--brand);
+  color: var(--brand-foreground);
+}
 .delivery-status-dot[data-status="pending"] { --delivery-status-color: var(--chart-2); }
 .delivery-status-dot[data-status="delivered"] { --delivery-status-color: var(--delivery-delivered); }
 .delivery-status-dot[data-status="exception"] { --delivery-status-color: var(--destructive); }

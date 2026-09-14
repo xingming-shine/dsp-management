@@ -158,7 +158,7 @@ export function DeliveryDriverCard({ driver, selected, onSelect, onViewDetail, v
         )}
       >
       <button type="button" aria-pressed={selected} aria-current={selected ? "true" : undefined} className="flex w-full min-w-0 flex-col gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50" onFocus={openContact} onClick={() => { setContactOpen(false); onSelect() }}>
-      <div className={cn("grid w-full min-w-0 items-center gap-3", variant === "compact" ? "grid-cols-[auto_minmax(0,1fr)_auto]" : "grid-cols-[auto_minmax(0,1fr)] @min-[600px]/driver:grid-cols-[auto_minmax(0,1fr)_auto] pr-10")}>
+      <div className={cn("grid w-full min-w-0 items-center gap-3", variant === "compact" ? "grid-cols-[auto_minmax(0,1fr)_auto]" : "grid-cols-[auto_minmax(0,1fr)] @min-[600px]/driver:grid-cols-[auto_minmax(0,1fr)_auto] pr-18")}>
         <span className="flex h-7 w-[50px] min-w-[50px] items-center justify-center rounded-md bg-warning/15 px-2 font-heading [font-size:var(--button-font-size)] font-medium tabular-nums text-brand-ink">
           {driver.rating}★
         </span>
@@ -194,7 +194,7 @@ export function DeliveryDriverCard({ driver, selected, onSelect, onViewDetail, v
 
       <div className={cn("grid min-w-0 gap-y-4", variant === "full" && "@min-[600px]/driver:grid-cols-[max-content_auto_minmax(0,1fr)] @min-[600px]/driver:gap-x-3")}>
         {variant === "full" && <><div className="flex flex-wrap justify-between gap-3 @min-[600px]/driver:flex-col @min-[600px]/driver:justify-center">
-          <DriverInlineStat label="PPH-派送" value={driver.efficiency} />
+          <DriverInlineStat label="PPH（派送）" value={driver.efficiency} />
           <DriverInlineStat label="派件时长" value={driver.activeHours} />
         </div>
         <span aria-hidden="true" className="hidden h-full border-l border-dashed border-border @min-[600px]/driver:block" /></>}
@@ -266,7 +266,7 @@ export function DeliveryDriverCard({ driver, selected, onSelect, onViewDetail, v
           </div>
         </>
       ) : null}
-      {variant === "full" && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4 border-0 bg-transparent" aria-label={`查看${driver.name}的运单视图`} onClick={() => onViewDetail()}><ArrowUpRightIcon /></Button></TooltipTrigger><TooltipContent>查看运单视图</TooltipContent></Tooltip></TooltipProvider>}
+      {variant === "full" && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="link" size="xs" className="absolute top-4 right-4" aria-label={`查看${driver.name}的POD运单视图`} onClick={() => onViewDetail()}>POD<ArrowUpRightIcon data-icon="inline-end" /></Button></TooltipTrigger><TooltipContent>查看 POD 运单视图</TooltipContent></Tooltip></TooltipProvider>}
       </article>
       <PopoverContent
         align="start"

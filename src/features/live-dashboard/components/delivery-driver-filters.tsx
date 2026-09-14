@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowDownUpIcon, SearchIcon } from "lucide-react"
+import { ArrowDownUpIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { StatusMultiSelect } from "./status-multi-select"
 import type { DashboardDriverSnapshot } from "../driver-rows"
@@ -62,28 +62,35 @@ export function useDeliveryDriverFilters<T extends DashboardDriverSnapshot>(driv
 
 type DriverFilters = ReturnType<typeof useDeliveryDriverFilters>
 
-export function DeliveryDriverFilters({ filters, drivers, idPrefix, compact = false, showQuickStatuses = true, onResultsChange }: {
+export function DeliveryDriverFilters({ filters, drivers, idPrefix, compact = false, showQuickStatuses = true, deliveryPph, onResultsChange }: {
   filters: DriverFilters
   drivers: DashboardDriverSnapshot[]
   idPrefix: string
   compact?: boolean
   showQuickStatuses?: boolean
+  deliveryPph?: number
   onResultsChange?: () => void
 }) {
   const { query, setQuery, statusFilters, setStatusFilters, sort, setSort, sortLabel, visibleDrivers, resetFilters } = filters
   const actions = <><Button type="submit">查询</Button><Button type="button" variant="outline" onClick={() => { resetFilters(); onResultsChange?.() }}>重置</Button></>
   const quickStatuses = driverStatusFilterOptions.slice(0, 4)
-  return <form className="@container flex min-w-0 flex-col gap-3" aria-label="司机查询与排序" onSubmit={(event) => { event.preventDefault(); onResultsChange?.(); toast.success(`查询到 ${visibleDrivers.length} 名司机`) }}>
-    {showQuickStatuses && <div className="grid grid-cols-4 overflow-hidden rounded-lg border">
-      {quickStatuses.map((item) => {
-        const count = drivers.filter((driver) => item.value === "not-started" ? driver.status === "未开始派送" : driver.status.startsWith(item.value)).length
-        return <Button key={item.value} type="button" variant="ghost" className={cn("h-auto min-w-0 gap-3 rounded-none border-0 border-r border-border px-3 py-3 whitespace-normal last:border-r-0", compact && "flex-col gap-1 px-1 py-2")} aria-label={`查询${item.label}司机 ${count} 名`} onClick={() => { setStatusFilters([item.value]); onResultsChange?.() }}><span className="text-xs text-muted-foreground">{item.label}</span><span className="text-sm font-semibold tabular-nums text-destructive">{count}</span></Button>
-      })}
+  return <form className={cn("@container flex min-w-0 flex-col", compact ? "gap-3" : "gap-2")} aria-label="司机查询与排序" onSubmit={(event) => { event.preventDefault(); onResultsChange?.(); toast.success(`查询到 ${visibleDrivers.length} 名司机`) }}>
+    {showQuickStatuses && <div className="grid min-w-0 gap-2 @min-[560px]:grid-cols-[minmax(0,4fr)_minmax(9rem,1fr)]">
+      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-lg border @min-[560px]:grid-cols-4">
+        {quickStatuses.map((item, index) => {
+          const count = drivers.filter((driver) => item.value === "not-started" ? driver.status === "未开始派送" : driver.status.startsWith(item.value)).length
+          return <Button key={item.value} type="button" variant="ghost" className={cn("h-11 min-w-0 gap-0.5 rounded-none border-0 border-border px-1.5 py-1.5 whitespace-nowrap", index < 2 && "border-b @min-[560px]:border-b-0", index % 2 === 0 && "border-r", index < quickStatuses.length - 1 && "@min-[560px]:border-r", compact && "flex-col gap-1 px-1 py-1")} aria-label={`查询${item.label}司机 ${count} 名`} onClick={() => { setStatusFilters([item.value]); onResultsChange?.() }}><span className="whitespace-nowrap text-xs text-muted-foreground">{item.label}</span><span className="text-sm font-semibold tabular-nums text-destructive">{count}</span></Button>
+        })}
+      </div>
+      <div role="status" aria-label={`PPH（派送）${deliveryPph === undefined ? "暂无数据" : `${deliveryPph.toFixed(1)} 件每小时`}`} className="flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg border px-2 py-1 whitespace-nowrap">
+        <span className="text-xs text-muted-foreground">PPH（派送）</span>
+        <span className="font-heading text-sm font-semibold tabular-nums text-foreground">{deliveryPph === undefined ? "—" : deliveryPph.toFixed(1)}{deliveryPph === undefined ? null : <small className="ml-1 font-sans text-xs font-normal text-muted-foreground">件/h</small>}</span>
+      </div>
     </div>}
     <FieldGroup className={cn("grid gap-2", compact ? "grid-cols-2" : "@min-[560px]:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1fr)_auto]")}>
       <Field>
         <FieldLabel htmlFor={`${idPrefix}-search`} className="sr-only">司机姓名</FieldLabel>
-        <InputGroup><InputGroupAddon><SearchIcon /></InputGroupAddon><InputGroupInput id={`${idPrefix}-search`} value={query} onChange={(event) => { setQuery(event.target.value); onResultsChange?.() }} placeholder="请输入司机的名字" /></InputGroup>
+        <Input id={`${idPrefix}-search`} value={query} onChange={(event) => { setQuery(event.target.value); onResultsChange?.() }} placeholder="请输入司机的名字" />
       </Field>
       <Field>
         <FieldLabel htmlFor={`${idPrefix}-status-filter`} className="sr-only">异常状态筛选</FieldLabel>
@@ -93,7 +100,7 @@ export function DeliveryDriverFilters({ filters, drivers, idPrefix, compact = fa
     </FieldGroup>
     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="sm" aria-label={`司机排序：${sortLabel}`} title={sortLabel}><ArrowDownUpIcon data-icon="inline-start" className={cn(sort !== "default" && "text-brand")} />{sortLabel}</Button></DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="sm" className="h-7 w-21 gap-1 px-1.5 has-data-[icon=inline-start]:ps-1.5" aria-label={`司机排序：${sortLabel}`} title={sortLabel}><ArrowDownUpIcon data-icon="inline-start" className={cn(sort !== "default" && "text-brand")} />{sortLabel}</Button></DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-52"><DropdownMenuGroup><DropdownMenuRadioGroup value={sort} onValueChange={(value) => { setSort(value as DriverSort); onResultsChange?.() }}>{driverSortOptions.map((option) => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuGroup></DropdownMenuContent>
       </DropdownMenu>
       {compact ? <div className="flex items-center gap-2">{actions}</div> : <span>共 {visibleDrivers.length} 名司机</span>}

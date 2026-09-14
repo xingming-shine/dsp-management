@@ -5,7 +5,7 @@ import { DeliveryDriverCard } from "./delivery-driver-card"
 import { alertMetricGroups } from "../alert-metric-config"
 import { overviewCardsByMode, overviewCardTitles, type OverviewCardId, type OverviewDetailAction, type PickupPeriod } from "../overview-card-config"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { EChartsOption } from "echarts"
 import {
@@ -116,6 +116,14 @@ const alertGroups: Array<{ title: string; items: AlertActionItem[] }> = alertMet
     }
   }),
 }))
+
+const exceptionChartColors: string[] = ["--exception-overview-normal", "--exception-overview-fake"]
+const exceptionChartSeriesColors: Array<string | null> = [null, "--exception-overview-fake"]
+const exceptionChartSeriesGradients: Array<[string, string] | null> = [
+  ["--exception-overview-normal-start", "--exception-overview-normal"],
+  null,
+]
+const exceptionChartLabelColors: string[] = ["--brand-foreground", "--brand-foreground"]
 
 export function DesktopRealtimeOverview({ mode, onDetail }: { mode: WorkMode; onDetail: OverviewDetailAction }) {
   const overviewRef = useRef<HTMLDivElement>(null)
@@ -250,7 +258,7 @@ export function DesktopRealtimeOverview({ mode, onDetail }: { mode: WorkMode; on
   )
 }
 
-function OverviewCards({ mode, onDetail }: { mode: WorkMode; onDetail: OverviewDetailAction }) {
+const OverviewCards = memo(function OverviewCards({ mode, onDetail }: { mode: WorkMode; onDetail: OverviewDetailAction }) {
   const [expandedCard, setExpandedCard] = useState<OverviewCardId | null>(null)
   useEffect(() => {
     if (!expandedCard) return
@@ -285,7 +293,7 @@ function OverviewCards({ mode, onDetail }: { mode: WorkMode; onDetail: OverviewD
       </CardContent>
     </Card>
   )
-}
+})
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("en-US").format(value)
@@ -330,8 +338,8 @@ function OverviewRateTooltip({ label, children, content }: { label: string; chil
 
 function KpiCardTitle({ order, title }: { order: number; title: string }) {
   return (
-    <CardTitle className="flex min-w-0 items-center gap-2 text-xs font-medium leading-5 text-muted-foreground/70">
-      <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
+    <CardTitle className="flex min-w-0 items-center gap-2 text-xs font-medium leading-5 text-foreground">
+      <span data-slot="kpi-order" className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
         {order}
       </span>
       <span>{title}</span>
@@ -360,12 +368,12 @@ function SummaryCard({ id, order, title, highlighted = false, compact = false, c
       className={cn(
         "@container/summary relative h-48 min-w-0 cursor-pointer overflow-visible transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/40",
         highlighted
-          ? cn(
-              "bg-card hover:bg-card",
-              expanded ? "border-brand" : "border-border/80"
-            )
+          ? "overview-delivery-highlight border-border/80"
           : "border-border/80 bg-muted/20 hover:bg-brand-hover",
-        expanded && "border-brand bg-brand-selected hover:bg-brand-selected after:absolute after:-bottom-1.5 after:left-1/2 after:size-3 after:-translate-x-1/2 after:rotate-45 after:border-r after:border-b after:border-brand after:bg-brand-selected",
+        expanded && "after:absolute after:-bottom-1.5 after:left-1/2 after:size-3 after:-translate-x-1/2 after:rotate-45 after:border-r after:border-b",
+        expanded && (highlighted
+          ? "border-brand after:border-brand after:bg-brand-selected"
+          : "border-brand bg-brand-selected hover:bg-brand-selected after:border-brand after:bg-brand-selected"),
         compact && "h-auto min-h-48 gap-3 py-3",
         className
       )}
@@ -382,7 +390,7 @@ function SummaryCard({ id, order, title, highlighted = false, compact = false, c
         <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
           <PackageCheckIcon
             strokeWidth={1.5}
-            className="absolute -top-5 -left-5 size-36 text-brand opacity-10"
+            className="absolute top-0 right-8 size-20 text-brand opacity-[0.06]"
           />
         </span>
       ) : null}
@@ -687,7 +695,7 @@ function OverviewDetailPanel({ card, mode, onDetail }: {
   const period = card === "next-handoff" || card === "next-allocation" ? "next" : "current"
   const openPeriodDetail = (title: string) => onDetail(title, undefined, period)
   return (
-    <section id={`overview-detail-${card}`} className="overflow-hidden rounded-xl border border-brand bg-card" role="region" aria-label={overviewCardTitles[card]}>
+    <section key={card} id={`overview-detail-${card}`} className="overview-detail-panel overflow-hidden rounded-xl border border-brand bg-card" role="region" aria-label={overviewCardTitles[card]}>
       <div className={cn("px-5 pt-5", card === "handoff" || card === "current-pickup" || card === "next-handoff" ? "pb-3" : "pb-5")}>
         {card === "allocation" ? <AllocationDetail data={realtimeOverview.allocation} period="current" onDetail={openPeriodDetail} /> : null}
         {card === "handoff" || card === "current-pickup" || card === "next-handoff" ? <HandoffDetail period={period} pickupOnly={card === "current-pickup"} onDetail={openPeriodDetail} /> : null}
@@ -829,18 +837,18 @@ function AllocationDetail({ data, period, onDetail }: { data: AllocationData; pe
 
       <aside className="flex flex-col gap-4 rounded-lg border bg-muted/40 p-5" aria-label="指标说明">
         <div className="flex flex-col gap-2">
-          <h5 className="text-sm font-medium text-muted-foreground">{expectedLabel}</h5>
+          <h5 className="text-sm font-medium text-foreground">{expectedLabel}</h5>
           <p className="text-xs leading-5 text-muted-foreground">
             {period === "next" ? "今天8:00后站点推送且派送日期不为今日的包裹，不包括任务状态是已取消、已撤回" : "昨天 8:00 到今日 8:00 站点推送需要司机领件的件量（包括 8:00 后推送的需当日派送的包裹）"}
           </p>
         </div>
         <div className="flex flex-col gap-4 border-l pl-3">
           <div className="flex flex-col gap-1">
-            <h5 className="text-sm font-medium text-muted-foreground">未分配件量</h5>
+            <h5 className="text-sm font-medium text-foreground">未分配件量</h5>
             <p className="text-xs leading-5 text-muted-foreground">{expectedLabel}中还没有分配司机的件量</p>
           </div>
           <div className="flex flex-col gap-1">
-            <h5 className="text-sm font-medium text-muted-foreground">已分配件量</h5>
+            <h5 className="text-sm font-medium text-foreground">已分配件量</h5>
             <p className="text-xs leading-5 text-muted-foreground">{expectedLabel}中已经分配司机的件量</p>
           </div>
         </div>
@@ -1367,7 +1375,7 @@ function DeliveryDefinition({ title, children }: { title: string; children: Reac
   )
 }
 
-function AlertActionPanel({ compact = false, onCollapse, onDetail }: {
+const AlertActionPanel = memo(function AlertActionPanel({ compact = false, onCollapse, onDetail }: {
   compact?: boolean
   onCollapse?: () => void
   onDetail: (title: string) => void
@@ -1406,7 +1414,7 @@ function AlertActionPanel({ compact = false, onCollapse, onDetail }: {
 
           return (
           <section key={group.title} aria-label={group.title} className="relative min-w-0 rounded-lg border px-3.5 pb-2 pt-4">
-            <h3 className="absolute -top-2 left-2 bg-card px-2 font-heading text-sm font-medium text-muted-foreground">
+            <h3 className="absolute -top-2 left-2 bg-card px-2 font-heading text-sm font-medium text-foreground">
               {group.title}
             </h3>
             <div className={cn("grid h-full grid-rows-[repeat(2,5.5rem)] content-center gap-2.5", hasSubAction ? "grid-cols-3" : "grid-cols-1")}>
@@ -1431,7 +1439,7 @@ function AlertActionPanel({ compact = false, onCollapse, onDetail }: {
       </Card>
     </TooltipProvider>
   )
-}
+})
 
 function AlertActionButton({ compact = false, item, onDetail }: {
   compact?: boolean
@@ -1532,7 +1540,7 @@ function AlertSubActionButton({ compact = false, embedded = false, item, onDetai
   )
 }
 
-function ExceptionDistribution({ option, onDetail }: { option: EChartsOption; onDetail: (title: string) => void }) {
+const ExceptionDistribution = memo(function ExceptionDistribution({ option, onDetail }: { option: EChartsOption; onDetail: (title: string) => void }) {
   return (
     <TooltipProvider>
       <Card size="sm" className="h-full">
@@ -1552,20 +1560,17 @@ function ExceptionDistribution({ option, onDetail }: { option: EChartsOption; on
         <CardContent>
           <EChartsChart
             option={option}
-            colors={["--exception-overview-normal", "--exception-overview-fake"]}
-            seriesColors={[null, "--exception-overview-fake"]}
-            seriesGradients={[
-              ["--exception-overview-normal-start", "--exception-overview-normal"],
-              null,
-            ]}
-            labelColors={["--brand-foreground", "--brand-foreground"]}
+            colors={exceptionChartColors}
+            seriesColors={exceptionChartSeriesColors}
+            seriesGradients={exceptionChartSeriesGradients}
+            labelColors={exceptionChartLabelColors}
             className="h-50 min-h-0"
           />
         </CardContent>
       </Card>
     </TooltipProvider>
   )
-}
+})
 
 function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewPickup }: { selectedDriverId: string | null; onSelectDriver: (driverId: string | null) => void; onViewDriver: (driverId: string, alertType?: WaybillAlert) => void; onViewPickup: (driverId: string, period: PickupPeriod) => void }) {
   const [view, setView] = useState<MonitorView>("delivery")
@@ -1600,8 +1605,8 @@ function DriverMonitor({ selectedDriverId, onSelectDriver, onViewDriver, onViewP
               ))}
             </TabsList>
           </TooltipProvider>
-          <TabsContent value="delivery" className="flex flex-col gap-3 rounded-lg bg-muted/30 p-3">
-            <DeliveryDriverFilters filters={filters} drivers={driverRows} idPrefix="driver" />
+          <TabsContent value="delivery" className="flex flex-col gap-2 rounded-lg bg-muted/30 p-3">
+            <DeliveryDriverFilters filters={filters} drivers={driverRows} idPrefix="driver" deliveryPph={realtimeOverview.delivery.deliveryPph} />
             <ScrollArea className="h-[40rem] rounded-lg">
               <div className="flex flex-col gap-2 pr-3">
                 {visibleDrivers.map((driver) => (

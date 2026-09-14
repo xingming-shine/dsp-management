@@ -149,9 +149,15 @@ export function DeliveryTaskMap({ drivers, waybills, showWaybills, onShowWaybill
     return () => { disposed = true; observer?.disconnect(); map?.remove() }
   }, [retry])
 
+  const fittedScope = useRef<{ map: MapLibreMap; key: string } | null>(null)
   useEffect(() => {
+    if (!runtime) return
+    const key = JSON.stringify([drivers.map((driver) => driver.id), showDrivers, showWaybills])
+    // Query results update markers without resetting the user's map viewport.
+    if (fittedScope.current?.map === runtime.map && fittedScope.current.key === key) return
     fitVisibleMarkers()
-  }, [fitVisibleMarkers])
+    fittedScope.current = { map: runtime.map, key }
+  }, [runtime, drivers, showDrivers, showWaybills, fitVisibleMarkers])
 
   useEffect(() => {
     if (!runtime || !showWaybills || !singleDriver || !focusRequest) return
