@@ -21,6 +21,44 @@
 .cockpit-detail-body { padding: 0 30px 30px; overflow: auto; min-height: 0; flex: 1; }
 .cockpit-detail-body > * { flex-shrink: 0; }
 
+/* Shared day-range painting for the project period picker. */
+.period-picker-day.is-selected {
+  width: 36px;
+  justify-self: center;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--brand-foreground);
+}
+.period-picker-day.is-in-range {
+  border-radius: 0;
+  background: var(--period-range);
+  color: var(--brand);
+}
+.period-picker-day:is(.is-range-start, .is-range-end) {
+  border-radius: 0;
+  color: var(--brand-foreground);
+}
+.period-picker-day.is-range-start {
+  background: linear-gradient(to right, transparent 0 50%, var(--period-range) 50% 100%);
+}
+.period-picker-day.is-range-end {
+  background: linear-gradient(to right, var(--period-range) 0 50%, transparent 50% 100%);
+}
+.period-picker-day.is-range-start.is-range-end { background: transparent; }
+.period-picker-day:is(.is-range-start, .is-range-end)::before {
+  position: absolute;
+  inset: 0;
+  width: 36px;
+  height: 36px;
+  margin: auto;
+  border-radius: 999px;
+  background: var(--brand);
+  content: "";
+}
+.period-picker-day > span { position: relative; z-index: 1; }
+.period-picker-day.is-selected:hover,
+.period-picker-day:is(.is-range-start, .is-range-end):hover { color: var(--brand-foreground); }
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -72,6 +110,7 @@
   --color-brand-hover: var(--brand-hover);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand: var(--brand);
+  --color-period-range: var(--period-range);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
   --color-warning-foreground: var(--warning-foreground);
@@ -113,6 +152,7 @@
   --brand-hover: oklch(0.6971 0.2033 43.65 / 6%);
   --brand-selected: oklch(0.974 0.015 54.93);
   --brand-ink: var(--brand);
+  --period-range: color-mix(in srgb, var(--brand) 8%, var(--popover));
   --data-accent: oklch(0.63 0.105 178);
   --data-accent-foreground: oklch(1 0 0);
   --success: oklch(0.56 0.13 155);
@@ -187,6 +227,7 @@
   --brand-hover: oklch(0.6971 0.2033 43.65 / 16%);
   --brand-selected: oklch(0.6971 0.2033 43.65 / 24%);
   --brand-ink: var(--brand);
+  --period-range: color-mix(in srgb, var(--brand) 18%, var(--popover));
   --data-accent: oklch(0.72 0.1 178);
   --data-accent-foreground: oklch(0.145 0 0);
   --success: oklch(0.7 0.12 155);
@@ -415,7 +456,7 @@
   background: linear-gradient(180deg, var(--brand-selected) 0%, var(--card) 50%, var(--brand-selected) 100%);
 }
 .overview-delivery-highlight [data-slot="card-title"] {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
 }
 .overview-delivery-highlight [data-slot="kpi-order"] {
