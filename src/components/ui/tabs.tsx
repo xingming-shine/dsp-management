@@ -32,7 +32,7 @@ const tabsListVariants = cva(
         default: "bg-muted",
         line: "gap-1.5 bg-transparent p-0",
         raised:
-          "gap-1 rounded-2xl bg-muted p-1 group-data-horizontal/tabs:h-9",
+          "gap-1 rounded-[6px] bg-muted p-1 group-data-horizontal/tabs:h-9",
       },
     },
     defaultVariants: {
@@ -67,7 +67,7 @@ function TabsTrigger({
       className={cn(
         "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-4 py-1 text-sm font-medium whitespace-nowrap text-foreground/60 transition-[color,background-color,box-shadow] outline-none group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:bg-brand-hover hover:text-brand focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
-        "group-data-[variant=raised]/tabs-list:h-full group-data-[variant=raised]/tabs-list:rounded-xl group-data-[variant=raised]/tabs-list:data-active:bg-card group-data-[variant=raised]/tabs-list:data-active:shadow-sm",
+        "group-data-[variant=raised]/tabs-list:h-full group-data-[variant=raised]/tabs-list:rounded-[4px] group-data-[variant=raised]/tabs-list:data-active:bg-card group-data-[variant=raised]/tabs-list:data-active:shadow-sm",
         "data-active:bg-brand-selected data-active:text-brand",
         "after:absolute after:bg-brand after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
         className

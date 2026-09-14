@@ -318,7 +318,7 @@ function PeriodPicker({
               variant="ghost"
               size="sm"
               className={cn(
-                "period-picker-day relative h-9 w-full p-0 text-sm tabular-nums",
+                "period-picker-day relative h-8 w-full p-0 text-sm tabular-nums max-sm:h-9 [@media(pointer:coarse)]:h-9",
                 day.slice(0, 7) !== month && "text-muted-foreground",
                 selected && "is-selected",
                 state.start && "is-range-start",
@@ -369,7 +369,7 @@ function PeriodPicker({
               type="button"
               variant="ghost"
               className={cn(
-                "grid h-9 w-full grid-cols-[50px_repeat(7,minmax(0,1fr))] px-0 text-center text-sm tabular-nums",
+                "grid h-8 w-full grid-cols-[50px_repeat(7,minmax(0,1fr))] px-0 text-center text-sm tabular-nums max-sm:h-9 [@media(pointer:coarse)]:h-9",
                 selected && "bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground",
                 state.middle && "rounded-none bg-period-range text-brand hover:bg-period-range hover:text-brand",
                 (state.start || state.end) && "bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground"
@@ -419,7 +419,7 @@ function PeriodPicker({
               type="button"
               variant="outline"
               className={cn(
-                "h-9 text-sm tabular-nums",
+                "h-8 text-sm tabular-nums max-sm:h-9 [@media(pointer:coarse)]:h-9",
                 selected && "border-transparent bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground",
                 state.middle && "rounded-none border-transparent bg-period-range text-brand hover:bg-period-range hover:text-brand",
                 (state.start || state.end) && "border-transparent bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground"
@@ -480,7 +480,7 @@ function PeriodPicker({
               id={triggerId}
               type="button"
               variant="outline"
-              className="w-full max-w-[360px] justify-start text-left [--button-font-size:var(--text-sm)]"
+              className="w-full max-w-[320px] justify-start text-left [--button-font-size:var(--text-sm)]"
               aria-label={`${label}：${selectionTriggerLabel(selection)}`}
             >
               <CalendarIcon data-icon="inline-start" />
@@ -496,12 +496,12 @@ function PeriodPicker({
             className={cn(
               "max-h-[var(--radix-popover-content-available-height)] gap-0 overflow-hidden p-0",
               rangeMode
-                ? "w-[min(920px,calc(100vw-2rem))]"
-                : "w-[min(460px,calc(100vw-2rem))]"
+                ? "w-[min(760px,calc(100vw-2rem))]"
+                : "w-[min(400px,calc(100vw-2rem))]"
             )}
           >
             {allowRange ? (
-              <div className="border-b px-5">
+              <div className="border-b px-4">
                 <Tabs
                   value={rangeMode ? "range" : "single"}
                   onValueChange={changeSelectionMode}
@@ -516,8 +516,14 @@ function PeriodPicker({
             ) : null}
 
             <div className="min-h-0 overflow-y-auto">
-              <div className={cn("grid", rangeMode && "lg:grid-cols-[minmax(0,1fr)_188px]")}>
-                <div className="p-5">
+              <div
+                className={cn(
+                  "grid",
+                  rangeMode &&
+                    "lg:grid-cols-[minmax(0,1fr)_188px] [@media(pointer:coarse)]:grid-cols-1"
+                )}
+              >
+                <div className="p-4">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <Button
                     type="button"
@@ -529,7 +535,13 @@ function PeriodPicker({
                   >
                     <ChevronLeftIcon aria-hidden="true" />
                   </Button>
-                  <div className={cn("grid flex-1 gap-5 text-center text-sm font-medium", rangeMode && "sm:grid-cols-2")}>
+                  <div
+                    className={cn(
+                      "grid flex-1 gap-4 text-center text-sm font-medium",
+                      rangeMode &&
+                        "sm:grid-cols-2 [@media(pointer:coarse)]:grid-cols-1"
+                    )}
+                  >
                     <span>{mode === "month" ? `${cursor.slice(0, 4)}年` : `${Number(cursor.slice(0, 4))}年${Number(cursor.slice(5, 7))}月`}</span>
                     {rangeMode ? (
                       <span>{mode === "month" ? `${secondCursor.slice(0, 4)}年` : `${Number(secondCursor.slice(0, 4))}年${Number(secondCursor.slice(5, 7))}月`}</span>
@@ -546,14 +558,23 @@ function PeriodPicker({
                     <ChevronRightIcon aria-hidden="true" />
                   </Button>
                 </div>
-                <div className={cn("grid gap-5", rangeMode && "sm:grid-cols-2")}>
+                <div
+                  className={cn(
+                    "grid gap-4",
+                    rangeMode &&
+                      "sm:grid-cols-2 [@media(pointer:coarse)]:grid-cols-1"
+                  )}
+                >
                   {calendar(cursor)}
                   {rangeMode ? calendar(secondCursor) : null}
                 </div>
                 </div>
 
                 {rangeMode ? (
-                  <aside className="border-t p-4 lg:border-s lg:border-t-0" aria-label="快速选择">
+                  <aside
+                    className="border-t p-4 lg:border-s lg:border-t-0 [@media(pointer:coarse)]:border-s-0 [@media(pointer:coarse)]:border-t"
+                    aria-label="快速选择"
+                  >
                     <h3 className="mb-3 text-sm font-medium">快速选择</h3>
                     <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
                       {quickOptions.map((count) => (
@@ -588,10 +609,10 @@ function PeriodPicker({
                 ) : null}
               </div>
 
-              <FieldError className="px-5">{error}</FieldError>
+              <FieldError className="px-4">{error}</FieldError>
             </div>
 
-            <footer className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-5 py-2.5">
+            <footer className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-4 py-2">
               <span className="min-w-0 text-xs text-muted-foreground tabular-nums">
                 {selectionSummary(
                   rangeMode
