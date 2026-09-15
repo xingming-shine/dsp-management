@@ -135,7 +135,7 @@ export function ChartPanel({
         {description ? <CardDescription>{description}</CardDescription> : null}
         {action ? <CardAction className="col-start-1 row-start-3 row-span-1 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end">{action}</CardAction> : null}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="px-4">{children}</CardContent>
     </Card>
   )
 }

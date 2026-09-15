@@ -12,7 +12,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { DataPagination } from "@/components/ui/pagination";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { EChartsChart } from "./echarts-chart";
+import { EChartsChart, type ChartHeight } from "./echarts-chart";
+import { CHART_TOOLTIP_EXTRA_CSS, PROJECT_CHART, chartBarExtent, chartGrid, chartLegend, chartTrendExtent } from "../chart-options";
+import { renderChartTooltip, type ChartTooltipRow } from "../chart-tooltip";
 import { cn } from "@/lib/utils";
 import { display, isUpdating, passes, rawKeys, selectionLabel, periodLabel, serializeCSV, type Metric, type Selection, type Values, type RecordRow } from "../cockpit-model";
 export function Choices({ value, onChange, options, label }: {
@@ -165,11 +167,18 @@ export type ChartSeries = {
     hidden?: boolean;
     data?: (number | null)[];
 };
-const escape = (s: unknown) => String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 export function comboOption(rows: RecordRow[], series: ChartSeries[], target?: Metric, range = false, highlight = false): EChartsOption {
     const units = [...new Set(series.map((s) => s.metric.unit || "件"))];
-    return { aria: { enabled: true, label: { description: `${series.map((s) => s.metric.label).join("、")}，${rows.length}个对象或周期；完整数据见下方明细。` } }, textStyle: { fontSize: 12 }, legend: { top: 0, type: "scroll", textStyle: { fontSize: 12 }, selected: Object.fromEntries(series.map((s) => [s.metric.label, !s.hidden])) },
-        tooltip: { trigger: "axis", confine: true, borderWidth: 0, padding: 12, extraCssText: "max-width:260px", formatter: (parameters) => {
+    const bars = series.filter((s) => s.type === "bar");
+    const barGroups = new Set(bars.map((s, index) => s.stack ?? `series-${index}`)).size;
+    const denseGroupedBars = rows.length >= 28 && barGroups >= 2;
+    const topStackSeries = new Map<string, number>();
+    series.forEach((item, index) => {
+        if (item.type === "bar" && item.stack && !item.hidden)
+            topStackSeries.set(item.stack, index);
+    });
+    return { aria: { enabled: true, label: { description: `${series.map((s) => s.metric.label).join("、")}，${rows.length}个对象或周期；完整数据见下方明细。` } }, textStyle: { fontSize: 12 }, legend: { ...chartLegend("top"), selected: Object.fromEntries(series.map((s) => [s.metric.label, !s.hidden])) },
+        tooltip: { trigger: "axis", confine: true, borderWidth: 0, padding: 12, extraCssText: CHART_TOOLTIP_EXTRA_CSS, formatter: (parameters) => {
                 const items = (Array.isArray(parameters) ? parameters : [parameters]) as {
                     name: string;
                     seriesName: string;
@@ -179,26 +188,74 @@ export function comboOption(rows: RecordRow[], series: ChartSeries[], target?: M
                 const r = rows[items[0]?.dataIndex || 0];
                 const mode = r?.period?.includes("~") ? "week" : r?.period?.length === 7 ? "month" : "day";
                 const stackTotals = new Map<string, number>();
-                const body = items.map((p) => {
+                const tooltipRows: ChartTooltipRow[] = items.map((p) => {
                     const s = series.find((s) => s.metric.label === p.seriesName), m = s?.metric;
                     const value = s?.data ? s.data[p.dataIndex] ?? undefined : r?.values[m?.key || ""];
                     const updating = Boolean(r?.period && m && isUpdating(m.key, mode, r.period));
-                    if (s?.stack && value !== undefined)
+                    if (s?.stack && typeof value === "number" && Number.isFinite(value))
                         stackTotals.set(s.stack, (stackTotals.get(s.stack) || 0) + value);
-                    const status = updating ? " 更新中" : m?.target !== undefined && value !== undefined ? passes(value, m) ? " 达标" : " 未达标" : "";
-                    const raw = m && /^rate(2400|4800)$/.test(m.key) && r ? `<div><span>原始 / 考核差值</span><span>${escape(display(r.values[rawKeys[m.key]], "%"))} / ${escape(display((value || 0) - r.values[rawKeys[m.key]], "pp"))}</span></div>` : "";
-                    return `<div><span>${p.marker || ""}${escape(p.seriesName)}</span><span>${escape(display(value, m?.unit))}${status}</span></div>${raw}`;
-                }).join("");
-                return `<div class="cockpit-chart-tooltip"><strong>${escape(items[0]?.name || "")}</strong>${body}${units.includes("min") && r ? `<div><span>派件司机 / 有效人天</span><span>${r.values.drivers}人 / ${r.values.driverDays}人天</span></div>` : ""}${Array.from(stackTotals, ([key, value]) => `<div><span>合计</span><span>${escape(display(value, key === "hours" ? "min" : key === "score" ? "分" : "件"))}</span></div>`).join("")}</div>`;
-            } }, grid: { top: 60, left: 60, right: units.length > 1 ? 60 : 24, bottom: 55, containLabel: true },
-        xAxis: { type: "category", data: rows.map((r) => r.label), axisLabel: { fontSize: 12, hideOverlap: true } },
-        yAxis: units.map((unit, i) => ({ type: "value" as const, name: unit === "min" ? "分钟" : unit, position: i ? "right" as const : "left" as const, splitLine: { show: i === 0 }, axisLabel: { fontSize: 12 } })),
-        series: series.map((s, i) => ({ name: s.metric.label, type: s.type || "line", stack: s.stack, yAxisIndex: units.indexOf(s.metric.unit || "件"), data: s.data || rows.map((r) => r.values[s.metric.key]), connectNulls: false, symbolSize: 6, barMaxWidth: 28, areaStyle: range && i < 4 && s.type !== "bar" ? { opacity: .08 } : undefined,
+                    const hasValue = typeof value === "number" && Number.isFinite(value);
+                    const status = updating
+                        ? { label: "更新中", tone: "warning" as const }
+                        : m?.target !== undefined && hasValue
+                            ? passes(value, m)
+                                ? { label: "达标", tone: "success" as const }
+                                : { label: "未达标", tone: "destructive" as const }
+                            : undefined;
+                    const rawValue = m && r ? r.values[rawKeys[m.key]] : undefined;
+                    const meta = m && /^rate(2400|4800)$/.test(m.key) && r
+                        ? `原始 ${display(rawValue, "%")} · 差值 ${hasValue && typeof rawValue === "number" && Number.isFinite(rawValue) ? display(value - rawValue, "pp") : "—"}`
+                        : undefined;
+
+                    return {
+                        marker: p.marker,
+                        label: p.seriesName,
+                        value: display(value, m?.unit),
+                        status,
+                        meta,
+                    };
+                });
+                const summary: ChartTooltipRow[] = [
+                    ...(units.includes("min") && r ? [{ label: "派件司机 / 有效人天", value: `${display(r.values.drivers, "人")} / ${display(r.values.driverDays, "人天")}` }] : []),
+                    ...Array.from(stackTotals, ([key, value]) => ({ label: "合计", value: display(value, key === "hours" ? "min" : key === "score" ? "分" : "件") })),
+                ];
+
+                return renderChartTooltip({
+                    title: items[0]?.name || "",
+                    rows: tooltipRows,
+                    summary: summary.length ? summary : undefined,
+                });
+            } }, grid: chartGrid(units.length > 1),
+        xAxis: { type: "category", data: rows.map((r) => r.label), axisLabel: { fontSize: 12, margin: 8, hideOverlap: true }, nameGap: 12 },
+        yAxis: units.map((unit, i) => {
+            const axisSeries = series.filter((item) => !item.hidden && (item.metric.unit || "件") === unit);
+            const values = axisSeries.flatMap((item) => item.data || rows.map((row) => row.values[item.metric.key]));
+            const hasBars = axisSeries.some((item) => item.type === "bar");
+            const percent = unit === "%";
+            const targetValue = target && (target.unit || "件") === unit ? target.target : undefined;
+            const extent = hasBars
+                ? chartBarExtent(values)
+                : chartTrendExtent([...values, ...(targetValue === undefined ? [] : [targetValue])], percent);
+            const unitLabel = unit === "min" ? "分钟" : unit;
+
+            return {
+                type: "value" as const,
+                ...extent,
+                name: hasBars ? unitLabel : `${unitLabel}\n局部刻度`,
+                nameTextStyle: { align: i ? "right" as const : "left" as const, lineHeight: 16 },
+                position: i ? "right" as const : "left" as const,
+                nameGap: 12,
+                splitLine: { show: i === 0 },
+                axisLabel: { fontSize: 12, margin: 8, ...(percent ? { formatter: "{value}%" } : {}) },
+            };
+        }),
+        series: series.map((s, i) => ({ name: s.metric.label, type: s.type || "line", stack: s.stack, yAxisIndex: units.indexOf(s.metric.unit || "件"), data: s.data || rows.map((r) => r.values[s.metric.key]), connectNulls: false,
+            ...(s.type === "bar" ? { barMaxWidth: denseGroupedBars ? PROJECT_CHART.denseBarMaxWidth : PROJECT_CHART.barMaxWidth, barGap: denseGroupedBars ? PROJECT_CHART.denseBarGap : undefined, barCategoryGap: denseGroupedBars ? PROJECT_CHART.denseCategoryGap : undefined, itemStyle: { borderRadius: !s.stack || topStackSeries.get(s.stack) === i ? [PROJECT_CHART.barRadius, PROJECT_CHART.barRadius, 0, 0] : 0 } } : { symbol: "circle", symbolSize: PROJECT_CHART.pointSize, showSymbol: rows.length <= 30, emphasis: { scale: PROJECT_CHART.pointHoverScale }, lineStyle: { width: PROJECT_CHART.lineWidth } }), areaStyle: range && i < 4 && s.type !== "bar" ? { opacity: .08 } : undefined,
             markLine: (target && target.key === s.metric.key) || (highlight && i === 0 && rows.length) ? { silent: true, symbol: "none", data: [...(target && target.key === s.metric.key ? [{ yAxis: target.target, label: { position: "insideEndTop", formatter: `目标 ${target.target}%`, fontSize: 12 } }] : []), ...(highlight && i === 0 && rows.length ? [{ xAxis: rows.length - 1, label: { show: false }, lineStyle: { type: "dashed", opacity: .4 } }] : [])] } : undefined,
-            markPoint: highlight && rows.length && s.type !== "bar" ? { symbol: "circle", symbolSize: 9, label: { show: false }, data: [{ coord: [rows.length - 1, rows.at(-1)?.values[s.metric.key] || 0] }] } : undefined,
+            markPoint: highlight && rows.length && s.type !== "bar" ? { symbol: "circle", symbolSize: 10, label: { show: false }, data: [{ coord: [rows.length - 1, rows.at(-1)?.values[s.metric.key] || 0] }] } : undefined,
         })) as EChartsOption["series"] };
 }
-export function Analysis({ title, description, option, action, onClick, centerAction, selection }: {
+export function Analysis({ title, description, option, action, onClick, centerAction, selection, height = "standard" }: {
     title: string;
     description?: string;
     option: EChartsOption;
@@ -206,7 +263,8 @@ export function Analysis({ title, description, option, action, onClick, centerAc
     onClick?: (name: string) => void;
     centerAction?: ReactNode;
     selection?: Selection;
+    height?: ChartHeight;
 }) {
-    return <Card className="min-w-0"><CardHeader><CardTitle>{title}</CardTitle>{selection ? <CardDescription>{selectionLabel(selection)}{title.includes("趋势") && !selection.range ? ` · 截至所选期近${selection.mode === "day" ? 30 : 12}期` : ""}</CardDescription> : null}{description ? <CardDescription>{description}</CardDescription> : null}{action}</CardHeader><CardContent><div className="relative"><EChartsChart option={option} ariaLabel={title} onChartClick={onClick ? (event) => onClick(event.name) : undefined}/>{centerAction ? <div className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2">{centerAction}</div> : null}</div></CardContent></Card>;
+    return <Card className="min-w-0"><CardHeader><CardTitle>{title}</CardTitle>{selection ? <CardDescription>{selectionLabel(selection)}{title.includes("趋势") && !selection.range ? ` · 截至所选期近${selection.mode === "day" ? 30 : 12}期` : ""}</CardDescription> : null}{description ? <CardDescription>{description}</CardDescription> : null}{action}</CardHeader><CardContent className="px-4"><div className="relative"><EChartsChart option={option} height={height} ariaLabel={title} onChartClick={onClick ? (event) => onClick(event.name) : undefined}/>{centerAction ? <div className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2">{centerAction}</div> : null}</div></CardContent></Card>;
 }
 export function MetricHelp() { return <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="模拟口径说明"><InfoIcon /></Button></TooltipTrigger><TooltipContent>字段沿用原型；模拟计算仅用于展示，不代表正式数仓考核公式。</TooltipContent></Tooltip>; }

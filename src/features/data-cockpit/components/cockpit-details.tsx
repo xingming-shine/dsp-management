@@ -77,7 +77,7 @@ export function MetricDetail({ type, selection, onClose }: {
     <FieldGroup><Choices value={perspective} onChange={(v) => { setPerspective(v as typeof perspective); setTimeView("total"); }} options={[["driver", "司机视角"], ["route", "路区视角"]]} label="对比视角"/>{hours && (perspective === "route" || dailyAllowed) ? <Choices value={timeView} onChange={setTimeView} options={[["total", "总时长"], ["average", perspective === "driver" ? "日均时长" : "人均时长"]]} label="时长口径"/> : null}</FieldGroup>
     {complaint ? <Alert><AlertDescription>暂无司机和路区维度的DNR率、客诉率、有效客诉率；以下保留对应数量分布。</AlertDescription></Alert> : null}
     {hours ? <p className="text-xs text-muted-foreground">司机日均按有效派件天数，路区人均按去重派件司机数。当前为演示口径。</p> : null}
-    <Analysis title={`${type.label} · ${perspective === "driver" ? "司机" : "路区"}对比`} option={comboOption(rows, series, type.target === undefined ? undefined : type)}/>
+    <Analysis title={`${type.label} · ${perspective === "driver" ? "司机" : "路区"}对比`} option={comboOption(rows, series, type.target === undefined ? undefined : type)} height="detail"/>
     <DataGrid title="对比数据" columns={[{ key: "label", label: perspective === "driver" ? "司机" : "路区", value: (r) => r.label }, ...series.map((s): GridColumn<typeof rows[number]> => ({ key: s.metric.key, label: `${s.metric.label}${s.metric.unit ? `（${s.metric.unit}）` : ""}`, numeric: true, value: (r) => Math.round(r.values[s.metric.key] * 1000) / 1000 }))]} rows={rows} rowKey={(r) => r.id} filename={`${type.label}_${perspective}_${selectionLabel(selection)}`}/>
   </>}</DetailShell>;
 }

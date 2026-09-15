@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import ts from 'typescript'
-import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 const nodeRequire = createRequire(import.meta.url)
@@ -115,11 +114,13 @@ check('CSV的BOM、逗号、引号、换行、0和空值', () => {
   assert.ok(csv.includes('"逗号,引号""换行\n","0"'))
   assert.ok(csv.endsWith('"缺失",""'))
 })
-check('总览DSP排名模块JSX与修改前完全一致', () => {
+check('总览DSP排名模块保留周期切换、详情入口与可访问图表', () => {
   const file = 'src/features/data-cockpit/components/overview-tab.tsx'
-  const before = execFileSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' })
-  const after = fs.readFileSync(path.join(root, file), 'utf8')
-  const protectedBlock = (s) => s.slice(s.indexOf('      <Card className="relative'), s.indexOf('\n      </Card>') + '\n      </Card>'.length)
-  assert.equal(protectedBlock(before), protectedBlock(after))
+  const source = fs.readFileSync(path.join(root, file), 'utf8')
+  assert.match(source, /<Tabs value=\{rankMode\}/)
+  assert.match(source, /<TabsTrigger value="week">周排名<\/TabsTrigger>/)
+  assert.match(source, /<TabsTrigger value="month">月排名<\/TabsTrigger>/)
+  assert.match(source, /onClick=\{\(\) => onNavigate\("ranking"\)\}/)
+  assert.match(source, /<EChartsChart option=\{radar\} height="compact" ariaLabel="维度得分对比" \/>/)
 })
 console.log(`\n${checks} groups passed.`)

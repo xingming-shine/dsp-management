@@ -5,6 +5,7 @@ import * as echarts from "echarts"
 import type { EChartsOption, ECElementEvent } from "echarts"
 
 import { cn } from "@/lib/utils"
+import { CHART_TOOLTIP_EXTRA_CSS } from "../chart-options"
 
 function cssToken(styles: CSSStyleDeclaration, token: string) {
   return styles.getPropertyValue(token).trim()
@@ -54,25 +55,32 @@ function createProjectTheme(styles: CSSStyleDeclaration, resolveColor: (token: s
       resolveColor("--chart-6"),
     ],
     backgroundColor: "transparent",
-    textStyle: { color: muted, fontFamily: cssToken(styles, "--font-sans") },
+    textStyle: { color: muted, fontFamily: cssToken(styles, "--font-sans"), fontSize: 12, fontWeight: 400 },
     title: { textStyle: { color: foreground } },
-    legend: { textStyle: { color: muted } },
+    legend: {
+      itemWidth: 14,
+      itemHeight: 8,
+      itemGap: 16,
+      textStyle: { color: muted, fontSize: 12 },
+    },
     tooltip: {
       backgroundColor: background,
-      borderColor: border,
-      textStyle: { color: foreground },
+      borderWidth: 0,
+      padding: 12,
+      extraCssText: CHART_TOOLTIP_EXTRA_CSS,
+      textStyle: { color: foreground, fontSize: 12, fontWeight: 400 },
     },
     categoryAxis: {
-      axisLine: { lineStyle: { color: border } },
-      axisTick: { lineStyle: { color: border } },
-      axisLabel: { color: muted },
-      splitLine: { lineStyle: { color: border } },
+      axisLine: { lineStyle: { color: border, width: 1 } },
+      axisTick: { lineStyle: { color: border, width: 1 } },
+      axisLabel: { color: muted, fontSize: 12, margin: 8 },
+      splitLine: { lineStyle: { color: border, width: 1 } },
     },
     valueAxis: {
-      axisLine: { lineStyle: { color: border } },
-      axisTick: { lineStyle: { color: border } },
-      axisLabel: { color: muted },
-      splitLine: { lineStyle: { color: border } },
+      axisLine: { lineStyle: { color: border, width: 1 } },
+      axisTick: { lineStyle: { color: border, width: 1 } },
+      axisLabel: { color: muted, fontSize: 12, margin: 8 },
+      splitLine: { lineStyle: { color: border, width: 1 } },
     },
     radar: {
       axisName: { color: muted },
@@ -80,6 +88,65 @@ function createProjectTheme(styles: CSSStyleDeclaration, resolveColor: (token: s
       splitArea: { areaStyle: { color: ["transparent"] } },
       axisLine: { lineStyle: { color: border } },
     },
+    dataZoom: {
+      borderColor: "transparent",
+      backgroundColor: "transparent",
+      fillerColor: resolveColor("--accent"),
+      handleColor: muted,
+      moveHandleColor: foreground,
+      textStyle: { color: muted, fontSize: 12 },
+    },
+  }
+}
+
+export type ChartHeight = "compact" | "standard" | "primary" | "detail"
+
+const chartHeightClasses: Record<ChartHeight, string> = {
+  compact: "h-56 min-h-56",
+  standard: "h-72 min-h-72",
+  primary: "h-[22.5rem] min-h-[22.5rem]",
+  detail: "h-[25rem] min-h-[25rem]",
+}
+
+type ResponsiveAxis = { type?: string; data?: unknown[] }
+type ResponsiveSeries = { type?: string; stack?: string }
+type ResponsiveGrid = { left?: number | string; right?: number | string; bottom?: number | string }
+
+function first<T>(value: T | T[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function numericInset(value: number | string | undefined, fallback: number) {
+  return typeof value === "number" ? value : fallback
+}
+
+function withResponsiveDenseBarZoom(option: EChartsOption, containerWidth: number): EChartsOption {
+  if (option.dataZoom) return option
+
+  const xAxis = first(option.xAxis as ResponsiveAxis | ResponsiveAxis[] | undefined)
+  const categories = xAxis?.type === "category" && Array.isArray(xAxis.data) ? xAxis.data.length : 0
+  const allSeries = (Array.isArray(option.series) ? option.series : option.series ? [option.series] : []) as ResponsiveSeries[]
+  const bars = allSeries.filter((item) => item?.type === "bar")
+  const groups = new Set(bars.map((item, index) => item.stack ?? `series-${index}`)).size
+  if (categories < 28 || groups < 2) return option
+
+  const grid = first(option.grid as ResponsiveGrid | ResponsiveGrid[] | undefined)
+  const plotWidth = Math.max(0, containerWidth - numericInset(grid?.left, 60) - numericInset(grid?.right, 24))
+  const groupWidthAtMinimum = 8 * (groups + 0.2 * (groups - 1)) / 0.65
+  if (plotWidth / categories >= groupWidthAtMinimum) return option
+
+  const visibleCategories = Math.max(7, Math.floor(plotWidth / groupWidthAtMinimum))
+  const end = Math.min(100, visibleCategories / categories * 100)
+  const zoom = [
+    { type: "inside" as const, xAxisIndex: 0, start: 0, end, filterMode: "filter" as const },
+    { type: "slider" as const, xAxisIndex: 0, start: 0, end, height: 16, bottom: 8, showDetail: false, showDataShadow: false, borderColor: "transparent" },
+  ]
+  const expandedGrid = { ...grid, bottom: Math.max(numericInset(grid?.bottom, 56), 76) }
+
+  return {
+    ...option,
+    grid: Array.isArray(option.grid) ? [expandedGrid, ...option.grid.slice(1)] : expandedGrid,
+    dataZoom: zoom,
   }
 }
 
@@ -106,6 +173,7 @@ export function EChartsChart({
   seriesGradients,
   gradientDirection = "horizontal",
   dataColors,
+  height = "standard",
   ariaLabel = "数据图表",
   focusTooltip,
 }: {
@@ -118,6 +186,7 @@ export function EChartsChart({
   seriesGradients?: Array<[string, string] | null>
   gradientDirection?: "horizontal" | "vertical"
   dataColors?: Array<Array<string | null> | null>
+  height?: ChartHeight
   ariaLabel?: string
   focusTooltip?: { seriesIndex?: number; dataIndex?: number }
 }) {
@@ -189,12 +258,12 @@ export function EChartsChart({
     const setChartOption = () => {
       if (!chart) return
 
+      const responsiveOption = withResponsiveDenseBarZoom({ ...option, series: series as EChartsOption["series"] }, container.clientWidth)
       chart.setOption({
-        ...option,
+        ...responsiveOption,
         ...createChartMotion(motionQuery.matches),
         color: colors?.map(resolveColor) ?? option.color,
-        series,
-      })
+      }, { notMerge: true, lazyUpdate: true })
     }
 
     const initializeChart = () => {
@@ -208,7 +277,10 @@ export function EChartsChart({
 
     const resizeObserver = new ResizeObserver(() => {
       if (!chart) initializeChart()
-      else chart.resize()
+      else {
+        chart.resize()
+        setChartOption()
+      }
     })
     const intersectionObserver = new IntersectionObserver(([entry]) => {
       isIntersecting = entry.isIntersecting
@@ -231,7 +303,7 @@ export function EChartsChart({
   return (
     <div
       ref={containerRef}
-      className={cn("h-72 min-h-64 w-full", className)}
+      className={cn("w-full", chartHeightClasses[height], className)}
       role="img"
       aria-label={ariaLabel}
       tabIndex={focusTooltip ? 0 : undefined}
