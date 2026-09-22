@@ -287,6 +287,14 @@ export const primaryNavigation: NavigationItem[] = [
         permission: "finance.settlement.read",
         status: "available",
       },
+      {
+        id: "driver-withdrawal-mode",
+        label: "司机提现模式管理",
+        icon: WalletIcon,
+        href: "/finance/driver-withdrawal-mode",
+        permission: "finance.settlement.read",
+        status: "available",
+      },
     ],
   },
   {

@@ -61,7 +61,7 @@ export function ApplicationInfo({ row, compact = false }: { row: Application; co
       <InfoItem label="最新操作日期">{formatDate(row.latestOperationDate)}</InfoItem>
       {row.applicationType === "close" ? <>
         <InfoItem label="关闭原因">{row.closeReason}</InfoItem><InfoItem label="受影响司机数量">{row.affectedDriverCount} 人</InfoItem>
-        {row.expectedCloseTime && <InfoItem label={`关闭生效时间（${mockSession.preferences.timezone}）`}>{displayTime(row.expectedCloseTime)}</InfoItem>}
+        {row.expectedCloseTime && <InfoItem label="关闭生效时间">{displayTime(row.expectedCloseTime)}</InfoItem>}
       </> : null}
     </dl>
   </Section>

@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>司机提现模式管理 - 关闭审核原型</title>
+  <style>
+    :root {
+      --primary: #fc4c02;
+      --primary-hover: #f76121;
+      --primary-bg: #fff3ed;
+      --primary-border: #ffd4c2;
+      --success: #52c41a;
+      --warning: #faad14;
+      --danger: #ff4d4f;
+      --info: #1677ff;
+      --text: rgba(0, 0, 0, .85);
+      --text-2: rgba(0, 0, 0, .65);
+      --text-3: rgba(0, 0, 0, .45);
+      --border: #e5e7eb;
+      --border-2: #f0f0f0;
+      --bg: #f5f6f8;
+      --container: #fff;
+      --sidebar: #111827;
+      --sidebar-2: #1f2937;
+      --radius: 6px;
+      --radius-lg: 8px;
+      --shadow: 0 12px 28px rgba(15, 23, 42, .14);
+      --header-h: 52px;
+      --sidebar-w: 64px;
+      --sidebar-open-w: 220px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--sidebar);
+      color: #fff;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 80;
+      transition: width .22s ease;
+      overflow: hidden;
+    }
+    .sidebar:hover { width: var(--sidebar-open-w); }
+    .brand {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+      white-space: nowrap;
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--primary);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      flex: 0 0 auto;
+    }
+    .brand span {
+      opacity: 0;
+      transition: opacity .18s ease;
+      font-weight: 600;
+    }
+    .sidebar:hover .brand span { opacity: 1; }
+    .nav {
+      padding: 16px 8px;
+    }
+    .nav-title {
+      color: rgba(255, 255, 255, .45);
+      font-size: 12px;
+      padding: 0 10px 8px;
+      opacity: 0;
+      transition: opacity .18s ease;
+      white-space: nowrap;
+    }
+    .sidebar:hover .nav-title { opacity: 1; }
+    .nav-item {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 10px;
+      border-radius: 6px;
+      color: rgba(255, 255, 255, .75);
+      white-space: nowrap;
+      margin-bottom: 4px;
+    }
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: rgba(255, 255, 255, .86);
+    }
+    .nav-label {
+      opacity: 0;
+      transition: opacity .18s ease;
+    }
+    .sidebar:hover .nav-label { opacity: 1; }
+    .nav-item.active {
+      color: #fff;
+      background: var(--primary);
+    }
+    .nav-sub {
+      padding-left: 0;
+    }
+
+    .main {
+      margin-left: var(--sidebar-w);
+      width: calc(100% - var(--sidebar-w));
+      min-height: 100vh;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      height: var(--header-h);
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-3);
+      font-size: 13px;
+    }
+    .breadcrumb strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .user {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-2);
+    }
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--primary-bg);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .content {
+      padding: 24px;
+    }
+    .card {
+      background: var(--container);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 16px;
+    }
+    .filter-card {
+      padding: 24px;
+    }
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 16px;
+      align-items: end;
+    }
+    .form-item label {
+      display: block;
+      color: var(--text-2);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .control {
+      width: 100%;
+      height: 32px;
+      border: 1px solid #d9d9d9;
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--text);
+      padding: 0 11px;
+      outline: none;
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+    .control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(252, 76, 2, .12);
+    }
+    .date-range {
+      display: grid;
+      grid-template-columns: 1fr 20px 1fr;
+      align-items: center;
+      gap: 6px;
+    }
+    .date-range span {
+      text-align: center;
+      color: var(--text-3);
+      font-size: 12px;
+    }
+    .filter-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      grid-column: 1 / -1;
+    }
+
+    .btn {
+      height: 32px;
+      border-radius: var(--radius);
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      color: var(--text);
+      padding: 0 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: all .16s ease;
+    }
+    .btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .btn-primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      border-color: var(--primary-hover);
+      background: var(--primary-hover);
+      color: #fff;
+    }
+    .btn-danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+    .btn-text {
+      border: none;
+      background: transparent;
+      color: var(--primary);
+      height: 28px;
+      padding: 0 4px;
+    }
+    .btn-text:hover {
+      background: var(--primary-bg);
+    }
+    .btn-icon {
+      width: 32px;
+      padding: 0;
+    }
+
+    .table-summary {
+      display: flex;
+      align-items: center;
+      height: 48px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-2);
+      color: var(--text-2);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .table-summary strong {
+      margin: 0 4px;
+      color: var(--primary);
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .table-wrap {
+      overflow: auto;
+      margin: 16px 16px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1180px;
+    }
+    th, td {
+      border: 1px solid var(--border-2);
+      padding: 12px 16px;
+      text-align: left;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    th {
+      background: #fafafa;
+      font-weight: 500;
+      color: var(--text-2);
+      user-select: none;
+    }
+    tbody tr:nth-child(even) td { background: #fafafa; }
+    tbody tr:hover td { background: var(--primary-bg); }
+    .col-actions {
+      position: sticky;
+      right: 0;
+      background: inherit;
+      z-index: 3;
+      min-width: 170px;
+    }
+    th.col-actions { background: #fafafa; }
+    .action-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 11px;
+      border: 1px solid transparent;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .tag-orange { color: var(--primary); background: var(--primary-bg); border-color: var(--primary-border); }
+    .tag-blue { color: var(--info); background: #eaf3ff; border-color: #bfdcff; }
+    .tag-green { color: var(--success); background: #edf9e8; border-color: #c9efbd; }
+    .tag-red { color: var(--danger); background: #fff1f0; border-color: #ffccc7; }
+    .tag-gray { color: var(--text-3); background: #f5f5f5; border-color: #e8e8e8; }
+    .tag-gold { color: #d48806; background: #fff7e6; border-color: #ffe7ba; }
+    .tag-closed { color: #2f54eb; background: #f0f5ff; border-color: #adc6ff; }
+    .audit-status-text {
+      font-weight: 400;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .pagination {
+      margin: 8px 16px 16px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--text-2);
+      font-size: 13px;
+    }
+    .pagination-info {
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+    .pagination-info strong {
+      font-weight: 400;
+      color: var(--text-2);
+    }
+    .pagination-select {
+      width: 128px;
+      height: 32px;
+      padding: 4px 30px 4px 11px;
+      border: 1px solid #d9d9d9;
+      border-radius: var(--radius);
+      color: var(--text-2);
+      background: #fff;
+      outline: none;
+    }
+    .pagination-select:focus,
+    .pagination-jumper-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(252, 76, 2, .1);
+    }
+    .pagination-pages {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pagination button {
+      min-width: 32px;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid #d9d9d9;
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--text-2);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all .2s;
+    }
+    .pagination button:hover:not(:disabled):not(.active):not(.pagination-ellipsis) {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .pagination button:disabled {
+      color: rgba(0, 0, 0, .25);
+      background: #f5f5f5;
+      cursor: not-allowed;
+    }
+    .pagination button.active {
+      border-color: #1677ff;
+      background: #1677ff;
+      color: #fff;
+      font-weight: 500;
+    }
+    .pagination-arrow {
+      width: 32px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pagination-arrow svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 2;
+    }
+    .pagination-ellipsis {
+      color: var(--text);
+      background: #f5f5f5;
+      border-color: #f5f5f5;
+      cursor: default;
+      font-weight: 600;
+    }
+    .pagination-jumper {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .pagination-jumper-input {
+      width: 56px;
+      height: 32px;
+      padding: 4px 8px;
+      border: 1px solid #d9d9d9;
+      border-radius: var(--radius);
+      text-align: center;
+      color: var(--text);
+      outline: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .38);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 24px;
+    }
+    .overlay.show { display: flex; }
+    .modal {
+      width: min(760px, calc(100vw - 48px));
+      max-height: calc(100vh - 48px);
+      background: #fff;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-wide { width: min(920px, calc(100vw - 48px)); }
+    .modal-confirm { width: min(440px, calc(100vw - 48px)); }
+    .modal-head {
+      height: 56px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-2);
+    }
+    .modal-head h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text-3);
+      border-radius: var(--radius);
+      font-size: 20px;
+    }
+    .modal-close:hover {
+      background: #f5f5f5;
+      color: var(--text);
+    }
+    .modal-body {
+      padding: 24px;
+      overflow: auto;
+      background: #fff;
+    }
+    .modal-foot {
+      min-height: 56px;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      border-top: 1px solid var(--border-2);
+    }
+    .modal-foot .left-tip {
+      max-width: calc(100% - 136px);
+      margin-right: auto;
+      color: #d46b08;
+      background: #fff7e6;
+      border: 1px solid #ffe7ba;
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: normal;
+    }
+
+    .section {
+      background: #fafafa;
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section:last-child { margin-bottom: 0; }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title::before {
+      content: "";
+      width: 4px;
+      height: 16px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 40px;
+    }
+    .info-item span {
+      display: block;
+      color: var(--text-3);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .info-item strong {
+      display: block;
+      color: var(--text);
+      font-weight: 500;
+      word-break: break-word;
+      white-space: normal;
+    }
+    .radio-row {
+      display: flex;
+      gap: 28px;
+      align-items: center;
+      margin: 4px 0 16px;
+    }
+    .radio-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .textarea-wrap {
+      display: none;
+    }
+    .textarea-wrap.show { display: block; }
+    .audit-form {
+      display: none;
+      margin-top: 16px;
+    }
+    .audit-form.show { display: block; }
+    .template-detail {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: #fff;
+      overflow: hidden;
+    }
+    .template-detail.hidden { display: none; }
+    .template-head {
+      height: 40px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-2);
+      color: var(--text-2);
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .template-detail.collapsed .template-body { display: none; }
+    .template-body {
+      padding: 14px;
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .pricing-item {
+      padding: 10px 12px;
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      background: #fafafa;
+    }
+    .pricing-item span {
+      display: block;
+      color: var(--text-3);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .pricing-item strong {
+      font-weight: 500;
+      color: var(--text);
+    }
+    .pricing-table {
+      width: 100%;
+      min-width: 0;
+      border-collapse: collapse;
+    }
+    .pricing-table th,
+    .pricing-table td {
+      padding: 9px 10px;
+      white-space: normal;
+      font-size: 13px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      resize: vertical;
+      border: 1px solid #d9d9d9;
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      outline: none;
+    }
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(252, 76, 2, .12);
+    }
+    .required::before {
+      content: "* ";
+      color: var(--danger);
+    }
+    .char-count {
+      text-align: right;
+      color: var(--text-3);
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    .log-list {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 16px;
+      border-radius: var(--radius-lg);
+      background: #fafafa;
+    }
+    .log-item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 10px 1fr;
+      gap: 12px;
+      padding: 0 0 22px;
+      align-items: flex-start;
+    }
+    .log-item:last-child { padding-bottom: 0; }
+    .log-item::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 18px;
+      bottom: 4px;
+      border-left: 1px dashed #b8c2d8;
+    }
+    .log-item:last-child::after { display: none; }
+    .log-dot {
+      position: relative;
+      z-index: 1;
+      width: 8px;
+      height: 8px;
+      margin-top: 6px;
+      border-radius: 50%;
+      background: #4f6df5;
+    }
+    .log-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .log-operator {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .log-time {
+      color: var(--text-3);
+      font-size: 13px;
+    }
+    .log-desc {
+      color: var(--text-2);
+      line-height: 22px;
+      word-break: break-word;
+    }
+    .log-empty {
+      padding: 36px 16px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-lg);
+      color: var(--text-3);
+      text-align: center;
+      background: #fafafa;
+    }
+
+    .toast {
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 300;
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      display: none;
+      color: var(--text);
+    }
+    .toast.show { display: block; }
+
+    @media (max-width: 1200px) {
+      .filter-grid { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .content { padding: 16px; }
+      .filter-grid { grid-template-columns: 1fr; }
+      .info-grid { grid-template-columns: 1fr; }
+      .pricing-grid { grid-template-columns: 1fr; }
+      .log-item { grid-template-columns: 10px 1fr; }
+      .modal-foot { align-items: stretch; flex-direction: column; }
+      .modal-foot .left-tip { max-width: 100%; margin-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">G</div>
+        <span>GOFO Web</span>
+      </div>
+      <nav class="nav">
+        <div class="nav-title">DSP管理</div>
+        <div class="nav-item">
+          <div class="nav-icon">$</div>
+          <div class="nav-label">DSP管理</div>
+        </div>
+        <div class="nav-sub">
+          <div class="nav-item active">
+            <div class="nav-icon">·</div>
+            <div class="nav-label">司机提现模式管理</div>
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <span>DSP管理</span><span>/</span><span>DSP管理</span><span>/</span><strong>司机提现模式管理</strong>
+        </div>
+        <div class="user">
+          <div class="avatar">张</div>
+          <span>张经理</span>
+        </div>
+      </header>
+
+      <section class="content">
+        <section class="card filter-card">
+          <div class="filter-grid" id="filterGrid">
+            <div class="form-item">
+              <label>车队</label>
+              <select class="control" id="fleetFilter">
+                <option value="">全部车队</option>
+                <option value="洛杉矶车队">洛杉矶车队</option>
+                <option value="旧金山车队">旧金山车队</option>
+                <option value="西雅图车队">西雅图车队</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>司机</label>
+              <select class="control" id="driverFilter">
+                <option value="">全部司机</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>申请类型</label>
+              <select class="control" id="typeFilter">
+                <option value="">全部</option>
+                <option value="open">开通申请</option>
+                <option value="close">关闭申请</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>提现模式状态</label>
+              <select class="control" id="modeStatusFilter">
+                <option value="">全部</option>
+                <option value="unopened">未开通</option>
+                <option value="opened">已开通</option>
+                <option value="closing_pending_effective">关闭待生效</option>
+                <option value="closed">已关闭</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>审核状态</label>
+              <select class="control" id="auditStatusFilter">
+                <option value="">全部</option>
+                <option value="pending">待审核</option>
+                <option value="approved">已通过</option>
+                <option value="rejected">不通过</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>最新操作时间</label>
+              <div class="date-range">
+                <input class="control" id="startDate" type="date" />
+                <span>至</span>
+                <input class="control" id="endDate" type="date" />
+              </div>
+            </div>
+            <div class="filter-actions">
+              <button class="btn btn-primary" type="button" onclick="applyFilters()">查询</button>
+              <button class="btn" type="button" onclick="resetFilters()">重置</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="table-summary" aria-live="polite">
+            待审核 <strong id="pendingCount">0</strong> 条数据
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>司机ID</th>
+                  <th>司机姓名</th>
+                  <th>电话</th>
+                  <th>所属车队</th>
+                  <th>申请类型</th>
+                  <th>最新操作时间</th>
+                  <th>审核状态</th>
+                  <th>提现模式状态</th>
+                  <th class="col-actions">操作</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <span class="pagination-info">共 <strong id="totalCount">0</strong> 条</span>
+            <select id="pageSizeSelect" class="pagination-select" onchange="changePageSize(this.value)" aria-label="每页条数">
+              <option value="10">10条/页</option>
+              <option value="20">20条/页</option>
+              <option value="50">50条/页</option>
+              <option value="100">100条/页</option>
+            </select>
+            <button id="prevBtn" class="pagination-arrow" type="button" disabled onclick="prevPage()" aria-label="上一页" title="上一页">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div id="paginationPages" class="pagination-pages" aria-label="页码"></div>
+            <button id="nextBtn" class="pagination-arrow" type="button" disabled onclick="nextPage()" aria-label="下一页" title="下一页">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <span class="pagination-jumper">
+              前往
+              <input id="pageJumpInput" class="pagination-jumper-input" type="number" min="1" value="1" onkeydown="handlePageJumpKey(event)" onblur="syncPageJumpInput()" aria-label="跳转页码">
+              页
+            </span>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="overlay" id="auditModal">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>司机提现模式关闭申请审核</h3>
+        <button class="modal-close" type="button" onclick="closeModal('auditModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="section">
+          <div class="section-title">司机基础信息</div>
+          <div class="info-grid" id="auditInfo"></div>
+        </div>
+        <div class="section">
+          <div class="section-title">审核操作</div>
+          <div class="radio-row">
+            <label><input type="radio" name="auditResult" value="approve" checked onchange="toggleRejectReason()" /> 审核通过</label>
+            <label><input type="radio" name="auditResult" value="reject" onchange="toggleRejectReason()" /> 审核不通过</label>
+          </div>
+          <div class="textarea-wrap" id="rejectWrap">
+            <label class="required" for="rejectReason">不通过原因</label>
+            <textarea id="rejectReason" maxlength="500" placeholder="请输入不通过原因"></textarea>
+            <div class="char-count"><span id="reasonCount">0</span>/500</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="left-tip" id="closeApproveHint">审核通过,将于明日00:00正式关闭该司机的提现模式。</span>
+        <button class="btn" type="button" onclick="closeModal('auditModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="submitCloseAudit()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="closeApproveConfirmModal">
+    <div class="modal modal-confirm">
+      <div class="modal-head">
+        <h3>确认审核通过</h3>
+        <button class="modal-close" type="button" onclick="closeModal('closeApproveConfirmModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin:0;line-height:1.7;color:var(--text);">审核通过,将于明日00:00正式关闭该司机的提现模式，是否确认通过？</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" onclick="closeModal('closeApproveConfirmModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="confirmCloseApproveAudit()">确认通过</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="openAuditModal">
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <h3>司机提现模式开通申请审核</h3>
+        <button class="modal-close" type="button" onclick="closeModal('openAuditModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="section">
+          <div class="section-title">司机基础信息</div>
+          <div class="info-grid" id="openAuditInfo"></div>
+        </div>
+        <div class="section">
+          <div class="section-title">审核操作</div>
+          <div class="radio-row">
+            <label><input type="radio" name="openAuditResult" value="approve" checked onchange="toggleOpenAuditForm()" /> 审核通过</label>
+            <label><input type="radio" name="openAuditResult" value="reject" onchange="toggleOpenAuditForm()" /> 审核不通过</label>
+          </div>
+          <div class="audit-form show" id="openApproveForm">
+            <div class="form-item">
+              <label class="required" for="pricingPlan">报价方案</label>
+              <select class="control" id="pricingPlan" onchange="onPricingPlanChange()">
+                <option value="">请选择报价方案</option>
+                <option value="plan1">STD-LAX-001 洛杉矶标准报价</option>
+                <option value="plan2">STD-SFO-002 旧金山快递报价</option>
+                <option value="plan3">STD-SEA-003 西雅图经济报价</option>
+              </select>
+            </div>
+            <div class="template-detail hidden" id="templateDetail">
+              <div class="template-head" onclick="toggleTemplateDetail()">
+                <span>计费模板详情</span>
+                <span>⌄</span>
+              </div>
+              <div class="template-body" id="templateDetailBody"></div>
+            </div>
+          </div>
+          <div class="audit-form" id="openRejectForm">
+            <label class="required" for="openRejectReason">不通过原因</label>
+            <textarea id="openRejectReason" maxlength="500" placeholder="请输入不通过原因"></textarea>
+            <div class="char-count"><span id="openReasonCount">0</span>/500</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="left-tip" id="openApproveHint">审核通过后，将于 T+1 00:00 为该司机开启提现模式。</span>
+        <button class="btn" type="button" onclick="closeModal('openAuditModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="submitOpenAudit()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="detailModal">
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <h3>司机开通详情</h3>
+        <button class="modal-close" type="button" onclick="closeModal('detailModal')">×</button>
+      </div>
+      <div class="modal-body" id="detailBody"></div>
+      <div class="modal-foot">
+        <button class="btn" type="button" onclick="closeModal('detailModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="logModal">
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <h3>操作日志</h3>
+        <button class="modal-close" type="button" onclick="closeModal('logModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="log-list" id="logList"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" onclick="closeModal('logModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const statusMap = {
+      pending: { text: "待审核", cls: "tag-gold" },
+      approved: { text: "已通过", cls: "tag-green" },
+      rejected: { text: "不通过", cls: "tag-red" }
+    };
+    const modeStatusMap = {
+      unopened: { text: "未开通", cls: "tag-gray" },
+      opened: { text: "已开通", cls: "tag-green" },
+      closing_pending_effective: { text: "关闭待生效", cls: "tag-gold" },
+      closed: { text: "已关闭", cls: "tag-closed" }
+    };
+    const typeMap = {
+      open: { text: "开通申请", cls: "tag-blue" },
+      close: { text: "关闭申请", cls: "tag-orange" }
+    };
+    const pricingPlans = {
+      plan1: {
+        code: "STD-LAX-001",
+        name: "洛杉矶标准报价",
+        feeType: "单票服务费",
+        currency: "USD",
+        taxRate: "8.75%",
+        items: [
+          ["首票", "$2.20", "1票"],
+          ["续票", "$1.60", "每票"]
+        ]
+      },
+      plan2: {
+        code: "STD-SFO-002",
+        name: "旧金山快递报价",
+        feeType: "快递服务费",
+        currency: "USD",
+        taxRate: "8.63%",
+        items: [
+          ["首票", "$2.50", "1票"],
+          ["续票", "$1.80", "每票"]
+        ]
+      },
+      plan3: {
+        code: "STD-SEA-003",
+        name: "西雅图经济报价",
+        feeType: "经济服务费",
+        currency: "USD",
+        taxRate: "10.10%",
+        items: [
+          ["首票", "$2.00", "1票"],
+          ["续票", "$1.45", "每票"]
+        ]
+      }
+    };
+
+    const profiles = [
+      {
+        id: "DRV-001", name: "张伟", phone: "13812341234", fleet: "洛杉矶车队",
+        type: "close", applyTime: "2026-07-08 09:30:25", auditTime: "-", latestOperationTime: "2026-07-08 09:30:25", auditStatus: "pending",
+        modeStatus: "opened", openTime: "2026-05-11 00:00:00",
+        closeTime: "-", plan: "STD-LAX-001 洛杉矶标准报价", rejectReason: "-",
+        logs: [
+          ["2026-07-08 09:30:25", "张伟", "提交关闭申请"],
+          ["2026-05-10 14:30:25", "张经理", "开通审核通过，分配计价模式：STD-LAX-001 洛杉矶标准报价"],
+          ["2026-05-10 09:30:25", "张伟", "提交开通申请"]
+        ]
+      },
+      {
+        id: "DRV-002", name: "李娜", phone: "13912345678", fleet: "洛杉矶车队",
+        type: "open", applyTime: "2026-07-08 10:15:42", auditTime: "-", latestOperationTime: "2026-07-08 10:15:42", auditStatus: "pending",
+        modeStatus: "unopened", openTime: "-",
+        closeTime: "-", plan: "-", rejectReason: "-", restricted: true,
+        logs: [
+          ["2026-07-08 10:15:42", "李娜", "提交开通申请"]
+        ]
+      },
+      {
+        id: "DRV-003", name: "王强", phone: "13688889012", fleet: "旧金山车队",
+        type: "close", applyTime: "2026-07-08 14:24:18", auditTime: "2026-07-08 15:05:44", latestOperationTime: "2026-07-08 15:05:44", auditStatus: "approved",
+        modeStatus: "closing_pending_effective", openTime: "2026-04-19 00:00:00",
+        closeTime: "2026-07-09 00:00:00", plan: "STD-SFO-002 旧金山快递报价", rejectReason: "-",
+        logs: [
+          ["2026-07-08 15:05:44", "张经理", "关闭审核通过，提现模式关闭时间：2026-07-09 00:00:00"],
+          ["2026-07-08 14:24:18", "王强", "提交关闭申请"],
+          ["2026-04-18 14:30:25", "张经理", "开通审核通过，分配计价模式：STD-SFO-002 旧金山快递报价"],
+          ["2026-04-18 09:00:15", "王强", "提交开通申请"]
+        ]
+      },
+      {
+        id: "DRV-004", name: "赵敏", phone: "13745673456", fleet: "旧金山车队",
+        type: "close", applyTime: "2026-07-06 11:20:36", auditTime: "2026-07-06 11:45:09", latestOperationTime: "2026-07-06 11:45:09", auditStatus: "rejected",
+        modeStatus: "opened", openTime: "2026-03-28 00:00:00",
+        closeTime: "-", plan: "STD-SFO-002 旧金山快递报价", rejectReason: "司机当前仍有未完成提现结算，请完成结算后再提交关闭申请。",
+        logs: [
+          ["2026-07-06 11:45:09", "张经理", "关闭审核不通过，原因：司机当前仍有未完成提现结算"],
+          ["2026-07-06 11:20:36", "赵敏", "提交关闭申请"],
+          ["2026-03-27 16:40:11", "张经理", "开通审核通过，分配计价模式：STD-SFO-002 旧金山快递报价"],
+          ["2026-03-27 10:05:22", "赵敏", "提交开通申请"]
+        ]
+      },
+      {
+        id: "DRV-005", name: "陈晨", phone: "13512347890", fleet: "西雅图车队",
+        type: "close", applyTime: "2026-07-05 09:00:55", auditTime: "2026-07-05 10:12:31", latestOperationTime: "2026-07-05 10:12:31", auditStatus: "approved",
+        modeStatus: "closed", openTime: "2026-02-08 00:00:00",
+        closeTime: "2026-07-06 00:00:00", plan: "STD-SEA-003 西雅图经济报价", rejectReason: "-",
+        logs: [
+          ["2026-07-05 10:12:31", "系统", "DSP关闭提现模式，提现模式关闭时间：2026-07-06 00:00:00"],
+          ["2026-02-07 11:08:22", "张经理", "开通审核通过，分配计价模式：STD-SEA-003 西雅图经济报价"],
+          ["2026-02-07 09:20:10", "陈晨", "提交开通申请"]
+        ]
+      },
+      {
+        id: "DRV-006", name: "刘洋", phone: "13398762345", fleet: "洛杉矶车队",
+        type: "open", applyTime: "2026-07-04 09:00:18", auditTime: "2026-07-04 09:32:20", latestOperationTime: "2026-07-04 09:32:20", auditStatus: "approved",
+        modeStatus: "opened", openTime: "2026-07-05 00:00:00",
+        closeTime: "-", plan: "STD-LAX-001 洛杉矶标准报价", rejectReason: "-",
+        logs: [
+          ["2026-07-04 09:32:20", "张经理", "开通审核通过，分配计价模式：STD-LAX-001 洛杉矶标准报价"],
+          ["2026-07-04 09:00:18", "刘洋", "提交开通申请"]
+        ]
+      },
+      {
+        id: "DRV-007", name: "孙丽", phone: "13122226789", fleet: "西雅图车队",
+        type: "open", applyTime: "2026-07-08 10:30:03", auditTime: "2026-07-08 11:02:41", latestOperationTime: "2026-07-08 11:02:41", auditStatus: "approved",
+        modeStatus: "opened", openTime: "2026-07-09 00:00:00",
+        closeTime: "-", plan: "STD-SEA-003 西雅图经济报价", rejectReason: "-",
+        logs: [
+          ["2026-07-08 11:02:41", "张经理", "开通审核通过，分配计价模式：STD-SEA-003 西雅图经济报价"],
+          ["2026-07-08 10:30:03", "孙丽", "提交开通申请"]
+        ]
+      },
+      {
+        id: "DRV-008", name: "周杰", phone: "13255550123", fleet: "旧金山车队",
+        type: "open", applyTime: "2026-07-02 11:45:59", auditTime: "2026-07-02 12:10:08", latestOperationTime: "2026-07-02 12:10:08", auditStatus: "rejected",
+        modeStatus: "closed", openTime: "2026-01-16 00:00:00",
+        closeTime: "2026-06-20 00:00:00", plan: "STD-SFO-002 旧金山快递报价", rejectReason: "司机注册时间不足，需满足30天以上运营经验后可申请开通。",
+        logs: [
+          ["2026-07-02 12:10:08", "张经理", "开通审核不通过，原因：司机注册时间不足"],
+          ["2026-07-02 11:45:59", "周杰", "提交开通申请"],
+          ["2026-06-19 14:22:10", "系统", "DSP关闭提现模式，提现模式关闭时间：2026-06-20 00:00:00"],
+          ["2026-01-15 15:05:18", "张经理", "开通审核通过，分配计价模式：STD-SFO-002 旧金山快递报价"],
+          ["2026-01-15 10:30:40", "周杰", "提交开通申请"]
+        ]
+      }
+    ];
+
+    let currentRows = [...profiles];
+    let currentAuditProfile = null;
+    let currentPage = 1;
+    let pageSize = 10;
+
+    function maskName(name) {
+      if (!name) return "-";
+      return name.length <= 1 ? name : name[0] + "**";
+    }
+    function maskPhone(phone) {
+      return phone ? phone.slice(0, 3) + "****" + phone.slice(-4) : "-";
+    }
+    function tag(kind, value) {
+      const source = kind === "status" ? statusMap : kind === "mode" ? modeStatusMap : typeMap;
+      const item = source[value] || { text: "-", cls: "tag-gray" };
+      return `<span class="tag ${item.cls}">${item.text}</span>`;
+    }
+    function auditStatusText(value) {
+      const item = statusMap[value] || { text: "-" };
+      return `<span class="audit-status-text">${item.text}</span>`;
+    }
+    function getFilterValues() {
+      return {
+        fleet: document.getElementById("fleetFilter").value,
+        driver: document.getElementById("driverFilter").value,
+        type: document.getElementById("typeFilter").value,
+        modeStatus: document.getElementById("modeStatusFilter").value,
+        auditStatus: document.getElementById("auditStatusFilter").value,
+        startDate: document.getElementById("startDate").value,
+        endDate: document.getElementById("endDate").value
+      };
+    }
+    function dateOnly(value) {
+      return value && value !== "-" ? value.slice(0, 10) : "";
+    }
+    function matchesBaseFilters(row, f) {
+      if (f.fleet && row.fleet !== f.fleet) return false;
+      if (f.driver && row.id !== f.driver) return false;
+      if (f.type && row.type !== f.type) return false;
+      const operationDate = dateOnly(row.latestOperationTime);
+      if (f.startDate && operationDate < f.startDate) return false;
+      if (f.endDate && operationDate > f.endDate) return false;
+      return true;
+    }
+    function applyFilters() {
+      const f = getFilterValues();
+      let rows = profiles.filter(row => matchesBaseFilters(row, f));
+      if (f.modeStatus) rows = rows.filter(row => row.modeStatus === f.modeStatus);
+      if (f.auditStatus) rows = rows.filter(row => row.auditStatus === f.auditStatus);
+      rows.sort((a, b) => (b.latestOperationTime || "").localeCompare(a.latestOperationTime || ""));
+      currentRows = rows;
+      currentPage = 1;
+      renderTable();
+    }
+    function resetFilters() {
+      ["fleetFilter", "driverFilter", "typeFilter", "modeStatusFilter", "auditStatusFilter", "startDate", "endDate"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+      applyFilters();
+    }
+    function renderDriverOptions() {
+      const select = document.getElementById("driverFilter");
+      profiles.forEach(row => {
+        const option = document.createElement("option");
+        option.value = row.id;
+        option.textContent = `${row.id} ${row.name}`;
+        select.appendChild(option);
+      });
+    }
+    function renderTable() {
+      const body = document.getElementById("tableBody");
+      body.innerHTML = "";
+      document.getElementById("pendingCount").textContent = currentRows.filter(row => row.auditStatus === "pending").length;
+      if (!currentRows.length) {
+        body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:36px;">暂无匹配数据</td></tr>`;
+        document.getElementById("totalCount").textContent = "0";
+        renderPagination();
+        return;
+      }
+      const start = (currentPage - 1) * pageSize;
+      const pageRows = currentRows.slice(start, start + pageSize);
+      pageRows.forEach(row => {
+        const canAudit = row.auditStatus === "pending";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.id}</td>
+          <td title="${row.name}">${maskName(row.name)}</td>
+          <td title="${row.phone}">${maskPhone(row.phone)}</td>
+          <td>${row.fleet}</td>
+          <td>${tag("type", row.type)}</td>
+          <td>${row.latestOperationTime || "-"}</td>
+          <td>${auditStatusText(row.auditStatus)}</td>
+          <td>${tag("mode", row.modeStatus)}</td>
+          <td class="col-actions">
+            <div class="action-group">
+              ${canAudit ? `<button class="btn-text" type="button" onclick="openAudit('${row.id}')">审核</button>` : ""}
+              <button class="btn-text" type="button" onclick="openDetail('${row.id}')">详情</button>
+              <button class="btn-text" type="button" onclick="openLog('${row.id}')">操作日志</button>
+            </div>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+      document.getElementById("totalCount").textContent = currentRows.length;
+      renderPagination();
+    }
+    function renderPagination() {
+      const totalPages = Math.max(1, Math.ceil(currentRows.length / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      const pages = document.getElementById("paginationPages");
+      pages.innerHTML = getPaginationItems(currentPage, totalPages).map(item => {
+        if (typeof item === "string") {
+          return `<button class="pagination-ellipsis" type="button" disabled aria-hidden="true">...</button>`;
+        }
+        const activeClass = item === currentPage ? " active" : "";
+        const currentAttr = item === currentPage ? ` aria-current="page"` : "";
+        return `<button class="pagination-page${activeClass}" type="button" onclick="goToPage(${item})"${currentAttr}>${item}</button>`;
+      }).join("");
+      document.getElementById("pageSizeSelect").value = String(pageSize);
+      document.getElementById("pageJumpInput").value = currentPage;
+      document.getElementById("pageJumpInput").max = totalPages;
+      document.getElementById("prevBtn").disabled = currentPage <= 1;
+      document.getElementById("nextBtn").disabled = currentPage >= totalPages;
+    }
+    function getPaginationItems(current, total) {
+      if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+      if (current <= 4) return [1, 2, 3, 4, 5, 6, "ellipsis", total];
+      if (current >= total - 3) return [1, "ellipsis", total - 5, total - 4, total - 3, total - 2, total - 1, total];
+      return [1, "ellipsis-prev", current - 1, current, current + 1, "ellipsis-next", total];
+    }
+    function goToPage(page) {
+      const totalPages = Math.max(1, Math.ceil(currentRows.length / pageSize));
+      currentPage = Math.min(Math.max(page, 1), totalPages);
+      renderTable();
+    }
+    function prevPage() {
+      goToPage(currentPage - 1);
+    }
+    function nextPage() {
+      goToPage(currentPage + 1);
+    }
+    function changePageSize(value) {
+      pageSize = Number(value) || 10;
+      currentPage = 1;
+      renderTable();
+    }
+    function handlePageJumpKey(event) {
+      if (event.key === "Enter") goToPage(event.target.value);
+    }
+    function syncPageJumpInput() {
+      document.getElementById("pageJumpInput").value = currentPage;
+    }
+    function infoItem(label, value) {
+      return `<div class="info-item"><span>${label}</span><strong>${value || "-"}</strong></div>`;
+    }
+    function isRestricted(row) {
+      if (!row || !row.restricted) return false;
+      showToast("无法查看");
+      return true;
+    }
+    function openAudit(id) {
+      const row = profiles.find(item => item.id === id);
+      if (!row) return;
+      if (isRestricted(row)) return;
+      if (row.type === "open") {
+        openOpenAudit(row);
+        return;
+      }
+      openCloseAudit(row);
+    }
+    function fillAuditBaseInfo(targetId, row) {
+      document.getElementById(targetId).innerHTML = [
+        infoItem("司机ID", row.id),
+        infoItem("司机姓名", row.name),
+        infoItem("电话", row.phone),
+        infoItem("所属车队", row.fleet),
+        infoItem("申请类型", typeMap[row.type].text),
+        infoItem("最新操作时间", row.latestOperationTime)
+      ].join("");
+    }
+    function openCloseAudit(row) {
+      currentAuditProfile = row;
+      document.querySelector('input[name="auditResult"][value="approve"]').checked = true;
+      document.getElementById("rejectReason").value = "";
+      document.getElementById("reasonCount").textContent = "0";
+      toggleRejectReason();
+      fillAuditBaseInfo("auditInfo", row);
+      openModal("auditModal");
+    }
+    function openOpenAudit(row) {
+      currentAuditProfile = row;
+      document.querySelector('input[name="openAuditResult"][value="approve"]').checked = true;
+      document.getElementById("pricingPlan").value = "";
+      document.getElementById("templateDetail").classList.add("hidden");
+      document.getElementById("templateDetail").classList.remove("collapsed");
+      document.getElementById("templateDetailBody").innerHTML = "";
+      document.getElementById("openRejectReason").value = "";
+      document.getElementById("openReasonCount").textContent = "0";
+      toggleOpenAuditForm();
+      fillAuditBaseInfo("openAuditInfo", row);
+      openModal("openAuditModal");
+    }
+    function toggleRejectReason() {
+      const value = document.querySelector('input[name="auditResult"]:checked').value;
+      document.getElementById("rejectWrap").classList.toggle("show", value === "reject");
+      document.getElementById("closeApproveHint").style.display = value === "approve" ? "inline-block" : "none";
+    }
+    document.getElementById("rejectReason").addEventListener("input", event => {
+      document.getElementById("reasonCount").textContent = event.target.value.length;
+    });
+    document.getElementById("openRejectReason").addEventListener("input", event => {
+      document.getElementById("openReasonCount").textContent = event.target.value.length;
+    });
+    function toggleOpenAuditForm() {
+      const value = document.querySelector('input[name="openAuditResult"]:checked').value;
+      document.getElementById("openApproveForm").classList.toggle("show", value === "approve");
+      document.getElementById("openRejectForm").classList.toggle("show", value === "reject");
+      document.getElementById("openApproveHint").style.display = value === "approve" ? "inline-block" : "none";
+    }
+    function onPricingPlanChange() {
+      const plan = pricingPlans[document.getElementById("pricingPlan").value];
+      const detail = document.getElementById("templateDetail");
+      if (!plan) {
+        detail.classList.add("hidden");
+        document.getElementById("templateDetailBody").innerHTML = "";
+        return;
+      }
+      detail.classList.remove("hidden");
+      detail.classList.remove("collapsed");
+      document.getElementById("templateDetailBody").innerHTML = `
+        <div class="pricing-grid">
+          ${infoPricing("报价编号", plan.code)}
+          ${infoPricing("报价方案", plan.name)}
+          ${infoPricing("费用项", plan.feeType)}
+          ${infoPricing("币种", plan.currency)}
+          ${infoPricing("税率", plan.taxRate)}
+        </div>
+        <table class="pricing-table">
+          <thead><tr><th>序号</th><th>首/续票</th><th>单价</th><th>数量</th></tr></thead>
+          <tbody>
+            ${plan.items.map((item, index) => `<tr><td>${index + 1}</td><td>${item[0]}</td><td>${item[1]}</td><td>${item[2]}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+    function infoPricing(label, value) {
+      return `<div class="pricing-item"><span>${label}</span><strong>${value}</strong></div>`;
+    }
+    function toggleTemplateDetail() {
+      document.getElementById("templateDetail").classList.toggle("collapsed");
+    }
+    function nextDayZero() {
+      return "2026-07-09 00:00:00";
+    }
+    function submitCloseAudit() {
+      const value = document.querySelector('input[name="auditResult"]:checked').value;
+      if (value === "reject" && !document.getElementById("rejectReason").value.trim()) {
+        showToast("请填写不通过原因");
+        return;
+      }
+      if (!currentAuditProfile) return;
+      if (value === "approve") {
+        openModal("closeApproveConfirmModal");
+        return;
+      } else {
+        currentAuditProfile.auditStatus = "rejected";
+        currentAuditProfile.auditTime = "2026-07-08 15:30:00";
+        currentAuditProfile.latestOperationTime = currentAuditProfile.auditTime;
+        currentAuditProfile.modeStatus = "opened";
+        currentAuditProfile.rejectReason = document.getElementById("rejectReason").value.trim();
+        currentAuditProfile.logs.unshift(["2026-07-08 15:30:00", "张经理", "关闭审核不通过，原因：" + currentAuditProfile.rejectReason]);
+        showToast("审核不通过已提交");
+      }
+      closeModal("auditModal");
+      applyFilters();
+    }
+    function confirmCloseApproveAudit() {
+      if (!currentAuditProfile) return;
+      currentAuditProfile.auditStatus = "approved";
+      currentAuditProfile.auditTime = "2026-07-08 15:30:00";
+      currentAuditProfile.latestOperationTime = currentAuditProfile.auditTime;
+      currentAuditProfile.modeStatus = "closing_pending_effective";
+      currentAuditProfile.closeTime = nextDayZero();
+      currentAuditProfile.logs.unshift(["2026-07-08 15:30:00", "张经理", `关闭审核通过，提现模式关闭时间：${currentAuditProfile.closeTime}`]);
+      showToast("审核通过,将于明日00:00正式关闭该司机的提现模式。");
+      closeModal("closeApproveConfirmModal");
+      closeModal("auditModal");
+      applyFilters();
+    }
+    function submitOpenAudit() {
+      const value = document.querySelector('input[name="openAuditResult"]:checked').value;
+      if (!currentAuditProfile) return;
+      if (value === "approve") {
+        const selectedPlan = document.getElementById("pricingPlan").value;
+        const plan = pricingPlans[selectedPlan];
+        if (!plan) {
+          showToast("请选择报价方案");
+          return;
+        }
+        currentAuditProfile.auditStatus = "approved";
+        currentAuditProfile.auditTime = "2026-07-08 15:30:00";
+        currentAuditProfile.latestOperationTime = currentAuditProfile.auditTime;
+        currentAuditProfile.modeStatus = "opened";
+        currentAuditProfile.openTime = nextDayZero();
+        currentAuditProfile.plan = `${plan.code} ${plan.name}`;
+        currentAuditProfile.rejectReason = "-";
+        currentAuditProfile.logs.unshift(["2026-07-08 15:30:00", "张经理", `开通审核通过，分配计价模式：${currentAuditProfile.plan}`]);
+        showToast("审核通过，提现模式开通时间为 T+1 00:00");
+      } else {
+        const reason = document.getElementById("openRejectReason").value.trim();
+        if (!reason) {
+          showToast("请填写不通过原因");
+          return;
+        }
+        currentAuditProfile.auditStatus = "rejected";
+        currentAuditProfile.auditTime = "2026-07-08 15:30:00";
+        currentAuditProfile.latestOperationTime = currentAuditProfile.auditTime;
+        currentAuditProfile.modeStatus = currentAuditProfile.closeTime && currentAuditProfile.closeTime !== "-" ? "closed" : "unopened";
+        currentAuditProfile.rejectReason = reason;
+        currentAuditProfile.logs.unshift(["2026-07-08 15:30:00", "张经理", "开通审核不通过，原因：" + reason]);
+        showToast("审核不通过已提交");
+      }
+      closeModal("openAuditModal");
+      applyFilters();
+    }
+    function openDetail(id) {
+      const row = profiles.find(item => item.id === id);
+      if (isRestricted(row)) return;
+      const showApply = row.auditStatus === "pending" || row.auditStatus === "rejected";
+      const applySection = showApply ? `
+        <div class="section">
+          <div class="section-title">申请详情</div>
+          <div class="info-grid">
+            ${infoItem("申请类型", typeMap[row.type].text)}
+            ${infoItem("最新操作时间", row.latestOperationTime)}
+            ${infoItem("审核状态", statusMap[row.auditStatus].text)}
+            ${infoItem("不通过原因", row.auditStatus === "rejected" ? row.rejectReason : "-")}
+          </div>
+        </div>
+      ` : "";
+      document.getElementById("detailBody").innerHTML = `
+        <div class="section">
+          <div class="section-title">司机基础信息</div>
+          <div class="info-grid">
+            ${infoItem("司机ID", row.id)}
+            ${infoItem("司机姓名", row.name)}
+            ${infoItem("电话", row.phone)}
+            ${infoItem("所属车队", row.fleet)}
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">提现模式详情</div>
+          <div class="info-grid">
+            ${infoItem("提现模式开启时间", row.openTime)}
+            ${infoItem("报价方案", row.plan)}
+            ${infoItem("提现模式关闭时间", row.closeTime)}
+            ${infoItem("提现模式状态", modeStatusMap[row.modeStatus].text)}
+          </div>
+        </div>
+        ${applySection}
+      `;
+      openModal("detailModal");
+    }
+    function openLog(id) {
+      const row = profiles.find(item => item.id === id);
+      const sortedLogs = [...row.logs].sort((a, b) => b[0].localeCompare(a[0]));
+      const html = sortedLogs.length
+        ? sortedLogs.map(log => `
+          <div class="log-item">
+            <span class="log-dot"></span>
+            <div>
+              <div class="log-meta">
+                <span class="log-operator">${log[1]}</span>
+                <span class="log-time">${log[0]}</span>
+              </div>
+              <div class="log-desc">${log[2]}</div>
+            </div>
+          </div>
+        `).join("")
+        : `<div class="log-empty">暂无操作日志</div>`;
+      document.getElementById("logList").innerHTML = html;
+      openModal("logModal");
+    }
+    function openModal(id) {
+      document.getElementById(id).classList.add("show");
+    }
+    function closeModal(id) {
+      document.getElementById(id).classList.remove("show");
+    }
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    renderDriverOptions();
+    applyFilters();
+  </script>
+</body>
+</html>

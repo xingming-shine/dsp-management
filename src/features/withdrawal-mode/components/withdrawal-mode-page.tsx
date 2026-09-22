@@ -17,9 +17,11 @@ import { mockSession } from "@/mocks/session"
 import { AUDIT_LABELS, MODE_LABELS, dateInZone, rowActions, type Application, type WorkflowAction } from "../model"
 import { dispatchWithdrawal, useWithdrawalApplications } from "../store"
 import { OpeningPanel } from "./opening-panel"
-import { AuditPanel, ClosingPanel, DetailPanel } from "./review-panels"
+import { ClosingPanel, DetailPanel } from "./review-panels"
 import { AuditBadge, ConfirmAction, EmptyResults, ModeBadge, type Confirmation } from "./withdrawal-parts"
 import { enterWithdrawalWorkspace, useWithdrawalNavigation, WithdrawalWorkspace, withdrawalTransitionName, type WithdrawalPanel as Panel } from "./withdrawal-workspace"
+
+type PageAction = Exclude<WorkflowAction, { type: "audit" }>
 
 type Filters = { dsp: string; fleet: string; applicationType: string; auditStatus: string; modeStatus: string; from: string; to: string }
 const EMPTY_FILTERS: Filters = { dsp: "all", fleet: "all", applicationType: "all", auditStatus: "all", modeStatus: "all", from: "", to: "" }
@@ -32,8 +34,6 @@ function availableOperations(row: Application) {
   const allowed = rowActions(row)
   const buttons: { type: Exclude<Panel["type"], "create">; label: string; visible: boolean }[] = [
     { type: "detail", label: "详情", visible: true },
-    { type: "business", label: "业务审核", visible: allowed.business },
-    { type: "financial", label: "财务审核", visible: allowed.financial },
     { type: "reapply", label: "重新提交", visible: allowed.reapply },
     { type: "close", label: "申请关闭", visible: allowed.close },
     { type: "reapply", label: "申请开启提现模式", visible: allowed.reopen },
@@ -43,7 +43,7 @@ function availableOperations(row: Application) {
 function RowActions({ row, onOpen, onDelete }: { row: Application; onOpen: (panel: Panel, trigger: HTMLElement) => void; onDelete: (trigger: HTMLElement) => void }) {
   const allowed = rowActions(row)
   const menuTrigger = useRef<HTMLButtonElement>(null)
-  const buttons = availableOperations(row).filter((button) => button.type !== "business" && button.type !== "financial")
+  const buttons = availableOperations(row)
   return <><div className="mx-auto hidden w-48 max-w-full items-center justify-start gap-1 sm:flex">
     {buttons.map((button) => <Button key={button.label} type="button" variant="link" size="xs" onClick={(event) => onOpen({ type: button.type, id: row.id }, event.currentTarget)}>{button.label}</Button>)}
     {allowed.remove && <Button type="button" variant="link" size="xs" onClick={(event) => onDelete(event.currentTarget)}>删除</Button>}
@@ -116,7 +116,7 @@ export function WithdrawalModePage() {
     if (trigger?.isConnected) trigger.focus()
     else document.getElementById("withdrawal-title")?.focus()
   }
-  function commit(action: WorkflowAction, message: string) {
+  function commit(action: PageAction, message: string) {
     try {
       dispatchWithdrawal(action, mockSession.user.name)
       if (action.type === "delete") {
@@ -189,17 +189,18 @@ export function WithdrawalModePage() {
 }
 
 function WithdrawalContent({ panel, selected, commit, confirmDelete }: {
-  panel: Panel; selected?: Application; commit: (action: WorkflowAction, message: string) => void; confirmDelete: (row: Application) => void
+  panel: Panel; selected?: Application; commit: (action: PageAction, message: string) => void; confirmDelete: (row: Application) => void
 }) {
   const { onCancel, onNavigate } = useWithdrawalNavigation()
+  const detailOperations = selected ? availableOperations(selected).filter((operation) => operation.type !== "detail") : []
+  const canDelete = selected ? rowActions(selected).remove : false
   return <>
         {panel.type === "create" && <OpeningPanel key="create" onClose={onCancel} onSubmit={(value) => commit({ type: "open", id: crypto.randomUUID(), draft: value }, "开启申请已提交，等待业务审核")} />}
         {panel.type === "reapply" && selected && <OpeningPanel key={`reapply-${selected.id}`} row={selected} onClose={onCancel} onSubmit={(value) => commit({ type: "open", id: selected.id, existingId: selected.id, draft: value }, "申请已重新提交，等待业务审核")} />}
-        {panel.type === "detail" && selected && <DetailPanel key={`detail-${selected.id}`} row={selected} onClose={onCancel} actions={<>
-          {rowActions(selected).remove && <Button variant="link" onClick={() => confirmDelete(selected)}>删除</Button>}
-          {availableOperations(selected).filter((operation) => operation.type !== "detail").map((operation, index) => <Button key={operation.label} variant={index === 0 ? "default" : "outline"} onClick={() => onNavigate({ type: operation.type, id: selected.id })}>{operation.label}</Button>)}
-        </>} />}
+        {panel.type === "detail" && selected && <DetailPanel key={`detail-${selected.id}`} row={selected} onClose={onCancel} actions={canDelete || detailOperations.length ? <>
+          {canDelete && <Button variant="link" onClick={() => confirmDelete(selected)}>删除</Button>}
+          {detailOperations.map((operation, index) => <Button key={operation.label} variant={index === 0 ? "default" : "outline"} onClick={() => onNavigate({ type: operation.type, id: selected.id })}>{operation.label}</Button>)}
+        </> : undefined} />}
         {panel.type === "close" && selected && <ClosingPanel key={`close-${selected.id}`} row={selected} onClose={onCancel} onSubmit={(reason) => commit({ type: "close", id: selected.id, reason }, "关闭申请已提交，等待业务审核")} />}
-        {(panel.type === "business" || panel.type === "financial") && selected && <AuditPanel key={`${panel.type}-${selected.id}`} row={selected} stage={panel.type} onClose={onCancel} onSubmit={(result, reason) => commit({ type: "audit", id: selected.id, stage: panel.type as "business" | "financial", result, reason }, result === "reject" ? "申请已驳回" : "审核已提交")} />}
   </>
 }
