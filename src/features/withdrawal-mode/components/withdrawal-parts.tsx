@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { createContext, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react"
 import { EyeIcon, EyeOffIcon, FileTextIcon, InfoIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -9,10 +9,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate, formatDateTime } from "@/lib/date-time"
+import { cn } from "@/lib/utils"
 import { mockSession } from "@/mocks/session"
 import { AUDIT_LABELS, FILE_FIELDS, MODE_LABELS, type Application, type Attachment, type AuditStatus, type Driver, type ModeStatus } from "../model"
 
@@ -71,39 +71,48 @@ export function ApplicationMaterials({ row }: { row: Application }) {
   return <Section title="开户材料"><dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">{FILE_FIELDS.map((field) => <InfoItem key={field.key} label={field.label}><div className="flex min-w-0 flex-col items-start gap-1">{row.attachments[field.key].length ? row.attachments[field.key].map((file) => <AttachmentButton key={file.id} attachment={file} />) : "—"}</div></InfoItem>)}</dl></Section>
 }
 export function AuditHistory({ row }: { row: Application }) {
+  const logs = [...row.logs].sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
   return <Section title="审核记录">
     <p className="text-xs text-muted-foreground">时间按 {mockSession.preferences.timezone} 展示，最新记录在前。</p>
-    <ol className="flex flex-col gap-4">{row.logs.map((log, index) => <li key={`${log.time}-${index}`} className="flex flex-col gap-2">
-      {index > 0 && <Separator className="mb-2" />}
-      <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{log.action}</span><time dateTime={log.time} className="text-xs text-muted-foreground tabular-nums">{displayTime(log.time)}</time></div>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground"><span>操作人：{log.operator}</span><Badge size="sm" variant={log.status.includes("驳回") ? "destructive" : log.status === "审核通过" ? "success" : "secondary"}>{log.status}</Badge></div>
+    <ol aria-label="审核记录时间线" className="flex flex-col">{logs.map((log, index) => <li key={`${log.time}-${index}`} className="relative flex flex-col gap-1.5 pb-6 pl-7 last:pb-0">
+      {index < logs.length - 1 && <Separator orientation="vertical" className="absolute top-5 bottom-0 left-1.5 data-[orientation=vertical]:h-auto" />}
+      <span aria-hidden className={cn("absolute top-1 left-0 size-3 rounded-full", log.status.includes("驳回") ? "bg-destructive" : log.status === "审核通过" ? "bg-success" : "bg-warning")} />
+      <time dateTime={log.time} className="text-xs text-muted-foreground tabular-nums">{displayTime(log.time)}</time>
+      <span className="text-sm font-medium">{log.status}</span>
+      <span className="text-xs text-muted-foreground">操作人：{log.operator}</span>
+      <p className="text-sm">{log.action}</p>
       {log.reason && <p className="break-words text-sm">驳回原因：{log.reason}</p>}
     </li>)}</ol>
   </Section>
 }
 export type Confirmation = { title: string; description: string; label: string; destructive?: boolean; onConfirm: () => void }
-export function ConfirmAction({ confirmation, onClose }: { confirmation: Confirmation | null; onClose: () => void }) {
+export function ConfirmAction({ confirmation, onClose, onCloseAutoFocus }: { confirmation: Confirmation | null; onClose: () => void; onCloseAutoFocus?: (event: Event) => void }) {
   return <AlertDialog open={Boolean(confirmation)} onOpenChange={(open) => { if (!open) onClose() }}>
-    <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{confirmation?.title}</AlertDialogTitle><AlertDialogDescription>{confirmation?.description}</AlertDialogDescription></AlertDialogHeader>
+    <AlertDialogContent onCloseAutoFocus={onCloseAutoFocus}><AlertDialogHeader><AlertDialogTitle>{confirmation?.title}</AlertDialogTitle><AlertDialogDescription>{confirmation?.description}</AlertDialogDescription></AlertDialogHeader>
       <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant={confirmation?.destructive ? "destructive" : "default"} onClick={() => confirmation?.onConfirm()}>{confirmation?.label ?? "确认"}</AlertDialogAction></AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
 }
-export function WorkflowSheet({ title, description, children, footer, dirty = false, onClose, restoreFocus }: {
-  title: string; description: string; children: ReactNode; footer?: (requestClose: () => void) => ReactNode; dirty?: boolean; onClose: () => void; restoreFocus: () => void
+export const WorkflowDirtyContext = createContext<RefObject<boolean> | null>(null)
+
+/** Inline detail/form surface; the workspace guards every way of leaving a draft. */
+export function WorkflowPanel({ title, description, children, footer, dirty = false, onClose }: {
+  title: string; description: string; children: ReactNode; footer?: (requestClose: () => void) => ReactNode; dirty?: boolean; onClose: () => void
 }) {
-  const [discard, setDiscard] = useState(false)
-  function requestClose() { if (dirty) setDiscard(true); else onClose() }
-  return <>
-    <Sheet open onOpenChange={(open) => { if (!open) requestClose() }}>
-      <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:w-[75vw] data-[side=right]:sm:max-w-none" onCloseAutoFocus={(event) => { event.preventDefault(); restoreFocus() }} onPointerDownOutside={(event) => { if (dirty) { event.preventDefault(); setDiscard(true) } }}>
-        <SheetHeader className="shrink-0 gap-2 px-[30px] pt-[30px] pb-6"><SheetTitle>{title}</SheetTitle><SheetDescription>{description}</SheetDescription></SheetHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-[30px] pb-[30px]">{children}</div>
-        {footer && <SheetFooter className="m-0 shrink-0 flex-row flex-wrap justify-end border-t px-[30px] py-[18px]">{footer(requestClose)}</SheetFooter>}
-      </SheetContent>
-    </Sheet>
-    <ConfirmAction confirmation={discard ? { title: "放弃未提交的内容？", description: "当前修改尚未提交，关闭后将丢失这些修改。", label: "放弃修改", destructive: true, onConfirm: onClose } : null} onClose={() => setDiscard(false)} />
-  </>
+  const dirtyRef = useContext(WorkflowDirtyContext)
+  const titleId = useId()
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  useLayoutEffect(() => {
+    if (!dirtyRef) return
+    dirtyRef.current = dirty
+    return () => { dirtyRef.current = false }
+  }, [dirty, dirtyRef])
+  useLayoutEffect(() => { headingRef.current?.focus({ preventScroll: true }) }, [])
+  return <article aria-labelledby={titleId} className="withdrawal-information flex h-full min-h-0 min-w-0 flex-col">
+    <header className="flex shrink-0 flex-col gap-2 px-[30px] pt-[30px] pb-6"><h2 id={titleId} ref={headingRef} tabIndex={-1} className="text-base font-medium outline-none">{title}</h2><p className="text-sm text-muted-foreground">{description}</p></header>
+    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-[30px] pb-[30px]">{children}</div>
+    {footer && <><Separator /><footer className="flex shrink-0 flex-wrap justify-end gap-2 px-[30px] py-[18px]">{footer(onClose)}</footer></>}
+  </article>
 }
 
 export function AffectedDrivers({ drivers }: { drivers: Driver[] }) {

@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Separator } from "@/components/ui/separator"
 import { formatDate } from "@/lib/date-time"
 import { birthdayToISO, dateInZone, emptyAttachments, FILE_FIELDS, validateOpening, type Application, type Attachment, type OpeningDraft } from "../model"
-import { AttachmentButton, WorkflowSheet } from "./withdrawal-parts"
+import { AttachmentButton, WorkflowPanel } from "./withdrawal-parts"
+import { PaymentAgreementText } from "./payment-agreement"
 
 function UploadField({ field, files, onChange, error }: {
   field: (typeof FILE_FIELDS)[number]; files: Attachment[]; onChange: (files: Attachment[]) => void; error?: string
@@ -36,8 +37,8 @@ function UploadField({ field, files, onChange, error }: {
   </Field>
 }
 
-export function OpeningSheet({ row, onClose, onSubmit, restoreFocus }: {
-  row?: Application; onClose: () => void; onSubmit: (draft: OpeningDraft) => void; restoreFocus: () => void
+export function OpeningPanel({ row, onClose, onSubmit }: {
+  row?: Application; onClose: () => void; onSubmit: (draft: OpeningDraft) => void
 }) {
   const [draft, setDraft] = useState<OpeningDraft>(() => ({ dspName: row?.dspName ?? "", fleetName: row?.fleetName ?? "", businessType: row?.businessType ?? "", birthday: row?.birthday ?? "", position: row?.position ?? "", address: row?.address ?? "", attachments: row?.attachments ?? emptyAttachments(), agreed: Boolean(row) }))
   const [birthday, setBirthday] = useState(row ? formatDate(row.birthday) : "")
@@ -66,7 +67,7 @@ export function OpeningSheet({ row, onClose, onSubmit, restoreFocus }: {
   }
   const rejected = row?.logs.find((log) => log.reason)?.reason
   const resubmitting = row && row.modeStatus !== "closed"
-  return <WorkflowSheet title={resubmitting ? "修改并重新提交" : "申请开启提现模式"} description="填写企业与个人资料，上传开户材料并确认付款协议。带 * 的项目为必填项。" dirty={dirty} onClose={onClose} restoreFocus={restoreFocus} footer={(requestClose) => <><Button type="button" variant="outline" onClick={requestClose}>取消</Button><Button type="submit" form="withdrawal-opening-form">{resubmitting ? "重新提交" : "提交申请"}</Button></>}>
+  return <WorkflowPanel title={resubmitting ? "修改并重新提交" : "申请开启提现模式"} description="填写企业与个人资料，上传开户材料并确认付款协议。带 * 的项目为必填项。" dirty={dirty} onClose={onClose} footer={(requestClose) => <><Button type="button" variant="outline" onClick={requestClose}>取消</Button><Button type="submit" form="withdrawal-opening-form">{resubmitting ? "重新提交" : "提交申请"}</Button></>}>
     <form id="withdrawal-opening-form" noValidate onSubmit={submit} className="flex flex-col gap-6">
       {resubmitting && rejected && <Alert variant="destructive"><AlertTitle>上次驳回原因</AlertTitle><AlertDescription>{rejected}</AlertDescription></Alert>}
       <FieldSet><FieldLegend>基本信息</FieldLegend><FieldGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -87,16 +88,10 @@ export function OpeningSheet({ row, onClose, onSubmit, restoreFocus }: {
       <Separator />
       <FieldSet><FieldLegend>协议签署</FieldLegend>
         <div className="flex max-h-64 flex-col gap-3 overflow-y-auto rounded-lg border bg-muted/30 p-4 text-sm" tabIndex={0} role="region" aria-label="Amendment – Payment Terms 协议内容">
-          <h4 className="font-medium">Amendment – Payment Terms</h4>
-          <p className="font-medium">PAYMENT TERMS AMENDMENT</p>
-          <p>This Amendment (&quot;Amendment&quot;) is entered into as of the date of last signature below (&quot;Effective Date&quot;), by and between the parties identified in the signature block below.</p>
-          <p className="font-medium">1. DEFINITIONS</p><p>&quot;Payment Terms&quot; means the payment terms and conditions for services rendered under the Master Agreement.</p>
-          <p className="font-medium">2. AMENDMENT TO PAYMENT TERMS</p><p>The parties agree to amend the Payment Terms as follows: [Terms to be specified]</p>
-          <p className="font-medium">3. EFFECT OF AMENDMENT</p><p>Except as specifically modified by this Amendment, all other terms and conditions of the Master Agreement shall remain in full force and effect.</p>
-          <p className="font-medium">4. GOVERNING LAW</p><p>This Amendment shall be governed by and construed in accordance with the laws of the State of Delaware.</p>
+          <PaymentAgreementText />
         </div>
         <FieldGroup><Field orientation="horizontal" data-invalid={Boolean(errors.agreed)}><Checkbox id="apply-agreed" checked={draft.agreed} onCheckedChange={(value) => change("agreed", value === true)} aria-required aria-invalid={Boolean(errors.agreed)} aria-describedby={errors.agreed ? "agreement-error" : undefined} /><FieldLabel htmlFor="apply-agreed">我已阅读并同意上述协议条款</FieldLabel></Field>{errors.agreed && <FieldError id="agreement-error">{errors.agreed}</FieldError>}</FieldGroup>
       </FieldSet>
     </form>
-  </WorkflowSheet>
+  </WorkflowPanel>
 }
