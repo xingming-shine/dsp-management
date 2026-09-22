@@ -1,7 +1,7 @@
 "use client"
 
 import { useLayoutEffect, useRef, useState } from "react"
-import { ChevronDownIcon, ChevronUpIcon, PlusIcon, RotateCcwIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, PlusIcon, RotateCcwIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -57,7 +57,6 @@ export function WithdrawalModePage() {
   const rows = useWithdrawalApplications()
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
-  const [expanded, setExpanded] = useState(false)
   const [filterError, setFilterError] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -94,7 +93,7 @@ export function WithdrawalModePage() {
     if (draft.from && draft.to && draft.from > draft.to) { setFilterError("开始日期不能晚于结束日期"); return }
     setFilters(draft); setPage(1)
   }
-  function reset() { setDraft(EMPTY_FILTERS); setFilters(EMPTY_FILTERS); setExpanded(false); setPage(1); setFilterError("") }
+  function reset() { setDraft(EMPTY_FILTERS); setFilters(EMPTY_FILTERS); setPage(1); setFilterError("") }
   function open(next: Panel, trigger: HTMLElement) {
     triggerRef.current = trigger
     originalScroll.current = window.scrollY
@@ -150,17 +149,15 @@ export function WithdrawalModePage() {
             {selector("fleet", "车队名称", namedOptions("fleetName"))}
             {selector("applicationType", "申请类型", [["open", "开启申请"], ["close", "关闭申请"]])}
             {selector("auditStatus", "审核状态", Object.entries(AUDIT_LABELS))}
-            {expanded && <>
-              {selector("modeStatus", "提现模式开通状态", Object.entries(MODE_LABELS))}
-              <PeriodPicker label="最新操作日期" selection={{ mode: "day", value: draft.to || today, range: { start: draft.from || today, end: draft.to || today } }} onChange={(value) => {
-                setDraft((previous) => ({ ...previous, from: value.range?.start || value.value, to: value.range?.end || value.value }))
-                setFilterError("")
-              }} rangeOnly modes={["day"]} showGranularity={false} placeholder={draft.from ? undefined : "请选择日期范围"} />
-            </>}
+            {selector("modeStatus", "提现模式开通状态", Object.entries(MODE_LABELS))}
+            <PeriodPicker label="最新操作日期" selection={{ mode: "day", value: draft.to || today, range: { start: draft.from || today, end: draft.to || today } }} onChange={(value) => {
+              setDraft((previous) => ({ ...previous, from: value.range?.start || value.value, to: value.range?.end || value.value }))
+              setFilterError("")
+            }} rangeOnly modes={["day"]} showGranularity={false} placeholder={draft.from ? undefined : "请选择日期范围"} />
           </FieldGroup>
           {filterError && <FieldError>{filterError}</FieldError>}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2"><Button type="button" variant="outline" onClick={(event) => open({ type: "create" }, event.currentTarget)}><PlusIcon data-icon="inline-start" />申请开启提现模式</Button><Button type="button" variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? "收起条件" : "更多条件"}{expanded ? <ChevronUpIcon data-icon="inline-end" /> : <ChevronDownIcon data-icon="inline-end" />}</Button></div>
+            <Button type="button" variant="outline" onClick={(event) => open({ type: "create" }, event.currentTarget)}><PlusIcon data-icon="inline-start" />申请开启提现模式</Button>
             <div className="ml-auto flex items-center gap-2"><Button type="submit"><SearchIcon data-icon="inline-start" />查询</Button><Button type="button" variant="outline" onClick={reset}><RotateCcwIcon data-icon="inline-start" />重置</Button></div>
           </div>
         </form>
