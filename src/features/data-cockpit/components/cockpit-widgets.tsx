@@ -12,7 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { DataPagination } from "@/components/ui/pagination";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { EChartsChart, type ChartHeight } from "./echarts-chart";
+import { EChartsChart, type CategoryLabelMode, type ChartHeight } from "./echarts-chart";
 import { CHART_TOOLTIP_EXTRA_CSS, PROJECT_CHART, chartBarExtent, chartGrid, chartLegend, chartTrendExtent } from "../chart-options";
 import { renderChartTooltip, type ChartTooltipRow } from "../chart-tooltip";
 import { cn } from "@/lib/utils";
@@ -96,7 +96,7 @@ export function exportRows<T>(name: string, columns: GridColumn<T>[], rows: T[])
     a.click();
     URL.revokeObjectURL(url);
 }
-export function DataGrid<T>({ title, description, columns, rows, rowKey, childrenOf, summary, filename = title, extra, childColumns, exportColumns, childExportLabel = "导出司机明细", parentExportLabel = "导出周期汇总" }: {
+export function DataGrid<T>({ title, description, columns, rows, rowKey, childrenOf, summary, filename = title, extra, childColumns, exportColumns, initialPageSize = 10, childExportLabel = "导出司机明细", parentExportLabel = "导出周期汇总" }: {
     title: string;
     description?: string;
     columns: GridColumn<T>[];
@@ -108,10 +108,11 @@ export function DataGrid<T>({ title, description, columns, rows, rowKey, childre
     extra?: ReactNode;
     childColumns?: GridColumn<T>[];
     exportColumns?: GridColumn<T>[];
+    initialPageSize?: number;
     childExportLabel?: string;
     parentExportLabel?: string;
 }) {
-    const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(10), [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(initialPageSize), [expanded, setExpanded] = useState<Set<string>>(new Set());
     const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)));
     const visible = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
     const groups: {
@@ -255,7 +256,7 @@ export function comboOption(rows: RecordRow[], series: ChartSeries[], target?: M
             markPoint: highlight && rows.length && s.type !== "bar" ? { symbol: "circle", symbolSize: 10, label: { show: false }, data: [{ coord: [rows.length - 1, rows.at(-1)?.values[s.metric.key] || 0] }] } : undefined,
         })) as EChartsOption["series"] };
 }
-export function Analysis({ title, description, option, action, onClick, centerAction, selection, height = "standard" }: {
+export function Analysis({ title, description, option, action, onClick, centerAction, selection, height = "standard", scrollable = false, categoryLabelMode = "sequence" }: {
     title: string;
     description?: string;
     option: EChartsOption;
@@ -264,7 +265,9 @@ export function Analysis({ title, description, option, action, onClick, centerAc
     centerAction?: ReactNode;
     selection?: Selection;
     height?: ChartHeight;
+    scrollable?: boolean;
+    categoryLabelMode?: CategoryLabelMode;
 }) {
-    return <Card className="min-w-0"><CardHeader><CardTitle>{title}</CardTitle>{selection ? <CardDescription>{selectionLabel(selection)}{title.includes("趋势") && !selection.range ? ` · 截至所选期近${selection.mode === "day" ? 30 : 12}期` : ""}</CardDescription> : null}{description ? <CardDescription>{description}</CardDescription> : null}{action}</CardHeader><CardContent className="px-4"><div className="relative"><EChartsChart option={option} height={height} ariaLabel={title} onChartClick={onClick ? (event) => onClick(event.name) : undefined}/>{centerAction ? <div className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2">{centerAction}</div> : null}</div></CardContent></Card>;
+    return <Card className="min-w-0"><CardHeader><CardTitle>{title}</CardTitle>{selection ? <CardDescription>{selectionLabel(selection)}{title.includes("趋势") && !selection.range ? ` · 截至所选期近${selection.mode === "day" ? 30 : 12}期` : ""}</CardDescription> : null}{description ? <CardDescription>{description}</CardDescription> : null}{action}</CardHeader><CardContent className="px-4"><div className="relative"><EChartsChart option={option} height={height} ariaLabel={title} scrollable={scrollable} categoryLabelMode={categoryLabelMode} onChartClick={onClick ? (event) => onClick(event.name) : undefined}/>{centerAction ? <div className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2">{centerAction}</div> : null}</div></CardContent></Card>;
 }
 export function MetricHelp() { return <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="模拟口径说明"><InfoIcon /></Button></TooltipTrigger><TooltipContent>字段沿用原型；模拟计算仅用于展示，不代表正式数仓考核公式。</TooltipContent></Tooltip>; }

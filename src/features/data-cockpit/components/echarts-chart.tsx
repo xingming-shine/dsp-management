@@ -5,7 +5,7 @@ import * as echarts from "echarts"
 import type { EChartsOption, ECElementEvent } from "echarts"
 
 import { cn } from "@/lib/utils"
-import { CHART_TOOLTIP_EXTRA_CSS } from "../chart-options"
+import { CHART_TOOLTIP_EXTRA_CSS, PROJECT_CHART } from "../chart-options"
 
 function cssToken(styles: CSSStyleDeclaration, token: string) {
   return styles.getPropertyValue(token).trim()
@@ -42,6 +42,7 @@ function createColorResolver(styles: CSSStyleDeclaration) {
 function createProjectTheme(styles: CSSStyleDeclaration, resolveColor: (token: string) => string) {
   const foreground = resolveColor("--foreground")
   const muted = resolveColor("--muted-foreground")
+  const mutedSurface = resolveColor("--muted")
   const border = resolveColor("--border")
   const background = resolveColor("--card")
 
@@ -90,16 +91,18 @@ function createProjectTheme(styles: CSSStyleDeclaration, resolveColor: (token: s
     },
     dataZoom: {
       borderColor: "transparent",
-      backgroundColor: "transparent",
-      fillerColor: resolveColor("--accent"),
-      handleColor: muted,
-      moveHandleColor: foreground,
+      borderRadius: 4,
+      backgroundColor: mutedSurface,
+      fillerColor: muted,
+      handleColor: "transparent",
+      moveHandleColor: "transparent",
       textStyle: { color: muted, fontSize: 12 },
     },
   }
 }
 
 export type ChartHeight = "compact" | "standard" | "primary" | "detail"
+export type CategoryLabelMode = "sequence" | "entity"
 
 const chartHeightClasses: Record<ChartHeight, string> = {
   compact: "h-56 min-h-56",
@@ -108,9 +111,16 @@ const chartHeightClasses: Record<ChartHeight, string> = {
   detail: "h-[25rem] min-h-[25rem]",
 }
 
-type ResponsiveAxis = { type?: string; data?: unknown[] }
-type ResponsiveSeries = { type?: string; stack?: string }
+type ResponsiveAxis = { type?: string; data?: unknown[]; axisLabel?: Record<string, unknown> }
+type ResponsiveSeries = {
+  type?: string
+  stack?: string
+  barMaxWidth?: number
+  barGap?: string
+  barCategoryGap?: string
+}
 type ResponsiveGrid = { left?: number | string; right?: number | string; bottom?: number | string }
+type RuntimeDataZoom = { start?: number; end?: number }
 
 function first<T>(value: T | T[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -120,31 +130,171 @@ function numericInset(value: number | string | undefined, fallback: number) {
   return typeof value === "number" ? value : fallback
 }
 
-function withResponsiveDenseBarZoom(option: EChartsOption, containerWidth: number): EChartsOption {
-  if (option.dataZoom) return option
+function interpolate(value: number, start: number, end: number, from: number, to: number) {
+  if (start === end) return to
+  const progress = Math.max(0, Math.min(1, (value - start) / (end - start)))
+  return from + (to - from) * progress
+}
 
-  const xAxis = first(option.xAxis as ResponsiveAxis | ResponsiveAxis[] | undefined)
-  const categories = xAxis?.type === "category" && Array.isArray(xAxis.data) ? xAxis.data.length : 0
-  const allSeries = (Array.isArray(option.series) ? option.series : option.series ? [option.series] : []) as ResponsiveSeries[]
-  const bars = allSeries.filter((item) => item?.type === "bar")
-  const groups = new Set(bars.map((item, index) => item.stack ?? `series-${index}`)).size
-  if (categories < 28 || groups < 2) return option
+function entityBarSpacing(visibleCategories: number) {
+  let categoryGap: number
+  let barGap: number
 
-  const grid = first(option.grid as ResponsiveGrid | ResponsiveGrid[] | undefined)
-  const plotWidth = Math.max(0, containerWidth - numericInset(grid?.left, 60) - numericInset(grid?.right, 24))
-  const groupWidthAtMinimum = 8 * (groups + 0.2 * (groups - 1)) / 0.65
-  if (plotWidth / categories >= groupWidthAtMinimum) return option
-
-  const visibleCategories = Math.max(7, Math.floor(plotWidth / groupWidthAtMinimum))
-  const end = Math.min(100, visibleCategories / categories * 100)
-  const zoom = [
-    { type: "inside" as const, xAxisIndex: 0, start: 0, end, filterMode: "filter" as const },
-    { type: "slider" as const, xAxisIndex: 0, start: 0, end, height: 16, bottom: 8, showDetail: false, showDataShadow: false, borderColor: "transparent" },
-  ]
-  const expandedGrid = { ...grid, bottom: Math.max(numericInset(grid?.bottom, 56), 76) }
+  if (visibleCategories <= 5) {
+    categoryGap = interpolate(visibleCategories, 1, 5, 48, 40)
+    barGap = interpolate(visibleCategories, 1, 5, 20, 18)
+  } else if (visibleCategories <= 10) {
+    categoryGap = interpolate(visibleCategories, 6, 10, 36, 28)
+    barGap = interpolate(visibleCategories, 6, 10, 18, 14)
+  } else if (visibleCategories <= 18) {
+    categoryGap = interpolate(visibleCategories, 11, 18, 28, 18)
+    barGap = interpolate(visibleCategories, 11, 18, 16, 12)
+  } else {
+    categoryGap = interpolate(visibleCategories, 19, 24, 20, 16)
+    barGap = interpolate(visibleCategories, 19, 24, 12, 10)
+  }
 
   return {
-    ...option,
+    barGap: `${Number(barGap.toFixed(1))}%`,
+    barCategoryGap: `${Number(categoryGap.toFixed(1))}%`,
+  }
+}
+
+function entityCategoryLayout(categories: unknown[], fontFamily: string, barGroups: number) {
+  const fallbackLabelWidth = 48
+  const canvas = document.createElement("canvas")
+  const context = canvas.getContext("2d")
+  let labelWidth = fallbackLabelWidth
+
+  if (context && categories.length) {
+    context.font = `400 12px ${fontFamily || "sans-serif"}`
+    const widths = categories
+      .map((category) => context.measureText(String(category ?? "")).width)
+      .sort((left, right) => left - right)
+    const percentileIndex = Math.max(0, Math.ceil(widths.length * 0.9) - 1)
+    labelWidth = Math.min(
+      PROJECT_CHART.entityAxisMaxLabelWidth,
+      Math.max(1, Math.ceil(widths[percentileIndex] ?? fallbackLabelWidth))
+    )
+  }
+
+  const rotationRadians = PROJECT_CHART.entityAxisLabelRotation * Math.PI / 180
+  const projectedLabelWidth = Math.ceil(
+    labelWidth * Math.cos(rotationRadians)
+    + PROJECT_CHART.entityAxisLabelLineHeight * Math.sin(rotationRadians)
+    + PROJECT_CHART.entityAxisLabelSafetyGap
+  )
+  const minimumBarGroupWidth = barGroups
+    ? PROJECT_CHART.entityBarMinWidth
+      * (barGroups + PROJECT_CHART.entityBarGapMinPercent / 100 * Math.max(0, barGroups - 1))
+      / (1 - PROJECT_CHART.entityCategoryGapMinPercent / 100)
+    : 0
+  const slotWidth = Math.ceil(Math.max(projectedLabelWidth, minimumBarGroupWidth))
+
+  return { slotWidth, labelWidth }
+}
+
+function withResponsiveCategoryZoom(
+  option: EChartsOption,
+  containerWidth: number,
+  scrollable: boolean,
+  categoryLabelMode: CategoryLabelMode,
+  fontFamily: string,
+  currentZoomStart = 0
+): EChartsOption {
+  const originalXAxis = option.xAxis as ResponsiveAxis | ResponsiveAxis[] | undefined
+  const xAxis = first(originalXAxis)
+  const categoryData = xAxis?.type === "category" && Array.isArray(xAxis.data) ? xAxis.data : []
+  const categories = categoryData.length
+  const originalSeries = option.series
+  const allSeries = (Array.isArray(originalSeries) ? originalSeries : originalSeries ? [originalSeries] : []) as ResponsiveSeries[]
+  const bars = allSeries.filter((item) => item?.type === "bar")
+  const groups = new Set(bars.map((item, index) => item.stack ?? `series-${index}`)).size
+  const grid = first(option.grid as ResponsiveGrid | ResponsiveGrid[] | undefined)
+  const plotWidth = Math.max(0, containerWidth - numericInset(grid?.left, 60) - numericInset(grid?.right, 24))
+  const entityLayout = entityCategoryLayout(categoryData, fontFamily, groups)
+  const maximumEntityCategories = categories
+    ? Math.min(categories, Math.max(1, Math.floor(plotWidth / entityLayout.slotWidth)))
+    : 0
+  const entityZoomRequired = categoryLabelMode === "entity" && categories > maximumEntityCategories
+  const visibleEntityCategories = entityZoomRequired ? maximumEntityCategories : categories
+  const entitySpacing = entityBarSpacing(Math.max(1, visibleEntityCategories))
+  const responsiveSeries = categoryLabelMode === "entity" && bars.length
+    ? allSeries.map((item) => item?.type === "bar"
+      ? {
+          ...item,
+          barMaxWidth: PROJECT_CHART.barMaxWidth,
+          barGap: entitySpacing.barGap,
+          barCategoryGap: entitySpacing.barCategoryGap,
+        }
+      : item)
+    : originalSeries
+  const entityXAxis = categoryLabelMode === "entity" && xAxis?.type === "category"
+    ? {
+        ...xAxis,
+        axisLabel: {
+          ...xAxis.axisLabel,
+          interval: 0,
+          hideOverlap: false,
+          rotate: PROJECT_CHART.entityAxisLabelRotation,
+          align: "right",
+          verticalAlign: "middle",
+          width: entityLayout.labelWidth,
+          overflow: "truncate",
+          ellipsis: "…",
+        },
+      }
+    : xAxis
+  const preparedOption: EChartsOption = entityXAxis
+    ? {
+        ...option,
+        xAxis: (Array.isArray(originalXAxis) ? [entityXAxis, ...originalXAxis.slice(1)] : entityXAxis) as EChartsOption["xAxis"],
+        series: responsiveSeries as EChartsOption["series"],
+      }
+    : { ...option, series: responsiveSeries as EChartsOption["series"] }
+
+  if (option.dataZoom) return preparedOption
+
+  const denseGroupedBars = categories >= 28 && groups >= 2
+  if (!categories) return preparedOption
+
+  let visibleCategories = maximumEntityCategories
+  let zoomRequired = entityZoomRequired
+
+  if (categoryLabelMode === "sequence") {
+    if (!scrollable && !denseGroupedBars) return preparedOption
+
+    const groupWidthAtMinimum = denseGroupedBars
+      ? PROJECT_CHART.entityBarMinWidth * (groups + 0.2 * Math.max(0, groups - 1)) / 0.65
+      : 0
+    const categoryWidthAtMinimum = scrollable ? Math.max(56, groupWidthAtMinimum) : groupWidthAtMinimum
+    if (!categoryWidthAtMinimum || plotWidth / categories >= categoryWidthAtMinimum) return preparedOption
+
+    visibleCategories = Math.max(7, Math.floor(plotWidth / categoryWidthAtMinimum))
+    zoomRequired = categories > visibleCategories
+  }
+
+  if (!zoomRequired) return preparedOption
+
+  const windowPercent = Math.min(100, visibleCategories / categories * 100)
+  const start = Math.min(Math.max(0, currentZoomStart), Math.max(0, 100 - windowPercent))
+  const end = start + windowPercent
+  const zoom = [
+    { type: "inside" as const, xAxisIndex: 0, start, end, filterMode: "filter" as const, zoomOnMouseWheel: false, moveOnMouseWheel: true, moveOnMouseMove: true },
+    { type: "slider" as const, xAxisIndex: 0, start, end, height: 8, bottom: 12, showDetail: false, showDataShadow: false, brushSelect: false, zoomLock: true, handleSize: 0, moveHandleSize: 0, borderColor: "transparent" },
+  ]
+  const requiredGridBottom = categoryLabelMode === "entity"
+    ? PROJECT_CHART.entityDataZoomGridBottom
+    : PROJECT_CHART.dataZoomGridBottom
+  const expandedGrid = {
+    ...grid,
+    bottom: categoryLabelMode === "entity"
+      ? requiredGridBottom
+      : Math.max(numericInset(grid?.bottom, 56), requiredGridBottom),
+  }
+
+  return {
+    ...preparedOption,
     grid: Array.isArray(option.grid) ? [expandedGrid, ...option.grid.slice(1)] : expandedGrid,
     dataZoom: zoom,
   }
@@ -176,6 +326,8 @@ export function EChartsChart({
   height = "standard",
   ariaLabel = "数据图表",
   focusTooltip,
+  scrollable = false,
+  categoryLabelMode = "sequence",
 }: {
   option: EChartsOption
   className?: string
@@ -189,6 +341,8 @@ export function EChartsChart({
   height?: ChartHeight
   ariaLabel?: string
   focusTooltip?: { seriesIndex?: number; dataIndex?: number }
+  scrollable?: boolean
+  categoryLabelMode?: CategoryLabelMode
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<echarts.ECharts | null>(null)
@@ -206,9 +360,29 @@ export function EChartsChart({
     const styles = getComputedStyle(container)
     const resolveColor = createColorResolver(styles)
     const theme = createProjectTheme(styles, resolveColor)
+    const sliderFills = new Set([resolveColor("--muted"), resolveColor("--muted-foreground")])
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
     let chart: echarts.ECharts | null = null
     let isIntersecting = false
+    const roundDataZoomRects = () => {
+      if (!chart) return
+
+      let changed = false
+      for (const element of chart.getZr().storage.getDisplayList()) {
+        if (element.type !== "rect") continue
+
+        const rect = element as unknown as {
+          shape: { height?: number; r?: number | number[] }
+          style: { fill?: unknown }
+          setShape: (key: "r", value: number) => void
+        }
+        if (rect.shape.height !== 8 || !sliderFills.has(String(rect.style.fill)) || rect.shape.r === 4) continue
+
+        rect.setShape("r", 4)
+        changed = true
+      }
+      if (changed) chart.getZr().refresh()
+    }
     const series = Array.isArray(option.series)
       ? option.series.map((item, index) => {
           const labelColor = labelColors?.[index]
@@ -258,7 +432,16 @@ export function EChartsChart({
     const setChartOption = () => {
       if (!chart) return
 
-      const responsiveOption = withResponsiveDenseBarZoom({ ...option, series: series as EChartsOption["series"] }, container.clientWidth)
+      const runtimeOption = chart.getOption() as { dataZoom?: RuntimeDataZoom[] } | undefined
+      const currentDataZoom = first(runtimeOption?.dataZoom)
+      const responsiveOption = withResponsiveCategoryZoom(
+        { ...option, series: series as EChartsOption["series"] },
+        container.clientWidth,
+        scrollable,
+        categoryLabelMode,
+        cssToken(styles, "--font-sans"),
+        currentDataZoom?.start
+      )
       chart.setOption({
         ...responsiveOption,
         ...createChartMotion(motionQuery.matches),
@@ -271,6 +454,7 @@ export function EChartsChart({
 
       chart = echarts.init(container, theme)
       chartRef.current = chart
+      chart.on("finished", roundDataZoomRects)
       setChartOption()
       if (onChartClick) chart.on("click", onChartClick)
     }
@@ -295,10 +479,11 @@ export function EChartsChart({
       motionQuery.removeEventListener("change", setChartOption)
       resizeObserver.disconnect()
       intersectionObserver.disconnect()
+      chart?.off("finished", roundDataZoomRects)
       chart?.dispose()
       chartRef.current = null
     }
-  }, [colors, dataColors, gradientDirection, labelColors, onChartClick, option, seriesColors, seriesGradients])
+  }, [categoryLabelMode, colors, dataColors, gradientDirection, labelColors, onChartClick, option, scrollable, seriesColors, seriesGradients])
 
   return (
     <div

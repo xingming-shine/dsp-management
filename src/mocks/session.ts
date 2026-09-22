@@ -21,6 +21,18 @@ export const mockSession: AuthSession = {
       code: "US-987654321",
       status: "active",
     },
+    {
+      id: "org-3",
+      name: "ATL-LG",
+      code: "US-246801357",
+      status: "active",
+    },
+    {
+      id: "org-4",
+      name: "NYC-PK",
+      code: "US-135792468",
+      status: "active",
+    },
   ],
   currentOrganizationId: "org-1",
   permissions: [

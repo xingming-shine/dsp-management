@@ -1,4 +1,5 @@
-import { aggregate, defaultSelection, hash, metric, mockDrivers, periodLabel, recordsFor, round, shiftPeriod, type Metric, type RecordRow, type Values } from "./cockpit-model";
+import { aggregate, defaultSelection, hash, metric, periodDays, periodLabel, recordsFor, round, shiftPeriod, type Daily, type Metric, type RecordRow, type Values } from "./cockpit-model";
+import { DEFAULT_DSP_ID, getDspScenario, getMockDrivers } from "./mocks";
 import type { RankMode } from "./types";
 export type ScoreRow = RecordRow & {
     text: Record<string, string>;
@@ -15,23 +16,41 @@ export function driverLevel(score: number, max: number) {
     const thresholds = max === 40 ? [38, 36, 28, 20] : [28.5, 27, 21, 15];
     return ["优秀", "良好", "一般", "关注"][thresholds.findIndex((n) => score >= n)] || "重点关注";
 }
-export function driverMonth(month: string): ScoreRow[] {
-    const data = recordsFor({ mode: "month", value: month });
-    const rows = mockDrivers.map((driver, i) => {
-        const v = aggregate(data.filter((r) => r.driver.id === driver.id)), n = hash(month + driver.id);
-        const component = (max: number, seed: number) => round(max * (.55 + (seed % 45) / 100), 1);
-        Object.assign(v, { score2400: component(15, n), score4800: component(10, n >>> 1), score72: component(5, n >>> 2), scoreBreak: component(10, n >>> 3), scoreFake: component(10, n >>> 4), scoreComplaint: component(10, n >>> 5), scoreVolume: component(20, n >>> 6), scoreAttendance: component(20, n >>> 7), attendance: v.driverDays, dailyVolume: v.driverDays ? round(v.delivered / v.driverDays) : 0, redline: n % 4, index: i + 1 });
+const driverMonthCache = new Map<string, ScoreRow[]>();
+export function driverMonth(month: string, organizationId = DEFAULT_DSP_ID): ScoreRow[] {
+    const cacheKey = `${organizationId}/${month}`;
+    const cached = driverMonthCache.get(cacheKey);
+    if (cached)
+        return cached;
+    const data = recordsFor({ mode: "month", value: month }, organizationId);
+    const drivers = getMockDrivers(organizationId);
+    const byDriver = new Map<string, Daily[]>();
+    for (const record of data)
+        byDriver.set(record.driver.id, [...(byDriver.get(record.driver.id) || []), record]);
+    const availableDays = Math.max(1, periodDays("month", month).length);
+    const rows = drivers.map((driver, i) => {
+        const v = aggregate(byDriver.get(driver.id) || []), n = hash(`${organizationId}/${month}/${driver.id}`);
+        const component = (max: number, seed: number) => round(Math.max(0, Math.min(max, max * (.68 + (seed % 28) / 100) + driver.scoreBias * max / 100)), 1);
+        const attendanceScore = round(Math.min(20, v.driverDays / Math.max(1, availableDays * .82) * 20), 1);
+        Object.assign(v, { score2400: component(15, n), score4800: component(10, n >>> 1), score72: component(5, n >>> 2), scoreBreak: component(10, n >>> 3), scoreFake: component(10, n >>> 4), scoreComplaint: component(10, n >>> 5), scoreVolume: component(20, n >>> 6), scoreAttendance: attendanceScore, attendance: v.driverDays, dailyVolume: v.driverDays ? round(v.delivered / v.driverDays) : 0, redline: Math.min(9, v.broken + v.fake), index: i + 1 });
         v.service = round(v.score2400 + v.score4800 + v.score72, 1);
         v.quality = round(v.scoreBreak + v.scoreFake + v.scoreComplaint, 1);
         v.efficiency = round(v.scoreVolume + v.scoreAttendance, 1);
         v.total = round(v.service + v.quality + v.efficiency, 1);
         v.star = v.total >= 90 ? 5 : v.total >= 80 ? 4 : v.total >= 70 ? 3 : v.total >= 60 ? 2 : 1;
-        return { id: driver.id, label: driver.name, period: month, values: v, text: { name: driver.name, tenure: driver.tenure, active: i < 8 ? "是" : "否", serviceLevel: driverLevel(v.service, 30), qualityLevel: driverLevel(v.quality, 30), efficiencyLevel: driverLevel(v.efficiency, 40), month } };
+        return { id: driver.id, label: driver.name, period: month, values: v, text: { name: driver.name, tenure: driver.tenure, active: driver.active ? "是" : "否", route: driver.route, postal: driver.postal, serviceLevel: driverLevel(v.service, 30), qualityLevel: driverLevel(v.quality, 30), efficiencyLevel: driverLevel(v.efficiency, 40), month } };
     }).sort((a, b) => b.values.total - a.values.total);
-    return rows.map((r, i) => ({ ...r, values: { ...r.values, index: i + 1, dspRank: i + 1, stationRank: (i + 1) * 3 }, text: { ...r.text, dspRank: `${i + 1}/${rows.length}`, stationRank: `${(i + 1) * 3}/87` } }));
+    const stationDriverCount = getDspScenario(organizationId).stationDriverCount;
+    const ranked = rows.map((r, i) => {
+        const stationRank = Math.max(i + 1, Math.round((i + 1) / rows.length * stationDriverCount));
+        return { ...r, values: { ...r.values, index: i + 1, dspRank: i + 1, stationRank }, text: { ...r.text, dspRank: `${i + 1}/${rows.length}`, stationRank: `${stationRank}/${stationDriverCount}` } };
+    });
+    driverMonthCache.set(cacheKey, ranked);
+    return ranked;
 }
 export function driverSummary(rows: ScoreRow[]): Values {
-    return { drivers: rows.length, active: rows.filter((r) => r.text.active === "是").length, star: rows.length ? round(rows.reduce((s, r) => s + r.values.star, 0) / rows.length, 1) : 0, total: rows.length ? round(rows.reduce((s, r) => s + r.values.total, 0) / rows.length, 1) : 0 };
+    const active = rows.filter((r) => r.text.active === "是").length;
+    return { drivers: rows.length, active, activeRate: rows.length ? round(active / rows.length * 100, 1) : 0, star: rows.length ? round(rows.reduce((s, r) => s + r.values.star, 0) / rows.length, 1) : 0, total: rows.length ? round(rows.reduce((s, r) => s + r.values.total, 0) / rows.length, 1) : 0 };
 }
 export const driverSummaryMetrics = [metric("drivers", "派件司机人数", "人"), metric("active", "活跃司机人数", "人"), metric("star", "派件司机平均星级", "★"), metric("total", "派件司机平均分数", "分")];
 export const rankInputs = [metric("pod2400", "2400妥投率", "%", 97), metric("pod4800", "4800妥投率", "%", 98), metric("breakRate", "断更率", "%", .04, true), metric("fakeSignRate", "虚假签收率", "%", .05, true), metric("complaintRate", "有效客诉率", "%", .1, true), metric("starDriverPct", "高分司机占比", "%", 70), metric("starDriverRet", "3/4/5星司机出勤率", "%", 70)];
@@ -39,12 +58,13 @@ export const rankWeights = [.25, .1, .15, .15, .1, .1, .15];
 export const rankGroups = ["时效", "时效", "质量", "质量", "客诉", "团队表现", "团队表现"];
 export const rankColumns: Metric[] = [metric("period", "日期"), metric("difficulty", "派送难易度"), ...rankInputs.flatMap((m, i) => [{ ...m, group: rankGroups[i], label: `${m.label}（权重${rankWeights[i]} / ${m.lower ? "≤" : "≥"}${m.target}%）` }, { ...metric(`${m.key}Score`, `${m.label}得分`, "分"), group: rankGroups[i] }]), metric("adjust", "分数调整", "分"), metric("total", "总分（＜85不达标）", "分", 85), metric("stationRank", "站点排名"), metric("regionRank", "大区排名")];
 export function rankAvailable(mode: RankMode, period: string) { return mode === "week" ? period.slice(0, 10) >= "2026-07-06" : period >= "2026-07"; }
-export function rankingRows(mode: RankMode, value = defaultSelection(mode).value): ScoreRow[] {
+export function rankingRows(mode: RankMode, value = defaultSelection(mode).value, organizationId = DEFAULT_DSP_ID): ScoreRow[] {
+    const scenario = getDspScenario(organizationId);
     return Array.from({ length: 12 }, (_, i) => {
-        const period = shiftPeriod(mode, value, -i), n = hash(period), values: Values = { difficulty: round(1 + (n % 15) / 100, 3), pod2400: 94 + n % 500 / 100, pod4800: 97 + n % 270 / 100, breakRate: (n % 8) / 100, fakeSignRate: (n % 9) / 100, complaintRate: (n % 16) / 100, starDriverPct: 60 + n % 30, starDriverRet: 60 + (n >>> 1) % 35, adjust: n % 5 - 2, stationRank: 1 + n % 12, regionRank: 1 + n % 18 };
+        const period = shiftPeriod(mode, value, -i), n = hash(`${organizationId}/${period}`), values: Values = { difficulty: round(1 + (n % 15) / 100, 3), pod2400: 94 + scenario.scoreShift * .18 + n % 500 / 100, pod4800: 97 + scenario.scoreShift * .12 + n % 270 / 100, breakRate: (n % 8) / 100 * scenario.riskMultiplier, fakeSignRate: (n % 9) / 100 * scenario.riskMultiplier, complaintRate: (n % 16) / 100 * scenario.riskMultiplier, starDriverPct: 60 + scenario.scoreShift + n % 30, starDriverRet: 60 + scenario.scoreShift + (n >>> 1) % 35, adjust: n % 5 - 2, stationRank: Math.max(1, Math.min(scenario.stationDspCount, scenario.stationRank + (n % 7) - 3)), regionRank: Math.max(1, Math.min(scenario.regionDspCount, scenario.regionRank + ((n >>> 2) % 9) - 4)) };
         // Scores are supplied fixture fields, deliberately not presented as a production formula.
         const maxima = [35, 15, 22.5, 22.5, 15, 20, 30];
-        rankInputs.forEach((m, j) => { values[`${m.key}Score`] = round(maxima[j] * (.35 + ((n >>> j) % 65) / 100), 1); });
+        rankInputs.forEach((m, j) => { values[`${m.key}Score`] = round(Math.max(0, maxima[j] * (.35 + ((n >>> j) % 65) / 100) + scenario.scoreShift * maxima[j] / 100), 1); });
         values.total = round(rankInputs.reduce((s, m) => s + values[`${m.key}Score`], values.adjust), 1);
         values.timeliness = values.pod2400Score + values.pod4800Score;
         values.quality = values.breakRateScore + values.fakeSignRateScore;

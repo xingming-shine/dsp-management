@@ -76,6 +76,7 @@ import {
 } from "@/components/layout/app-breadcrumb-context"
 import { cn } from "@/lib/utils"
 import { mockSession } from "@/mocks/session"
+import { useOrganization } from "@/features/organizations/organization-context"
 import {
   primaryNavigation,
   type NavigationItem,
@@ -136,9 +137,7 @@ function getRouteBreadcrumbItems(pathname: string): AppBreadcrumbItem[] {
 
 export function AppHeader() {
   const pathname = usePathname()
-  const [organizationId, setOrganizationId] = useState(
-    mockSession.currentOrganizationId
-  )
+  const { organizationId, setOrganizationId } = useOrganization()
   const [timezone, setTimezone] = useState(mockSession.preferences.timezone)
   const [locale, setLocale] = useState(mockSession.preferences.locale)
   const [logoutOpen, setLogoutOpen] = useState(false)

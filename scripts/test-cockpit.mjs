@@ -15,7 +15,11 @@ function load(file) {
   const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
   const localRequire = (name) => {
     const resolved = name.startsWith('@/') ? path.join(root, 'src', name.slice(2)) : name.startsWith('.') ? path.resolve(path.dirname(file), name) : null
-    return resolved ? load(`${resolved}.ts`) : nodeRequire(name)
+    if (!resolved) return nodeRequire(name)
+    const candidates = [resolved, `${resolved}.ts`, path.join(resolved, 'index.ts')]
+    const target = candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile())
+    if (!target) throw new Error(`Cannot resolve ${name} from ${file}`)
+    return load(target)
   }
   new Function('require', 'module', 'exports', code)(localRequire, loaded, loaded.exports)
   return loaded.exports
@@ -121,6 +125,6 @@ check('总览DSP排名模块保留周期切换、详情入口与可访问图表'
   assert.match(source, /<TabsTrigger value="week">周排名<\/TabsTrigger>/)
   assert.match(source, /<TabsTrigger value="month">月排名<\/TabsTrigger>/)
   assert.match(source, /onClick=\{\(\) => onNavigate\("ranking"\)\}/)
-  assert.match(source, /<EChartsChart option=\{radar\} height="compact" ariaLabel="维度得分对比" \/>/)
+  assert.match(source, /<EChartsChart[\s\S]*?option=\{radar\}[\s\S]*?height="compact"[\s\S]*?ariaLabel="维度得分对比"[\s\S]*?\/>/)
 })
 console.log(`\n${checks} groups passed.`)

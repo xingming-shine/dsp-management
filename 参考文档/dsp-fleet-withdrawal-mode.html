@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSP提现模式管理 - 车队维度原型</title>
+<style>
+:root {
+  --gofo-orange: #fc4c02;
+  --gofo-orange-hover: #f26e35;
+  --gofo-orange-active: #d14104;
+  --gofo-orange-soft: #fff1e8;
+  --topbar: #061d2e;
+  --topbar-input: #244866;
+  --page-bg: #f3f6f8;
+  --line: #eceff2;
+  --topbar-h: 56px;
+  --sidebar-w: 64px;
+  --sidebar-expanded: 220px;
+  --tabs-h: 40px;
+  --radius: 6px;
+  --card-radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--page-bg); color: rgba(0,0,0,.85); font-size: 12px; line-height: 1.45; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+.gofo-topbar { position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h); background: var(--topbar); display: flex; align-items: center; z-index: 50; color: #fff; }
+.brand { width: 220px; height: 56px; display: flex; align-items: center; padding-left: 16px; flex: 0 0 220px; }
+.brand-logo { width: 124px; height: auto; display: block; }
+.topbar-main { flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: center; height: 56px; }
+.topbar-title { color: rgba(255,255,255,.84); font-size: 13px; font-weight: 500; }
+.topbar-actions { display: flex; align-items: center; height: 56px; }
+.topbar-action { height: 56px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; color: rgba(255,255,255,.78); border: 0; background: transparent; position: relative; }
+.topbar-action svg, .side-icon svg { width: 15px; height: 15px; stroke-width: 1.8; }
+.badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff4d4f; color: #fff; font-size: 10px; line-height: 16px; position: absolute; top: 10px; right: 3px; }
+.avatar { width: 20px; height: 20px; border-radius: 50%; background: var(--gofo-orange); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; }
+.gofo-sidebar { position: fixed; left: 0; top: 56px; bottom: 0; width: var(--sidebar-w); background: #fff; border-right: 1px solid var(--line); transition: width .22s cubic-bezier(.4,0,.2,1); z-index: 45; overflow: hidden; }
+.gofo-sidebar:hover { width: var(--sidebar-expanded); box-shadow: 4px 0 12px rgba(0,0,0,.06); }
+.side-menu { padding: 8px 0; }
+.side-item { height: 44px; width: 100%; display: flex; align-items: center; color: rgba(0,0,0,.65); text-decoration: none; position: relative; white-space: nowrap; }
+.side-item.active { color: var(--gofo-orange); background: var(--gofo-orange-soft); }
+.side-item.active::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--gofo-orange); }
+.side-icon { width: 64px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 64px; }
+.side-text { font-size: 13px; opacity: 0; transition: opacity .18s ease; }
+.gofo-sidebar:hover .side-text { opacity: 1; }
+.gofo-tabs { position: fixed; top: 56px; left: 64px; right: 0; height: 40px; padding: 0 16px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: flex-end; gap: 0; z-index: 40; }
+.page-tab { min-width: 124px; height: 32px; margin-bottom: -1px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; background: #fafafa; color: rgba(0,0,0,.45); font-size: 13px; line-height: 32px; white-space: nowrap; flex: 0 0 auto; }
+.page-tab:not(:first-child) { margin-left: -1px; }
+.page-tab.active { color: var(--gofo-orange); background: #fff; border-bottom-color: #fff; font-weight: 500; z-index: 2; }
+.page-container { margin-left: 64px; padding-top: 96px; min-height: 100vh; }
+.content { padding: 24px; }
+.breadcrumb { color: rgba(0,0,0,.45); margin-bottom: 6px; }
+.panel { background: #fff; border-radius: 8px; padding: 24px; border: 1px solid var(--line); margin-bottom: 16px; }
+.filter-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+.query-item, .form-group { display: flex; flex-direction: column; gap: 8px; }
+.query-item { flex: 1 1 180px; max-width: 280px; }
+.query-item.date-query { flex: 1 1 360px; max-width: 420px; }
+.query-item label, .form-group label { font-size: 12px; font-weight: 500; color: rgba(0,0,0,.85); }
+.query-item input, .query-item select, .form-group input, .form-group select, .form-group textarea { min-height: 32px; padding: 4px 11px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 12px; color: rgba(0,0,0,.85); background: #fff; outline: none; transition: border-color .2s, box-shadow .2s; }
+.query-item input:focus, .query-item select:focus, .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--gofo-orange); box-shadow: 0 0 0 2px rgba(252,76,2,.1); }
+.query-item input::placeholder, .form-group input::placeholder, .form-group textarea::placeholder { color: #bfbfbf; }
+.date-range { display: flex; align-items: center; gap: 8px; }
+.date-range input { flex: 1 1 0; min-width: 132px; width: auto; }
+.range-separator { color: rgba(0,0,0,.45); }
+.filter-extra { margin-top: 16px; display: none; }
+.filter-extra.expanded { display: grid; }
+.filter-actions { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+.btn { height: 32px; padding: 0 16px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 1px solid #d9d9d9; background: #fff; color: rgba(0,0,0,.65); transition: all .2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn:hover { color: var(--gofo-orange); border-color: var(--gofo-orange); }
+.btn-primary { background: var(--gofo-orange); border-color: var(--gofo-orange); color: #fff; }
+.btn-primary:hover { background: var(--gofo-orange-hover); border-color: var(--gofo-orange-hover); color: #fff; }
+.btn-danger { color: #ff4d4f; border-color: #ff4d4f; }
+.btn-danger:hover { background: #ff4d4f; color: #fff; }
+.btn-text { border: 0; background: transparent; color: var(--gofo-orange); padding: 0 4px; min-height: 24px; font-size: 12px; }
+.btn-text:hover { color: var(--gofo-orange-hover); background: transparent; }
+.danger-link { color: #ff4d4f; }
+.btn-sm { height: 28px; padding: 0 10px; }
+.table-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 24px; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.toolbar-left { display: flex; gap: 8px; align-items: center; }
+.tooltip { position: relative; }
+.tooltip:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.78); color: #fff; padding: 6px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 100; }
+.table-wrapper { overflow-x: auto; }
+.gofo-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.gofo-table thead th { background: #fafafa; font-weight: 500; padding: 12px 16px; border: 1px solid #f0f0f0; text-align: left; white-space: nowrap; }
+.gofo-table tbody td { padding: 12px 16px; border: 1px solid #f0f0f0; color: rgba(0,0,0,.85); vertical-align: middle; }
+.gofo-table tbody tr:nth-child(even) td { background: #fafafa; }
+.gofo-table tbody tr:hover td { background: #f5f1ef; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 12px; border: 1px solid transparent; line-height: 20px; white-space: nowrap; }
+.tag-warning { background: #fff7e6; color: #d46b08; border-color: #ffd591; }
+.tag-success { background: #f6ffed; color: #389e0d; border-color: #b7eb8f; }
+.tag-danger { background: #fff2f0; color: #cf1322; border-color: #ffccc7; }
+.tag-info { background: var(--gofo-orange-soft); color: var(--gofo-orange); border-color: #e5baa8; }
+.tag-muted { background: #f5f5f5; color: rgba(0,0,0,.45); border-color: #d9d9d9; }
+.tag-closed { background: #f0f5ff; color: #2f54eb; border-color: #adc6ff; }
+.status-text { font-weight: 500; white-space: nowrap; }
+.status-text-warning { color: var(--gofo-orange); }
+.status-text-success { color: #389e0d; }
+.status-text-danger { color: #cf1322; }
+.status-text-muted { color: rgba(0,0,0,.45); }
+.status-text-list { color: inherit; font-weight: 400; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pagination { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 16px; flex-wrap: wrap; color: rgba(0,0,0,.65); }
+.pagination-info { color: rgba(0,0,0,.65); white-space: nowrap; }
+.pagination-info strong { font-weight: 400; color: rgba(0,0,0,.65); }
+.pagination-select { width: 128px; height: 32px; padding: 4px 30px 4px 11px; border: 1px solid #d9d9d9; border-radius: 6px; color: rgba(0,0,0,.65); background: #fff; outline: none; }
+.pagination-select:focus, .pagination-jumper-input:focus { border-color: var(--gofo-orange); box-shadow: 0 0 0 2px rgba(252,76,2,.1); }
+.pagination-pages { display: inline-flex; align-items: center; gap: 8px; }
+.pagination button { min-width: 32px; height: 32px; padding: 0 10px; border: 1px solid #d9d9d9; border-radius: 6px; background: #fff; color: rgba(0,0,0,.65); cursor: pointer; font-size: 12px; transition: all .2s; }
+.pagination button:hover:not(:disabled):not(.active):not(.pagination-ellipsis) { border-color: var(--gofo-orange); color: var(--gofo-orange); }
+.pagination button:disabled { color: rgba(0,0,0,.25); background: #f5f5f5; cursor: not-allowed; }
+.pagination button.active { color: #fff; background: #1677ff; border-color: #1677ff; font-weight: 500; }
+.pagination-arrow { width: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.pagination-arrow svg { width: 14px; height: 14px; stroke-width: 2; }
+.pagination-ellipsis { color: rgba(0,0,0,.85); background: #f5f5f5; border-color: #f5f5f5; cursor: default; font-weight: 600; }
+.pagination-jumper { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.pagination-jumper-input { width: 56px; height: 32px; padding: 4px 8px; border: 1px solid #d9d9d9; border-radius: 6px; text-align: center; color: rgba(0,0,0,.85); outline: none; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; justify-content: center; align-items: flex-start; padding: 40px 24px 24px; }
+.modal-overlay.show { display: flex; }
+.modal { background: #fff; border-radius: 8px; width: 90%; max-width: 1040px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+.modal-lg { max-width: 1120px; }
+.confirm-overlay { z-index: 2200; align-items: center; padding: 24px; }
+.confirm-modal { width: 420px; max-width: calc(100vw - 48px); }
+.confirm-body { padding: 20px 24px; color: rgba(0,0,0,.85); line-height: 1.6; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #f0f0f0; }
+.modal-header h3 { font-size: 16px; font-weight: 600; }
+.modal-close { width: 32px; height: 32px; border: 0; background: transparent; cursor: pointer; font-size: 18px; color: rgba(0,0,0,.45); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+.modal-close:hover { background: #f5f5f5; color: rgba(0,0,0,.85); }
+.modal-body { padding: 16px 24px; overflow-y: auto; flex: 1; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 24px; border-top: 1px solid #f0f0f0; }
+.section-card { background: #fff; border: 1px solid #f0f0f0; border-radius: 8px; padding: 24px; margin-bottom: 16px; }
+.section-title { margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px; font-weight: 600; color: rgba(0,0,0,.85); }
+.form-grid { display: grid; gap: 16px; }
+.form-grid.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-grid.three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.form-group label .required { color: #ff4d4f; margin-right: 2px; }
+.form-group label .optional { font-weight: 400; color: rgba(0,0,0,.45); }
+.form-group input:disabled { background: #f5f5f5; color: rgba(0,0,0,.45); cursor: not-allowed; }
+.form-group textarea { resize: vertical; min-height: 72px; }
+.file-upload-area { border: 1px dashed #d9d9d9; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: border-color .2s; background: #fafafa; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.file-upload-area:hover { border-color: var(--gofo-orange); }
+.file-upload-icon, .empty-state-icon { width: 36px; height: 36px; border: 1px solid #d9d9d9; border-radius: 6px; margin-bottom: 8px; position: relative; background: #fff; }
+.file-upload-icon::before, .empty-state-icon::before { content: ""; position: absolute; left: 10px; right: 10px; top: 12px; height: 1px; background: #bfbfbf; box-shadow: 0 6px 0 #bfbfbf, 0 12px 0 #bfbfbf; }
+.file-upload-text { color: rgba(0,0,0,.65); }
+.file-upload-hint { color: rgba(0,0,0,.45); margin-top: 6px; }
+.file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.file-item { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; }
+.file-remove { cursor: pointer; color: rgba(0,0,0,.45); border: 0; background: transparent; font-size: 14px; }
+.file-remove:hover { color: #ff4d4f; }
+.existing-files { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding: 10px; border: 1px dashed #e99571; border-radius: 6px; background: var(--gofo-orange-soft); }
+.existing-file-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.existing-file-item a { color: var(--gofo-orange); text-decoration: none; }
+.existing-file-item .remove-link { color: #ff4d4f; cursor: pointer; background: none; border: none; font-size: 12px; }
+.help-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: #d9d9d9; color: #fff; font-size: 10px; cursor: help; margin-left: 4px; vertical-align: middle; }
+.detail-section { padding: 14px 0; border-bottom: 1px solid #f0f0f0; }
+.detail-section:last-child { border-bottom: 0; }
+.detail-section-title { margin-bottom: 10px; font-size: 14px; font-weight: 600; }
+.detail-grid { display: grid; gap: 10px 20px; }
+.detail-grid.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.detail-item { display: flex; flex-direction: column; gap: 2px; }
+.detail-label { font-size: 11px; color: rgba(0,0,0,.45); }
+.detail-value { font-size: 12px; color: rgba(0,0,0,.85); word-break: break-all; }
+.protocol-section { border: 1px solid #dcdfe6; border-radius: 6px; overflow: hidden; }
+.protocol-header { padding: 10px 14px; background: #fafafa; border-bottom: 1px solid #e5e7eb; font-weight: 600; }
+.protocol-body { max-height: 140px; overflow: auto; padding: 10px 14px; font-size: 11px; line-height: 1.5; color: rgba(0,0,0,.65); background: #fff; }
+.protocol-check { margin-top: 10px; display: flex; align-items: center; gap: 6px; }
+.protocol-check input[type="checkbox"], .radio-group input[type="radio"] { accent-color: var(--gofo-orange); }
+.alert { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px; }
+.alert-warning { background: #fffbe6; border: 1px solid #ffe58f; color: #ad6800; }
+.alert-icon { width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #faad14; color: #fff; font-size: 11px; flex-shrink: 0; }
+.toolbar-line { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-bottom: 12px; color: rgba(0,0,0,.45); }
+.small-table { min-width: 820px; }
+.sensitive-cell { display: inline-flex; align-items: center; gap: 4px; }
+.eye { width: 18px; height: 18px; border: 0; background: transparent; color: var(--gofo-orange); padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; vertical-align: middle; }
+.eye:hover { background: var(--gofo-orange-soft); }
+.eye svg { width: 14px; height: 14px; stroke-width: 2; }
+.audit-actions { display: flex; flex-direction: column; gap: 10px; }
+.radio-group { display: flex; gap: 24px; }
+.radio-group label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.timeline { padding: 8px 0; }
+.timeline-item { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }
+.timeline-item:last-child { padding-bottom: 0; }
+.timeline-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; position: relative; z-index: 1; }
+.timeline-dot.success { background: #52c41a; }
+.timeline-dot.danger { background: #ff4d4f; }
+.timeline-dot.primary { background: var(--gofo-orange); }
+.timeline-item::before { content: ''; position: absolute; left: 4px; top: 18px; bottom: 0; width: 2px; background: #f0f0f0; }
+.timeline-item:last-child::before { display: none; }
+.timeline-title { font-weight: 600; }
+.timeline-time { color: rgba(0,0,0,.45); margin-bottom: 4px; }
+.timeline-status { color: rgba(0,0,0,.85); font-weight: 700; margin-bottom: 4px; }
+.timeline-action { color: rgba(0,0,0,.65); margin-top: 4px; }
+.timeline-meta { font-size: 11px; color: rgba(0,0,0,.45); margin-top: 2px; }
+.timeline-remark { color: rgba(0,0,0,.65); margin-top: 4px; white-space: pre-wrap; }
+.empty-state { text-align: center; padding: 32px; color: rgba(0,0,0,.45); display: flex; flex-direction: column; align-items: center; }
+.loading { text-align: center; padding: 40px; color: rgba(0,0,0,.45); }
+.popconfirm { display: inline-flex; position: relative; }
+.popconfirm-content { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.12); z-index: 100; white-space: nowrap; margin-bottom: 4px; min-width: 200px; }
+.popconfirm-content.show { display: block; }
+.popconfirm-content p { margin-bottom: 8px; color: rgba(0,0,0,.65); }
+.popconfirm-btns { display: flex; gap: 6px; justify-content: flex-end; }
+@media (max-width: 1100px) { .filter-grid { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); } .query-item, .query-item.date-query { max-width: none; } }
+@media (max-width: 720px) { .topbar-title { display: none; } .content { padding: 16px; } .filter-grid, .form-grid.two-col, .form-grid.three-col, .detail-grid.two-col { grid-template-columns: 1fr; } .modal { width: 100%; } }
+</style>
+</head>
+<body>
+<header class="gofo-topbar">
+  <div class="brand"><img class="brand-logo" src="assets/gofo-logo-full.png" alt="GOFO"></div>
+  <div class="topbar-main">
+    <div class="topbar-title">GOFO 管理后台</div>
+    <div class="topbar-actions">
+      <button class="topbar-action tooltip" data-tip="帮助中心" aria-label="帮助中心"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4"/><path d="M12 17h.01"/></svg></button>
+      <button class="topbar-action tooltip" data-tip="通知" aria-label="通知"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span class="badge">6</span></button>
+      <button class="topbar-action" aria-label="语言">简体中文</button>
+      <button class="topbar-action" aria-label="当前用户"><span class="avatar">G</span><span>Admin</span></button>
+    </div>
+  </div>
+</header>
+<aside class="gofo-sidebar">
+  <nav class="side-menu">
+    <a class="side-item active" href="#"><span class="side-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16v12H4z"/><path d="M16 12h4v4h-4z"/><path d="M4 7l3-3h12"/></svg></span><span class="side-text">DSP提现模式管理</span></a>
+  </nav>
+</aside>
+<nav class="gofo-tabs">
+  <div class="page-tab active">DSP提现模式管理</div>
+</nav>
+<main class="page-container">
+  <div class="content">
+    <section class="panel" aria-label="查询条件">
+      <div class="filter-grid">
+        <div class="query-item"><label for="queryDspName">DSP名称</label><select id="queryDspName" onchange="handleQuery()"><option value="">全部</option><option value="Fast Logistics Inc.">Fast Logistics Inc.</option><option value="Speed Delivery LLC">Speed Delivery LLC</option><option value="Express Ship Co.">Express Ship Co.</option><option value="Quick Move DSP">Quick Move DSP</option><option value="Prime Logistics">Prime Logistics</option><option value="Thunder Transport">Thunder Transport</option><option value="Apex Delivery">Apex Delivery</option><option value="Metro Express">Metro Express</option></select></div>
+        <div class="query-item"><label for="queryFleetName">车队名称</label><select id="queryFleetName" onchange="handleQuery()"><option value="">全部</option><option value="洛杉矶车队">洛杉矶车队</option><option value="纽约车队">纽约车队</option><option value="芝加哥车队">芝加哥车队</option><option value="休斯顿车队">休斯顿车队</option><option value="迈阿密车队">迈阿密车队</option><option value="旧金山车队">旧金山车队</option><option value="西雅图车队">西雅图车队</option><option value="达拉斯车队">达拉斯车队</option></select></div>
+        <div class="query-item"><label for="queryApplyType">申请类型</label><select id="queryApplyType" onchange="handleQuery()"><option value="">全部</option><option value="open">开启申请</option><option value="close">关闭申请</option></select></div>
+        <div class="query-item"><label for="queryAuditStatus">审核状态</label><select id="queryAuditStatus" onchange="handleQuery()"><option value="">全部</option><option value="pending_business">业务审核中</option><option value="pending_financial">财务审核中</option><option value="pass">审核通过</option><option value="business_reject">业务驳回</option><option value="financial_reject">财务驳回</option></select></div>
+        <div class="query-item"><label for="queryModeStatus">提现模式开通状态</label><select id="queryModeStatus" onchange="handleQuery()"><option value="">全部</option><option value="unopened">未开通</option><option value="opened">已开通</option><option value="closed">已关闭</option></select></div>
+        <div class="query-item date-query"><label>最新操作日期</label><div class="date-range"><input type="date" id="queryDateFrom" onchange="handleQuery()"><span class="range-separator">至</span><input type="date" id="queryDateTo" onchange="handleQuery()"></div></div>
+      </div>
+      <div class="filter-actions">
+        <button class="btn btn-primary" onclick="handleQuery()">查询</button>
+        <button class="btn" onclick="handleReset()">重置</button>
+      </div>
+    </section>
+
+    <section class="table-card" aria-label="DSP提现申请列表">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button class="btn btn-primary" onclick="openApplyModal()">申请开启提现模式</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="gofo-table">
+          <thead>
+            <tr>
+              <th style="width:50px">序号</th>
+              <th style="min-width:160px">DSP名称</th>
+              <th style="min-width:160px">车队名称</th>
+              <th style="width:110px">申请类型</th>
+              <th style="width:110px">最新操作日期</th>
+              <th style="min-width:136px;width:136px">审核状态</th>
+              <th style="width:130px">提现模式开通状态</th>
+              <th style="width:260px">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"><tr><td colspan="8" class="loading">加载中...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span class="pagination-info">共 <strong id="totalCount">0</strong> 条</span>
+        <select id="pageSizeSelect" class="pagination-select" onchange="changePageSize(this.value)" aria-label="每页条数">
+          <option value="10">10条/页</option>
+          <option value="20">20条/页</option>
+          <option value="50">50条/页</option>
+          <option value="100">100条/页</option>
+        </select>
+        <button id="prevBtn" class="pagination-arrow tooltip" type="button" disabled onclick="prevPage()" aria-label="上一页" data-tip="上一页">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div id="paginationPages" class="pagination-pages" aria-label="页码"></div>
+        <button id="nextBtn" class="pagination-arrow tooltip" type="button" disabled onclick="nextPage()" aria-label="下一页" data-tip="下一页">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+        <span class="pagination-jumper">
+          前往
+          <input id="pageJumpInput" class="pagination-jumper-input" type="number" min="1" value="1" onkeydown="handlePageJumpKey(event)" onblur="syncPageJumpInput()" aria-label="跳转页码">
+          页
+        </span>
+      </div>
+    </section>
+  </div>
+</main>
+<!-- Apply Modal -->
+<div class="modal-overlay" id="applyModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="applyModalTitle">申请开启提现模式</h3>
+      <button class="modal-close" onclick="closeApplyModal()" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="applyRejectAlert" class="alert alert-warning" style="display:none">
+        <span class="alert-icon">!</span>
+        <span id="applyRejectText"></span>
+      </div>
+
+      <!-- 基本信息 -->
+      <div class="section-card">
+        <div class="section-title">基本信息</div>
+        <div class="form-grid two-col">
+          <div class="form-group">
+            <label><span class="required">*</span> DSP名称</label>
+            <input type="text" id="applyDspName" placeholder="输入关键字搜索DSP" onchange="onApplyDspChange()">
+          </div>
+          <div class="form-group">
+            <label><span class="required">*</span> 车队</label>
+            <input type="text" id="applyFleetName" placeholder="输入组织名称或编码搜索..." onchange="onApplyFleetChange()">
+          </div>
+          <div class="form-group">
+            <label><span class="required">*</span> 企业类型</label>
+            <select id="applyBusinessType">
+              <option value="">请选择</option>
+              <option value="LLC">LLC</option>
+              <option value="Corporation">Corporation</option>
+              <option value="Sole Proprietorship">Sole Proprietorship</option>
+              <option value="Partnership">Partnership</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>申请日期</label>
+            <input type="text" id="applyDate" disabled value="2026-07-02">
+          </div>
+        </div>
+      </div>
+
+      <!-- 商业文件 -->
+      <div class="section-card">
+        <div class="section-title">商业文件 / Business Documents</div>
+        <div class="form-grid two-col">
+          <div class="form-group">
+            <label>
+              <span class="required">*</span> 税号支持文件
+              <span class="help-icon tooltip">?</span>
+            </label>
+            <div class="file-upload-area" id="taxUploadArea" onclick="document.getElementById('taxFileInput').click()">
+              <div class="file-upload-icon" aria-hidden="true"></div>
+              <div class="file-upload-text">点击上传文件</div>
+              <div class="file-upload-hint">支持 PDF/JPG/PNG，可上传多个文件</div>
+            </div>
+            <input type="file" id="taxFileInput" style="display:none" multiple accept=".pdf,.jpg,.png" onchange="handleFileSelect('tax', this)">
+            <div class="file-list" id="taxFileList"></div>
+            <div class="existing-files" id="taxExistingFiles" style="display:none"></div>
+          </div>
+          <div class="form-group">
+            <label>
+              <span class="required">*</span> 公司注册证明
+              <span class="help-icon tooltip">?</span>
+            </label>
+            <div class="file-upload-area" id="regUploadArea" onclick="document.getElementById('regFileInput').click()">
+              <div class="file-upload-icon" aria-hidden="true"></div>
+              <div class="file-upload-text">点击上传文件</div>
+              <div class="file-upload-hint">LLC提供Certificate of Formation，Corporation提供Certificate of Incorporation</div>
+            </div>
+            <input type="file" id="regFileInput" style="display:none" multiple accept=".pdf,.jpg,.png" onchange="handleFileSelect('reg', this)">
+            <div class="file-list" id="regFileList"></div>
+            <div class="existing-files" id="regExistingFiles" style="display:none"></div>
+          </div>
+          <div class="form-group">
+            <label>
+              受益所有权证明 <span class="optional">（建议提供，非必需）</span>
+              <span class="help-icon tooltip">?</span>
+            </label>
+            <div class="file-upload-area" onclick="document.getElementById('benefitFileInput').click()">
+              <div class="file-upload-icon" aria-hidden="true"></div>
+              <div class="file-upload-text">点击上传文件</div>
+              <div class="file-upload-hint">如平台无法清晰识别公司股权结构，需提供完整股权结构图/声明</div>
+            </div>
+            <input type="file" id="benefitFileInput" style="display:none" multiple accept=".pdf,.jpg,.png" onchange="handleFileSelect('benefit', this)">
+            <div class="file-list" id="benefitFileList"></div>
+            <div class="existing-files" id="benefitExistingFiles" style="display:none"></div>
+          </div>
+          <div class="form-group">
+            <label>
+              支持性商业文件 <span class="optional">（新公司需要，非必需）</span>
+              <span class="help-icon tooltip">?</span>
+            </label>
+            <div class="file-upload-area" onclick="document.getElementById('supportFileInput').click()">
+              <div class="file-upload-icon" aria-hidden="true"></div>
+              <div class="file-upload-text">点击上传文件</div>
+              <div class="file-upload-hint">最近90天内的发票、商业计划书、银行对账单等</div>
+            </div>
+            <input type="file" id="supportFileInput" style="display:none" multiple accept=".pdf,.jpg,.png" onchange="handleFileSelect('support', this)">
+            <div class="file-list" id="supportFileList"></div>
+            <div class="existing-files" id="supportExistingFiles" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 个人文件 -->
+      <div class="section-card">
+        <div class="section-title">个人文件</div>
+        <div class="form-grid two-col">
+          <div class="form-group">
+            <label>
+              <span class="required">*</span> 政府签发身份证件
+              <span class="help-icon tooltip">?</span>
+            </label>
+            <div class="file-upload-area" onclick="document.getElementById('personalFileInput').click()">
+              <div class="file-upload-icon" aria-hidden="true"></div>
+              <div class="file-upload-text">点击上传文件</div>
+              <div class="file-upload-hint">护照/身份证/驾照正反面</div>
+            </div>
+            <input type="file" id="personalFileInput" style="display:none" multiple accept=".pdf,.jpg,.png" onchange="handleFileSelect('personal', this)">
+            <div class="file-list" id="personalFileList"></div>
+            <div class="existing-files" id="personalExistingFiles" style="display:none"></div>
+          </div>
+          <div class="form-group">
+            <label>
+              SSN <span class="optional">（如为美国个人，非必需）</span>
+              <span class="help-icon tooltip">?</span>
+            </label>
+            <div class="file-upload-area" onclick="document.getElementById('ssnFileInput').click()">
+              <div class="file-upload-icon" aria-hidden="true"></div>
+              <div class="file-upload-text">点击上传文件</div>
+              <div class="file-upload-hint">SSN文件扫描件</div>
+            </div>
+            <input type="file" id="ssnFileInput" style="display:none" multiple accept=".pdf,.jpg,.png" onchange="handleFileSelect('ssn', this)">
+            <div class="file-list" id="ssnFileList"></div>
+            <div class="existing-files" id="ssnExistingFiles" style="display:none"></div>
+          </div>
+        </div>
+        <div class="form-grid three-col" style="margin-top:12px">
+          <div class="form-group">
+            <label><span class="required">*</span> 出生日期</label>
+            <input type="date" id="applyBirthday">
+          </div>
+          <div class="form-group">
+            <label><span class="required">*</span> 职务</label>
+            <input type="text" id="applyPosition" placeholder="在公司担任的职务" maxlength="100">
+          </div>
+          <div class="form-group">
+            <label><span class="required">*</span> 居住地址</label>
+            <input type="text" id="applyAddress" placeholder="详细居住地址" maxlength="200">
+          </div>
+        </div>
+      </div>
+
+      <!-- 协议签署 -->
+      <div class="section-card">
+        <div class="section-title">协议签署</div>
+        <div class="protocol-section">
+          <div class="protocol-header">Amendment – Payment Terms</div>
+          <div class="protocol-body">
+            <p><strong>PAYMENT TERMS AMENDMENT</strong></p>
+            <p>This Amendment ("Amendment") is entered into as of the date of last signature below ("Effective Date"), by and between the parties identified in the signature block below.</p>
+            <p><strong>1. DEFINITIONS</strong></p>
+            <p>"Payment Terms" means the payment terms and conditions for services rendered under the Master Agreement.</p>
+            <p><strong>2. AMENDMENT TO PAYMENT TERMS</strong></p>
+            <p>The parties agree to amend the Payment Terms as follows: [Terms to be specified]</p>
+            <p><strong>3. EFFECT OF AMENDMENT</strong></p>
+            <p>Except as specifically modified by this Amendment, all other terms and conditions of the Master Agreement shall remain in full force and effect.</p>
+            <p><strong>4. GOVERNING LAW</strong></p>
+            <p>This Amendment shall be governed by and construed in accordance with the laws of the State of Delaware.</p>
+          </div>
+        </div>
+        <div class="protocol-check">
+          <input type="checkbox" id="applyAgreeProtocol">
+          <label for="applyAgreeProtocol">我已阅读并同意上述协议条款</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeApplyModal()">取消</button>
+      <button class="btn btn-primary" id="applySubmitBtn" onclick="submitApply()">提交申请</button>
+    </div>
+  </div>
+</div>
+
+<!-- Close Apply Modal -->
+<div class="modal-overlay" id="closeApplyModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>申请关闭提现模式</h3>
+      <button class="modal-close" onclick="closeCloseApplyModal()" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body" id="closeApplyBody">
+      <div class="loading">加载中...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeCloseApplyModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitCloseApply()">提交申请</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>详情</h3>
+      <button class="modal-close" onclick="closeDetailModal()" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body" id="detailBody">
+      <div class="loading">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Audit Modal -->
+<div class="modal-overlay" id="auditModal">
+    <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="auditModalTitle">业务审核</h3>
+      <button class="modal-close" onclick="closeAuditModal()" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body" id="auditBody">
+      <div class="loading">加载中...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAuditModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitAudit()">提交审核</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Popconfirm -->
+<div class="popconfirm" id="deletePopconfirm" style="display:none">
+  <div class="popconfirm-content show">
+    <p>确定要删除该申请吗？删除后将同时删除所有附件文件，此操作不可恢复。</p>
+    <div class="popconfirm-btns">
+      <button class="btn btn-sm" onclick="cancelDelete()">取消</button>
+      <button class="btn btn-sm btn-danger" onclick="confirmDelete()">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay confirm-overlay" id="confirmModal">
+  <div class="modal confirm-modal">
+    <div class="modal-header">
+      <h3 id="confirmTitle">确认操作</h3>
+      <button class="modal-close" onclick="closeConfirmModal()" aria-label="关闭">×</button>
+    </div>
+    <div class="confirm-body" id="confirmMessage"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeConfirmModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitConfirmModal()">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== 模拟数据 ====================
+const DEMO_DATA = [
+  { id: '1001', dspName: 'Fast Logistics Inc.', fleetName: '洛杉矶车队', businessType: 'LLC', applicationType: 'open', latestOperationDate: '2026-07-08', firstOpenApplyDate: '2026-06-15', auditStatus: 'pending_business', modeStatus: 'unopened', position: 'CEO', address: '123 Main St, Los Angeles, CA', birthday: '1985-03-15', closeReason: '', expectedCloseTime: '', affectedDriverCount: 0, everOpened: false, firstOpenRejected: false },
+  { id: '1002', dspName: 'Speed Delivery LLC', fleetName: '纽约车队', businessType: 'Corporation', applicationType: 'open', latestOperationDate: '2026-07-08', firstOpenApplyDate: '2026-07-08', auditStatus: 'pending_financial', modeStatus: 'unopened', position: 'Director', address: '456 Park Ave, New York, NY', birthday: '1990-07-22', closeReason: '', expectedCloseTime: '', affectedDriverCount: 0, everOpened: false, firstOpenRejected: false },
+  { id: '1003', dspName: 'Express Ship Co.', fleetName: '芝加哥车队', businessType: 'Sole Proprietorship', applicationType: 'close', latestOperationDate: '2026-07-03', firstOpenApplyDate: '2026-05-28', auditStatus: 'pending_business', modeStatus: 'opened', position: 'Owner', address: '789 Michigan Ave, Chicago, IL', birthday: '1982-11-08', closeReason: '车队阶段性调整，不再使用司机提现模式。', expectedCloseTime: '', affectedDriverCount: 2, everOpened: true, firstOpenRejected: false },
+  { id: '1004', dspName: 'Thunder Transport', fleetName: '旧金山车队', businessType: 'Corporation', applicationType: 'close', latestOperationDate: '2026-07-02', firstOpenApplyDate: '2026-06-01', auditStatus: 'business_reject', modeStatus: 'opened', position: 'VP', address: '987 Market St, San Francisco, CA', birthday: '1992-05-18', closeReason: '车队阶段性调整，不再使用司机提现模式。', expectedCloseTime: '', affectedDriverCount: 3, everOpened: true, firstOpenRejected: false },
+  { id: '1005', dspName: 'Prime Logistics', fleetName: '迈阿密车队', businessType: 'LLC', applicationType: 'close', latestOperationDate: '2026-06-29', firstOpenApplyDate: '2026-04-15', auditStatus: 'pass', modeStatus: 'closed', position: 'President', address: '654 Ocean Dr, Miami, FL', birthday: '1979-09-12', closeReason: '业务调整。', expectedCloseTime: '2026-06-30 00:00:00', affectedDriverCount: 0, everOpened: true, firstOpenRejected: false },
+  { id: '1006', dspName: 'North Star DSP', fleetName: '波士顿车队', businessType: 'LLC', applicationType: 'close', latestOperationDate: '2026-07-02', firstOpenApplyDate: '2026-04-18', auditStatus: 'pass', modeStatus: 'closed', position: 'COO', address: '18 Beacon St, Boston, MA', birthday: '1981-09-10', closeReason: '-', expectedCloseTime: '2026-07-09 00:00:00', affectedDriverCount: 2, everOpened: true, firstOpenRejected: false },
+  { id: '1007', dspName: 'Apex Delivery', fleetName: '西雅图车队', businessType: '其他', applicationType: 'open', latestOperationDate: '2026-03-25', firstOpenApplyDate: '2026-03-22', auditStatus: 'pass', modeStatus: 'opened', position: 'CEO', address: '111 Pike St, Seattle, WA', birthday: '1986-12-03', closeReason: '', expectedCloseTime: '', affectedDriverCount: 1, everOpened: true, firstOpenRejected: false },
+  { id: '1008', dspName: 'Quick Move DSP', fleetName: '休斯顿车队', businessType: 'Partnership', applicationType: 'open', latestOperationDate: '2026-05-21', firstOpenApplyDate: '2026-05-20', auditStatus: 'business_reject', modeStatus: 'unopened', position: 'Manager', address: '321 Texas St, Houston, TX', birthday: '1988-01-30', closeReason: '', expectedCloseTime: '', affectedDriverCount: 0, everOpened: false, firstOpenRejected: true },
+  { id: '1009', dspName: 'Metro Express', fleetName: '达拉斯车队', businessType: 'LLC', applicationType: 'open', latestOperationDate: '2026-07-08', firstOpenApplyDate: '2026-07-07', auditStatus: 'pass', modeStatus: 'opened', position: 'COO', address: '222 Elm St, Dallas, TX', birthday: '1983-08-25', closeReason: '', expectedCloseTime: '', affectedDriverCount: 0, everOpened: true, firstOpenRejected: false },
+];
+
+const DEMO_AUDIT_LOGS = {
+  '1001': [{ time: '2026-07-08 09:30:25', status: '业务审核中', operator: '刘经理', action: '发起申请' }],
+  '1002': [{ time: '2026-07-08 10:20:00', status: '财务审核中', operator: '王主管', action: '业务审核通过' }, { time: '2026-07-08 09:00:00', status: '业务审核中', operator: '刘经理', action: '发起申请' }],
+  '1003': [{ time: '2026-07-03 13:00:00', status: '业务审核中', operator: '赵经理', action: '申请关闭' }, { time: '2026-05-30 16:00:00', status: '审核通过', operator: '赵财务', action: '财务审核通过' }, { time: '2026-05-29 11:00:00', status: '财务审核中', operator: '李主管', action: '业务审核通过' }],
+  '1004': [{ time: '2026-07-02 16:20:00', status: '业务驳回', operator: '李主管', action: '业务审核驳回', reason: '关闭原因与当前运营计划不一致，请确认后重新提交。' }, { time: '2026-07-02 11:00:00', status: '业务审核中', operator: '周经理', action: '申请关闭' }],
+  '1005': [{ time: '2026-06-29 11:18:00', status: '审核通过', operator: '李主管', action: '业务审核通过' }, { time: '2026-06-29 09:30:00', status: '业务审核中', operator: '陈经理', action: '申请关闭' }],
+  '1006': [{ time: '2026-07-02 16:20:00', status: '审核通过', operator: '李主管', action: '业务审核通过' }, { time: '2026-07-02 13:00:00', status: '业务审核中', operator: '赵经理', action: '申请关闭' }],
+  '1007': [{ time: '2026-03-25 16:00:00', status: '审核通过', operator: '赵财务', action: '财务审核通过' }, { time: '2026-03-23 10:30:00', status: '财务审核中', operator: '李主管', action: '业务审核通过' }],
+  '1008': [{ time: '2026-05-21 15:30:00', status: '业务驳回', operator: '李主管', action: '业务审核驳回', reason: '公司注册证明文件不清晰，请重新上传。' }, { time: '2026-05-20 09:00:00', status: '业务审核中', operator: '刘经理', action: '发起申请' }],
+  '1009': [{ time: '2026-07-08 11:10:00', status: '审核通过', operator: '赵财务', action: '财务审核通过' }, { time: '2026-07-08 10:20:00', status: '财务审核中', operator: '李主管', action: '业务审核通过' }],
+};
+
+const AFFECTED_DRIVERS = {
+  '1003': [
+    { id: 'D9201', name: 'G**********', phone: '+1 **** 0108', fullName: 'Grace Miller', fullPhone: '+1 415 555 0108', fleet: '芝加哥车队', openDate: '2026-05-29' },
+    { id: 'D9202', name: 'H********', phone: '+1 **** 0121', fullName: 'Henry Smith', fullPhone: '+1 415 555 0121', fleet: '芝加哥车队', openDate: '2026-06-10' }
+  ],
+  '1004': [
+    { id: 'D9101', name: 'E**********', phone: '+1 **** 0101', fullName: 'Emma Johnson', fullPhone: '+1 415 555 0101', fleet: '旧金山车队', openDate: '2026-06-02' },
+    { id: 'D9102', name: 'S*********', phone: '+1 **** 0112', fullName: 'Sophia Brown', fullPhone: '+1 415 555 0112', fleet: '旧金山车队', openDate: '2026-06-09' },
+    { id: 'D9103', name: 'D***********', phone: '+1 **** 0199', fullName: 'Daniel Wilson', fullPhone: '+1 415 555 0199', fleet: '旧金山车队', openDate: '2026-06-15' }
+  ],
+  '1006': [
+    { id: 'D9401', name: 'N********', phone: '+1 **** 0144', fullName: 'Noah White', fullPhone: '+1 617 555 0144', fleet: '波士顿车队', openDate: '2026-05-01' },
+    { id: 'D9402', name: 'L********', phone: '+1 **** 0186', fullName: 'Liam King', fullPhone: '+1 617 555 0186', fleet: '波士顿车队', openDate: '2026-05-12' }
+  ],
+  '1007': [
+    { id: 'D9301', name: 'A********', phone: '+1 **** 0190', fullName: 'Anna Lee', fullPhone: '+1 206 555 0190', fleet: '西雅图车队', openDate: '2026-03-25' }
+  ]
+};
+
+// ==================== 状态管理 ====================
+let currentPage = 1;
+let pageSize = 10;
+let tableData = sortByLatestOperationDate([...DEMO_DATA]);
+let currentDeleteId = null;
+let applyMode = 'create'; // 'create' | 'resubmit'
+let currentApplicationId = null;
+let pendingFiles = {};
+let existingFilesData = {};
+let auditType = 'business';
+let auditResult = 'pass';
+let auditRejectReason = '';
+let closeApplyId = null;
+let restrictedMode = false;
+let revealedSensitive = {};
+let closeReasonDraft = null;
+let pendingConfirmAction = null;
+
+const FILE_GROUPS = ['tax', 'reg', 'benefit', 'support', 'personal', 'ssn'];
+
+function sortByLatestOperationDate(rows) {
+  return rows.sort((a, b) => {
+    const dateCompare = (b.latestOperationDate || '').localeCompare(a.latestOperationDate || '');
+    return dateCompare || String(b.id).localeCompare(String(a.id));
+  });
+}
+
+function syncQueryOptions() {
+  fillSelectOptions('queryDspName', [...new Set(DEMO_DATA.map(row => row.dspName))]);
+  fillSelectOptions('queryFleetName', [...new Set(DEMO_DATA.map(row => row.fleetName))]);
+}
+
+function fillSelectOptions(id, values) {
+  const el = document.getElementById(id);
+  const currentValue = el.value;
+  el.innerHTML = '<option value="">全部</option>' + values.filter(Boolean).map(value => `<option value="${value}">${value}</option>`).join('');
+  el.value = values.includes(currentValue) ? currentValue : '';
+}
+
+function initFiles() {
+  FILE_GROUPS.forEach(key => {
+    pendingFiles[key] = [];
+    existingFilesData[key] = [];
+  });
+}
+
+// ==================== 列表功能 ====================
+function getAuditStatusLabel(s) {
+  const map = { pending_business: '业务审核中', pending_financial: '财务审核中', pass: '审核通过', business_reject: '业务驳回', financial_reject: '财务驳回' };
+  return map[s] || s || '-';
+}
+function getAuditStatusClass(s) {
+  const map = { pending_business: 'status-text-warning', pending_financial: 'status-text-warning', pass: 'status-text-success', business_reject: 'status-text-danger', financial_reject: 'status-text-danger' };
+  return map[s] || 'status-text-muted';
+}
+function renderAuditStatus(s) {
+  return `<span class="status-text ${getAuditStatusClass(s)}">${getAuditStatusLabel(s)}</span>`;
+}
+function getApplyTypeLabel(s) {
+  const map = { open: '开启申请', close: '关闭申请' };
+  return map[s] || s || '-';
+}
+function getApplyTypeTag(s) {
+  const map = { open: 'tag-success', close: 'tag-info' };
+  return map[s] || 'tag-info';
+}
+function getModeStatusLabel(s) {
+  const map = {
+    unopened: '未开通',
+    opened: '已开通',
+    closed: '已关闭'
+  };
+  return map[s] || s || '-';
+}
+function getModeStatusTag(s) {
+  const map = { unopened: 'tag-muted', opened: 'tag-success', closed: 'tag-closed' };
+  return map[s] || 'tag-info';
+}
+
+function getTotalPages() {
+  return Math.max(1, Math.ceil(tableData.length / pageSize));
+}
+
+function getPaginationItems(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, 6, 'ellipsis', total];
+  if (current >= total - 3) return [1, 'ellipsis', total - 5, total - 4, total - 3, total - 2, total - 1, total];
+  return [1, 'ellipsis-prev', current - 1, current, current + 1, 'ellipsis-next', total];
+}
+
+function renderPagination() {
+  const totalPages = getTotalPages();
+  if (currentPage > totalPages) currentPage = totalPages;
+
+  const pages = document.getElementById('paginationPages');
+  pages.innerHTML = getPaginationItems(currentPage, totalPages).map(item => {
+    if (typeof item === 'string') {
+      return '<button class="pagination-ellipsis" type="button" disabled aria-hidden="true">...</button>';
+    }
+    const activeClass = item === currentPage ? ' active' : '';
+    const currentAttr = item === currentPage ? ' aria-current="page"' : '';
+    return `<button class="pagination-page${activeClass}" type="button" onclick="goToPage(${item})"${currentAttr}>${item}</button>`;
+  }).join('');
+
+  document.getElementById('totalCount').textContent = tableData.length;
+  document.getElementById('pageSizeSelect').value = String(pageSize);
+  document.getElementById('pageJumpInput').value = currentPage;
+  document.getElementById('pageJumpInput').max = totalPages;
+  document.getElementById('prevBtn').disabled = currentPage <= 1;
+  document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+}
+
+function renderTable() {
+  const totalPages = getTotalPages();
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * pageSize;
+  const pageData = tableData.slice(start, start + pageSize);
+  const tbody = document.getElementById('tableBody');
+  if (pageData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon" aria-hidden="true"></div><div>暂无数据</div></div></td></tr>';
+  } else {
+    tbody.innerHTML = pageData.map((row, i) => `
+      <tr>
+        <td>${start + i + 1}</td>
+        <td>${row.dspName}</td>
+        <td>${row.fleetName}</td>
+        <td><span class="tag ${getApplyTypeTag(row.applicationType)}">${getApplyTypeLabel(row.applicationType)}</span></td>
+        <td>${row.latestOperationDate || '-'}</td>
+        <td><span class="status-text status-text-list">${getAuditStatusLabel(row.auditStatus)}</span></td>
+        <td><span class="tag ${getModeStatusTag(row.modeStatus)}">${getModeStatusLabel(row.modeStatus)}</span></td>
+        <td>
+          <div class="actions">
+            <button class="btn-text" onclick="openDetail('${row.id}')">详情</button>
+            ${row.auditStatus === 'pending_business' ? `<button class="btn-text" onclick="openAudit('${row.id}', 'business')">业务审核</button>` : ''}
+            ${row.applicationType === 'open' && row.auditStatus === 'pending_financial' ? `<button class="btn-text" onclick="openAudit('${row.id}', 'financial')">财务审核</button>` : ''}
+            ${row.applicationType === 'open' && ['business_reject', 'financial_reject'].includes(row.auditStatus) ? `<button class="btn-text" onclick="openReapply('${row.id}')">重新提交</button>` : ''}
+            ${row.applicationType === 'open' && row.firstOpenRejected && !row.everOpened && ['business_reject', 'financial_reject'].includes(row.auditStatus) ? `<button class="btn-text danger-link" onclick="confirmDeleteRow('${row.id}')">删除</button>` : ''}
+            ${row.applicationType === 'close' && row.auditStatus === 'business_reject' ? `<button class="btn-text" onclick="openCloseApply('${row.id}')">申请关闭</button>` : ''}
+            ${row.modeStatus === 'opened' && !(row.applicationType === 'close' && ['pending_business', 'business_reject'].includes(row.auditStatus)) ? `<button class="btn-text" onclick="openCloseApply('${row.id}')">申请关闭</button>` : ''}
+            ${row.modeStatus === 'closed' && row.auditStatus === 'pass' ? `<button class="btn-text" onclick="openReapply('${row.id}')">申请开启提现模式</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+  renderPagination();
+}
+
+function handleQuery() {
+  filterData();
+  currentPage = 1;
+  renderTable();
+}
+
+function handleReset() {
+  document.getElementById('queryDspName').value = '';
+  document.getElementById('queryFleetName').value = '';
+  document.getElementById('queryApplyType').value = '';
+  document.getElementById('queryAuditStatus').value = '';
+  document.getElementById('queryModeStatus').value = '';
+  document.getElementById('queryDateFrom').value = '';
+  document.getElementById('queryDateTo').value = '';
+  tableData = sortByLatestOperationDate([...DEMO_DATA]);
+  currentPage = 1;
+  renderTable();
+}
+
+function filterData() {
+  const dspName = document.getElementById('queryDspName').value.trim().toLowerCase();
+  const fleetName = document.getElementById('queryFleetName').value.trim().toLowerCase();
+  const applyType = document.getElementById('queryApplyType').value;
+  const auditStatus = document.getElementById('queryAuditStatus').value;
+  const modeStatus = document.getElementById('queryModeStatus').value;
+  const dateFrom = document.getElementById('queryDateFrom').value;
+  const dateTo = document.getElementById('queryDateTo').value;
+
+  tableData = sortByLatestOperationDate(DEMO_DATA.filter(row => {
+    if (dspName && !row.dspName.toLowerCase().includes(dspName)) return false;
+    if (fleetName && !row.fleetName.toLowerCase().includes(fleetName)) return false;
+    if (applyType && row.applicationType !== applyType) return false;
+    if (auditStatus && row.auditStatus !== auditStatus) return false;
+    if (modeStatus && row.modeStatus !== modeStatus) return false;
+    if (dateFrom && row.latestOperationDate < dateFrom) return false;
+    if (dateTo && row.latestOperationDate > dateTo) return false;
+    return true;
+  }));
+}
+
+function goToPage(page) {
+  const targetPage = Math.min(Math.max(1, Number(page) || 1), getTotalPages());
+  if (targetPage !== currentPage) {
+    currentPage = targetPage;
+    renderTable();
+  } else {
+    syncPageJumpInput();
+  }
+}
+function prevPage() { goToPage(currentPage - 1); }
+function nextPage() { goToPage(currentPage + 1); }
+function changePageSize(value) {
+  pageSize = Number(value) || 10;
+  currentPage = 1;
+  renderTable();
+}
+function handlePageJumpKey(event) {
+  if (event.key === 'Enter') goToPage(event.target.value);
+}
+function syncPageJumpInput() {
+  document.getElementById('pageJumpInput').value = currentPage;
+}
+// ==================== 删除功能 ====================
+function confirmDeleteRow(id) {
+  const row = DEMO_DATA.find(r => r.id === id);
+  if (!row || row.applicationType !== 'open' || !row.firstOpenRejected || row.everOpened || !['business_reject', 'financial_reject'].includes(row.auditStatus)) {
+    alert('当前申请不可删除');
+    return;
+  }
+  currentDeleteId = id;
+  const pop = document.getElementById('deletePopconfirm');
+  pop.style.display = 'inline-flex';
+  pop.style.position = 'fixed';
+  pop.style.top = '50%';
+  pop.style.left = '50%';
+  pop.style.transform = 'translate(-50%, -50%)';
+  pop.style.zIndex = '2000';
+  pop.querySelector('.popconfirm-content').classList.add('show');
+}
+
+function cancelDelete() {
+  document.getElementById('deletePopconfirm').style.display = 'none';
+  currentDeleteId = null;
+}
+
+function confirmDelete() {
+  if (currentDeleteId) {
+    DEMO_DATA.splice(DEMO_DATA.findIndex(r => r.id === currentDeleteId), 1);
+    delete DEMO_AUDIT_LOGS[currentDeleteId];
+    tableData = sortByLatestOperationDate([...DEMO_DATA]);
+    filterData();
+    if ((currentPage - 1) * pageSize >= tableData.length && currentPage > 1) currentPage--;
+    renderTable();
+    alert('删除成功！申请ID: ' + currentDeleteId + ' 及其附件已被删除');
+  }
+  cancelDelete();
+}
+
+// ==================== 申请功能 ====================
+function openApplyModal() {
+  applyMode = 'create';
+  currentApplicationId = null;
+  document.getElementById('applyModalTitle').textContent = '申请开启提现模式';
+  document.getElementById('applySubmitBtn').textContent = '提交申请';
+  document.getElementById('applyRejectAlert').style.display = 'none';
+  resetApplyForm();
+  document.getElementById('applyModal').classList.add('show');
+}
+
+function openReapply(id) {
+  applyMode = 'resubmit';
+  currentApplicationId = id;
+  const row = DEMO_DATA.find(r => r.id === id);
+  document.getElementById('applyModalTitle').textContent = row && row.modeStatus === 'closed' ? '申请开启提现模式' : '修改并重新提交';
+  document.getElementById('applySubmitBtn').textContent = row && row.modeStatus === 'closed' ? '提交申请' : '重新提交';
+  document.getElementById('applyRejectAlert').style.display = 'none';
+  resetApplyForm();
+  
+  if (row) {
+    document.getElementById('applyDspName').value = row.dspName;
+    document.getElementById('applyFleetName').value = row.fleetName;
+    document.getElementById('applyBusinessType').value = row.businessType || '';
+    document.getElementById('applyBirthday').value = row.birthday || '';
+    document.getElementById('applyPosition').value = row.position || '';
+    document.getElementById('applyAddress').value = row.address || '';
+    document.getElementById('applyAgreeProtocol').checked = true;
+    setExistingFiles(row);
+  }
+
+  document.getElementById('applyModal').classList.add('show');
+}
+
+function resetApplyForm() {
+  document.getElementById('applyDspName').value = '';
+  document.getElementById('applyFleetName').value = '';
+  document.getElementById('applyBusinessType').value = '';
+  document.getElementById('applyBirthday').value = '';
+  document.getElementById('applyPosition').value = '';
+  document.getElementById('applyAddress').value = '';
+  document.getElementById('applyAgreeProtocol').checked = false;
+  initFiles();
+  FILE_GROUPS.forEach(key => {
+    document.getElementById(key + 'FileList').innerHTML = '';
+    document.getElementById(key + 'ExistingFiles').style.display = 'none';
+    document.getElementById(key + 'ExistingFiles').innerHTML = '';
+  });
+}
+
+function setExistingFiles(row) {
+  const names = {
+    tax: '历史税号支持文件.pdf',
+    reg: '历史公司注册证明.pdf',
+    benefit: '历史受益所有权证明.pdf',
+    support: '历史支持性商业文件.pdf',
+    personal: '历史个人身份证明.png',
+    ssn: '历史SSN文件.pdf'
+  };
+  FILE_GROUPS.forEach(key => {
+    existingFilesData[key] = [{ name: names[key] }];
+    const box = document.getElementById(key + 'ExistingFiles');
+    box.style.display = 'flex';
+    box.innerHTML = `<div class="existing-file-item"><a href="javascript:void(0)">${names[key]}</a><button class="remove-link" type="button" onclick="removeExistingFile('${key}')">移除</button></div>`;
+  });
+}
+
+function removeExistingFile(category) {
+  existingFilesData[category] = [];
+  const box = document.getElementById(category + 'ExistingFiles');
+  box.style.display = 'none';
+  box.innerHTML = '';
+}
+
+function onApplyDspChange() {
+  document.getElementById('applyFleetName').value = '';
+}
+
+function onApplyFleetChange() {}
+
+function handleFileSelect(category, input) {
+  const files = Array.from(input.files);
+  files.forEach(f => {
+    pendingFiles[category].push(f);
+  });
+  renderFileList(category);
+  input.value = '';
+}
+
+function renderFileList(category) {
+  const listEl = document.getElementById(category + 'FileList');
+  const files = pendingFiles[category];
+  if (files.length === 0) {
+    listEl.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = files.map((f, i) => `
+    <div class="file-item">
+      <span>${f.name}</span>
+      <button type="button" class="file-remove" onclick="removeFile('${category}', ${i})" aria-label="移除文件">×</button>
+    </div>
+  `).join('');
+}
+
+function removeFile(category, index) {
+  pendingFiles[category].splice(index, 1);
+  renderFileList(category);
+}
+
+function submitApply() {
+  const dspName = document.getElementById('applyDspName').value.trim();
+  const fleetName = document.getElementById('applyFleetName').value.trim();
+  const businessType = document.getElementById('applyBusinessType').value;
+  const birthday = document.getElementById('applyBirthday').value;
+  const position = document.getElementById('applyPosition').value.trim();
+  const address = document.getElementById('applyAddress').value.trim();
+  const agreeProtocol = document.getElementById('applyAgreeProtocol').checked;
+
+  // Validation
+  const errors = [];
+  if (!dspName) errors.push('请选择DSP名称');
+  if (!fleetName) errors.push('请选择车队');
+  if (!businessType) errors.push('请选择企业类型');
+  if (!birthday) errors.push('请选择出生日期');
+  if (!position) errors.push('请输入职务');
+  if (!address) errors.push('请输入居住地址');
+  
+  const requiredFiles = ['tax', 'reg', 'personal'];
+  requiredFiles.forEach(key => {
+    if (pendingFiles[key].length === 0 && existingFilesData[key].length === 0) {
+      const labels = { tax: '税号支持文件', reg: '公司注册证明', personal: '个人身份证明' };
+      errors.push('请上传' + labels[key]);
+    }
+  });
+  
+  if (!agreeProtocol) errors.push('请确认协议内容');
+
+  if (errors.length > 0) {
+    alert('请完善以下信息：\n' + errors.join('\n'));
+    return;
+  }
+
+  if (applyMode === 'create') {
+    const newId = String(Date.now()).slice(-8);
+    const submitDate = todayText();
+    DEMO_DATA.unshift({
+      id: newId, dspName, fleetName, businessType,
+      applicationType: 'open',
+      latestOperationDate: submitDate,
+      firstOpenApplyDate: submitDate,
+      auditStatus: 'pending_business',
+      modeStatus: 'unopened',
+      position, address, birthday,
+      closeReason: '',
+      expectedCloseTime: '',
+      affectedDriverCount: 0,
+      everOpened: false,
+      firstOpenRejected: false
+    });
+    DEMO_AUDIT_LOGS[newId] = [{ time: nowText(), status: '业务审核中', operator: '当前用户', action: '发起申请' }];
+    alert('提现模式申请提交成功！申请ID: ' + newId);
+  } else {
+    const row = DEMO_DATA.find(r => r.id === currentApplicationId);
+    if (row) {
+      row.applicationType = 'open';
+      row.auditStatus = 'pending_business';
+      row.modeStatus = row.everOpened ? 'closed' : 'unopened';
+      row.latestOperationDate = todayText();
+      row.firstOpenApplyDate = row.firstOpenApplyDate || todayText();
+      row.dspName = dspName;
+      row.fleetName = fleetName;
+      row.businessType = businessType;
+      row.position = position;
+      row.address = address;
+      row.birthday = birthday;
+    }
+    const logs = DEMO_AUDIT_LOGS[currentApplicationId] || [];
+    logs.unshift({ time: nowText(), status: '业务审核中', operator: '当前用户', action: '重新提交' });
+    DEMO_AUDIT_LOGS[currentApplicationId] = logs;
+    alert('提现模式申请重新提交成功！');
+  }
+
+  closeApplyModal();
+  syncQueryOptions();
+  tableData = sortByLatestOperationDate([...DEMO_DATA]);
+  filterData();
+  renderTable();
+}
+
+function closeApplyModal() {
+  document.getElementById('applyModal').classList.remove('show');
+}
+
+// ==================== 关闭申请功能 ====================
+function openCloseApply(id) {
+  closeApplyId = id;
+  restrictedMode = false;
+  revealedSensitive = {};
+  closeReasonDraft = null;
+  renderCloseApplyModal();
+  document.getElementById('closeApplyModal').classList.add('show');
+}
+
+function renderCloseApplyModal() {
+  const row = DEMO_DATA.find(r => r.id === closeApplyId);
+  if (!row) return;
+  const drivers = AFFECTED_DRIVERS[row.id] || [];
+  document.getElementById('closeApplyBody').innerHTML = `
+    <div class="alert alert-warning">
+      <span class="alert-icon">!</span>
+      <span>关闭申请审核通过后，将于明日00:00正式关闭车队所有司机的提现模式。</span>
+    </div>
+    <div class="section-card">
+      <div class="section-title">基础信息</div>
+      <div class="detail-grid two-col">
+        ${detailItem('DSP名称', row.dspName)}
+        ${detailItem('车队名称', row.fleetName)}
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-title">当前开通提现模式的司机</div>
+      <div class="toolbar-line">
+        <button class="btn" type="button" onclick="toggleRestrictedMode()">${restrictedMode ? '切换为非受限用户' : '切换为受限用户'}</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="gofo-table small-table">
+          <thead>
+            <tr>
+              <th>司机ID</th>
+              <th>司机姓名</th>
+              <th>电话</th>
+              <th>所属车队</th>
+              <th>提现模式开启日期</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${drivers.length ? drivers.map(driver => `
+              <tr>
+                <td>${driver.id}</td>
+                <td>${renderSensitiveCell(driver, 'name')}</td>
+                <td>${renderSensitiveCell(driver, 'phone')}</td>
+                <td>${driver.fleet}</td>
+                <td>${driver.openDate}</td>
+              </tr>
+            `).join('') : '<tr><td colspan="5"><div class="empty-state">该车队下暂无已开通提现模式司机</div></td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-title">关闭原因（选填）</div>
+      <div class="form-group">
+        <textarea id="closeReasonInput" maxlength="500" placeholder="请输入关闭原因，最多500字">${closeReasonDraft ?? (row.auditStatus === 'business_reject' ? '' : (row.closeReason || ''))}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+function renderSensitiveCell(driver, field) {
+  if (restrictedMode) return '/';
+  const key = `${driver.id}-${field}`;
+  const maskedValue = field === 'name' ? driver.name : driver.phone;
+  const fullValue = field === 'name' ? driver.fullName : driver.fullPhone;
+  if (revealedSensitive[key]) return fullValue;
+  return `<span class="sensitive-cell"><span>${maskedValue}</span><button class="eye" type="button" aria-label="查看${field === 'name' ? '司机姓名' : '电话'}" onclick="revealDriverInfo('${driver.id}', '${field}')">${eyeIcon()}</button></span>`;
+}
+
+function eyeIcon() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+
+function toggleRestrictedMode() {
+  closeReasonDraft = document.getElementById('closeReasonInput')?.value ?? closeReasonDraft;
+  restrictedMode = !restrictedMode;
+  renderCloseApplyModal();
+}
+
+function revealDriverInfo(driverId, field) {
+  closeReasonDraft = document.getElementById('closeReasonInput')?.value ?? closeReasonDraft;
+  revealedSensitive[`${driverId}-${field}`] = true;
+  renderCloseApplyModal();
+}
+
+function submitCloseApply() {
+  const row = DEMO_DATA.find(r => r.id === closeApplyId);
+  if (!row) return;
+  const confirmText = '关闭申请审核通过后，将于明日00:00正式关闭车队所有司机的提现模式。';
+  const reason = document.getElementById('closeReasonInput').value.trim();
+  openConfirmModal('确认提交', confirmText, () => finalizeCloseApply(row.id, reason));
+}
+
+function finalizeCloseApply(rowId, reason) {
+  const row = DEMO_DATA.find(r => r.id === rowId);
+  if (!row) return;
+  const drivers = AFFECTED_DRIVERS[row.id] || [];
+  row.applicationType = 'close';
+  row.latestOperationDate = todayText();
+  row.auditStatus = 'pending_business';
+  row.modeStatus = 'opened';
+  row.closeReason = reason || '-';
+  row.affectedDriverCount = drivers.length;
+  row.everOpened = true;
+  const logs = DEMO_AUDIT_LOGS[row.id] || [];
+  logs.unshift({ time: nowText(), status: '业务审核中', operator: '当前用户', action: '申请关闭' });
+  DEMO_AUDIT_LOGS[row.id] = logs;
+  closeCloseApplyModal();
+  tableData = sortByLatestOperationDate([...DEMO_DATA]);
+  filterData();
+  renderTable();
+  alert('关闭申请提交成功');
+}
+
+function closeCloseApplyModal() {
+  document.getElementById('closeApplyModal').classList.remove('show');
+  closeApplyId = null;
+  closeReasonDraft = null;
+  revealedSensitive = {};
+}
+
+function openConfirmModal(title, message, onConfirm) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMessage').textContent = message;
+  pendingConfirmAction = onConfirm;
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirmModal').classList.remove('show');
+  pendingConfirmAction = null;
+}
+
+function submitConfirmModal() {
+  const action = pendingConfirmAction;
+  closeConfirmModal();
+  if (typeof action === 'function') action();
+}
+
+// ==================== 详情功能 ====================
+function openDetail(id) {
+  const row = DEMO_DATA.find(r => r.id === id);
+  const logs = DEMO_AUDIT_LOGS[id] || [];
+  if (!row) return;
+
+  let html = '';
+  html += '<div class="detail-section"><div class="detail-section-title">基础资料</div>';
+  html += '<div class="detail-grid two-col">';
+  html += detailItem('DSP名称', row.dspName);
+  html += detailItem('车队名称', row.fleetName);
+  html += detailItem('企业类型', row.businessType || '-');
+  html += detailItem('居住地址', row.address || '-');
+  html += detailItem('出生日期', row.birthday || '-');
+  html += detailItem('职务', row.position || '-');
+  html += detailItem('提现模式开通状态', `<span class="tag ${getModeStatusTag(row.modeStatus)}">${getModeStatusLabel(row.modeStatus)}</span>`);
+  html += '</div></div>';
+
+  html += '<div class="detail-section"><div class="detail-section-title">开户材料</div>';
+  html += '<div class="detail-grid two-col">';
+  const fileLabels = { tax: '税号支持文件', reg: '公司注册证明', benefit: '受益所有权证明', support: '支持性商业文件', personal: '个人身份证明', ssn: 'SSN / 社保文件' };
+  FILE_GROUPS.forEach(key => {
+    html += '<div class="detail-item"><div class="detail-label">' + fileLabels[key] + '</div><div class="detail-value">';
+    html += '<span style="color:rgba(0,0,0,0.25)">-</span>';
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+
+  if (row.auditStatus !== 'pass') {
+    html += '<div class="detail-section"><div class="detail-section-title">审核详情</div>';
+    html += '<div class="detail-grid two-col">';
+    html += detailItem('申请类型', `<span class="tag ${getApplyTypeTag(row.applicationType)}">${getApplyTypeLabel(row.applicationType)}</span>`);
+    html += detailItem('审核状态', renderAuditStatus(row.auditStatus));
+    html += detailItem('最新操作日期', row.latestOperationDate || '-');
+    if (row.applicationType === 'close') {
+      html += detailItem('关闭原因', row.closeReason || '-');
+      html += detailItem('受影响司机数量', String(row.affectedDriverCount || 0));
+    }
+    html += '</div></div>';
+  }
+
+  html += '<div class="detail-section"><div class="detail-section-title">审核记录</div>';
+  html += renderTimeline(logs);
+  html += '</div>';
+
+  document.getElementById('detailBody').innerHTML = html;
+  document.getElementById('detailModal').classList.add('show');
+}
+
+function detailItem(label, value) {
+  return '<div class="detail-item"><div class="detail-label">' + label + '</div><div class="detail-value">' + value + '</div></div>';
+}
+
+function closeDetailModal() {
+  document.getElementById('detailModal').classList.remove('show');
+}
+
+// ==================== 审核功能 ====================
+function openAudit(id, type) {
+  auditType = type;
+  currentApplicationId = id;
+  auditResult = 'pass';
+  auditRejectReason = '';
+  const row = DEMO_DATA.find(r => r.id === id);
+  const logs = DEMO_AUDIT_LOGS[id] || [];
+  if (!row) return;
+
+  document.getElementById('auditModalTitle').textContent = type === 'business' ? '业务审核' : '财务审核';
+
+  let html = '';
+  html += '<div class="detail-section"><div class="detail-section-title">申请信息</div>';
+  html += '<div class="detail-grid two-col">';
+  html += detailItem('DSP名称', row.dspName);
+  html += detailItem('车队名称', row.fleetName);
+  if (row.applicationType === 'close') {
+    html += detailItem('提现模式开通状态', `<span class="tag ${getModeStatusTag(row.modeStatus)}">${getModeStatusLabel(row.modeStatus)}</span>`);
+    html += detailItem('最新操作日期', row.latestOperationDate || '-');
+    html += detailItem('申请类型', `<span class="tag ${getApplyTypeTag(row.applicationType)}">${getApplyTypeLabel(row.applicationType)}</span>`);
+    html += detailItem('审核状态', renderAuditStatus(row.auditStatus));
+    html += detailItem('关闭原因', row.closeReason || '-');
+    html += detailItem('当前开通提现模式司机人数', String(row.affectedDriverCount || 0));
+  } else {
+    html += detailItem('企业类型', row.businessType || '-');
+    html += detailItem('居住地址', row.address || '-');
+    html += detailItem('出生日期', row.birthday || '-');
+    html += detailItem('职务', row.position || '-');
+    html += detailItem('提现模式开通状态', `<span class="tag ${getModeStatusTag(row.modeStatus)}">${getModeStatusLabel(row.modeStatus)}</span>`);
+    html += detailItem('最新操作日期', row.latestOperationDate || '-');
+    html += detailItem('申请类型', `<span class="tag ${getApplyTypeTag(row.applicationType)}">${getApplyTypeLabel(row.applicationType)}</span>`);
+    html += detailItem('审核状态', renderAuditStatus(row.auditStatus));
+  }
+  html += '</div></div>';
+
+  if (row.applicationType === 'open') {
+    html += '<div class="detail-section"><div class="detail-section-title">开户材料</div>';
+    html += '<div class="detail-grid two-col">';
+    const fileLabels = { tax: '税号支持文件', reg: '公司注册证明', benefit: '受益所有权证明', support: '支持性商业文件', personal: '个人身份证明', ssn: 'SSN / 社保文件' };
+    FILE_GROUPS.forEach(key => {
+      html += '<div class="detail-item"><div class="detail-label">' + fileLabels[key] + '</div><div class="detail-value"><span style="color:rgba(0,0,0,0.25)">-</span></div></div>';
+    });
+    html += '</div></div>';
+  }
+
+  html += '<div class="detail-section"><div class="detail-section-title">审核操作</div>';
+  html += '<div class="audit-actions">';
+  html += '<div class="form-group">';
+  html += '<div class="radio-group">';
+  html += '<label><input type="radio" name="auditResult" value="pass" checked onchange="auditResult=this.value; toggleRejectReason()"> 审核通过</label>';
+  html += '<label><input type="radio" name="auditResult" value="reject" onchange="auditResult=this.value; toggleRejectReason()"> 审核驳回</label>';
+  html += '</div></div>';
+  html += '<div class="form-group" id="rejectReasonGroup" style="display:none">';
+  html += '<label>驳回原因</label>';
+  html += '<textarea id="auditRejectReason" placeholder="当审核结果为驳回时请输入原因" maxlength="200" rows="3" oninput="auditRejectReason=this.value"></textarea>';
+  html += '</div>';
+  html += '</div></div>';
+
+  // 审核记录
+  html += '<div class="detail-section"><div class="detail-section-title">审核记录</div>';
+  html += renderTimeline(logs);
+  html += '</div>';
+
+  document.getElementById('auditBody').innerHTML = html;
+  document.getElementById('auditModal').classList.add('show');
+}
+
+function toggleRejectReason() {
+  const el = document.getElementById('rejectReasonGroup');
+  if (el) el.style.display = auditResult === 'reject' ? 'flex' : 'none';
+}
+
+function submitAudit() {
+  const rejectReason = document.getElementById('auditRejectReason')?.value || '';
+  
+  if (auditResult === 'reject' && !rejectReason.trim()) {
+    alert('审核驳回时请输入原因');
+    return;
+  }
+
+  const row = DEMO_DATA.find(r => r.id === currentApplicationId);
+  if (!row) return;
+
+  if (row.applicationType === 'close' && auditResult === 'pass') {
+    const selectedAuditType = auditType;
+    const selectedAuditResult = auditResult;
+    const confirmText = Number(row.affectedDriverCount || 0) > 0
+      ? '审核通过后，将于明日00:00正式关闭车队所有司机的提现模式。'
+      : '审核通过后，车队提现模式将直接关闭。';
+    openConfirmModal('确认审核通过', confirmText, () => finalizeAudit(row.id, selectedAuditType, selectedAuditResult, rejectReason));
+    return;
+  }
+
+  finalizeAudit(row.id, auditType, auditResult, rejectReason);
+}
+
+function finalizeAudit(rowId, finalAuditType, finalAuditResult, rejectReason) {
+  const row = DEMO_DATA.find(r => r.id === rowId);
+  if (!row) return;
+  const actionType = finalAuditType === 'business' ? 'business_audit' : 'financial_audit';
+
+  if (finalAuditResult === 'pass') {
+    if (row.applicationType === 'close') {
+      row.auditStatus = 'pass';
+      row.expectedCloseTime = nextDayZeroText();
+      row.modeStatus = 'closed';
+    } else if (finalAuditType === 'business') {
+      row.auditStatus = 'pending_financial';
+      row.modeStatus = row.everOpened ? 'closed' : 'unopened';
+    } else {
+      row.auditStatus = 'pass';
+      row.modeStatus = 'opened';
+      row.everOpened = true;
+    }
+  } else {
+    if (finalAuditType === 'business') {
+      row.auditStatus = 'business_reject';
+      row.modeStatus = row.applicationType === 'close' ? 'opened' : (row.everOpened ? 'closed' : 'unopened');
+    } else {
+      row.auditStatus = 'financial_reject';
+      row.modeStatus = row.everOpened ? 'closed' : 'unopened';
+    }
+  }
+
+  const logs = DEMO_AUDIT_LOGS[rowId] || [];
+  logs.unshift({
+    time: nowText(),
+    status: getAuditStatusLabel(row.auditStatus),
+    operator: finalAuditType === 'business' ? '李主管' : '赵财务',
+    action: auditActionText(actionType, finalAuditResult),
+    reason: finalAuditResult === 'reject' ? rejectReason : ''
+  });
+  DEMO_AUDIT_LOGS[rowId] = logs;
+  row.latestOperationDate = nowText().slice(0, 10);
+
+  if (!(row.applicationType === 'close' && finalAuditResult === 'pass')) {
+    alert('审核提交成功！结果：' + (finalAuditResult === 'pass' ? '审核通过' : '审核驳回'));
+  }
+  closeAuditModal();
+  tableData = sortByLatestOperationDate([...DEMO_DATA]);
+  filterData();
+  renderTable();
+}
+
+function closeAuditModal() {
+  document.getElementById('auditModal').classList.remove('show');
+}
+
+function auditActionText(actionType, result) {
+  if (actionType === 'business_audit') return result === 'pass' ? '业务审核通过' : '业务审核驳回';
+  if (actionType === 'financial_audit') return result === 'pass' ? '财务审核通过' : '财务审核驳回';
+  return actionType;
+}
+
+// ==================== 审核时间线 ====================
+function renderTimeline(logs) {
+  if (!logs || logs.length === 0) {
+    return '<div class="empty-state"><div class="empty-state-icon" aria-hidden="true"></div><div>暂无审核记录</div></div>';
+  }
+  const getDotClass = (log) => {
+    if ((log.status || '').includes('驳回')) return 'danger';
+    if ((log.status || '').includes('通过')) return 'success';
+    return 'primary';
+  };
+
+  return '<div class="timeline">' + logs.map(log => `
+    <div class="timeline-item">
+      <div class="timeline-dot ${getDotClass(log)}"></div>
+      <div class="timeline-content">
+        <div class="timeline-time">${log.time || ''}</div>
+        <div class="timeline-status">${log.status || '-'}</div>
+        <div class="timeline-meta">操作人：${log.operator || '系统'}</div>
+        <div class="timeline-action">${log.action || '-'}</div>
+        ${log.reason ? '<div class="timeline-remark">驳回原因：' + log.reason + '</div>' : ''}
+      </div>
+    </div>
+  `).join('') + '</div>';
+}
+
+function todayText() {
+  return '2026-07-08';
+}
+
+function nowText() {
+  return '2026-07-08 15:30:00';
+}
+
+function nextDayZeroText() {
+  return '2026-07-09 00:00:00';
+}
+
+// ==================== 初始化 ====================
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeApplyModal();
+    closeCloseApplyModal();
+    closeDetailModal();
+    closeAuditModal();
+    closeConfirmModal();
+    cancelDelete();
+  }
+});
+
+syncQueryOptions();
+initFiles();
+renderTable();
+</script>
+
+
+
+</body>
+</html>

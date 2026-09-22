@@ -44,13 +44,14 @@ export function ParcelDetail({ records, type, selection }: {
     const columns = fields.map(([key, label]): GridColumn<Parcel> => ({ key, label, numeric: key.endsWith("At"), value: (r) => key.endsWith("At") ? formatDateTime(r[key]) : r[key] }));
     return <DataGrid title={`${type.label}运单明细`} description="时间按 America/New_York 展示；导出包含当前周期全部运单，不仅是当前页。" columns={columns} rows={parcelsFor(records, type.key)} rowKey={(r) => r.waybill} filename={`${type.label}_${selectionLabel(selection)}`}/>;
 }
-export function MetricDetail({ type, selection, onClose }: {
+export function MetricDetail({ type, selection, organizationId, onClose }: {
     type: Metric;
     selection: Selection;
+    organizationId: string;
     onClose: () => void;
 }) {
     const [perspective, setPerspective] = useState<"driver" | "route">("driver"), [timeView, setTimeView] = useState("total");
-    const records = recordsFor(selection), rows = byPerspective(records, perspective);
+    const records = recordsFor(selection, organizationId), rows = byPerspective(records, perspective);
     const parcel = ["unfinished", "fake", "suspected", "broken", "dnr", "complaint", "validComplaint", "podBad"].includes(type.key);
     const hours = type.unit === "min", complaint = ["dnrRate", "complaintRate", "validComplaintRate"].includes(type.key);
     let series: ChartSeries[] = [{ metric: type }];
@@ -72,22 +73,26 @@ export function MetricDetail({ type, selection, onClose }: {
         series = qualityGroups[1].metrics.map((m) => ({ metric: m, type: m.unit === "%" ? "line" : "bar" }));
     if (complaint)
         series = qualityGroups[2].metrics.slice(3).map((m) => ({ metric: m, type: "bar" }));
+    const chartRows = perspective === "driver"
+        ? [...rows].sort((a, b) => (b.values[type.key] || 0) - (a.values[type.key] || 0))
+        : rows;
     const dailyAllowed = selection.mode !== "day" || Boolean(selection.range && selection.range.start !== selection.range.end);
     return <DetailShell title={`${type.label}详情`} description={selectionLabel(selection)} onClose={onClose}>{parcel ? <ParcelDetail records={records} type={type} selection={selection}/> : <>
     <FieldGroup><Choices value={perspective} onChange={(v) => { setPerspective(v as typeof perspective); setTimeView("total"); }} options={[["driver", "司机视角"], ["route", "路区视角"]]} label="对比视角"/>{hours && (perspective === "route" || dailyAllowed) ? <Choices value={timeView} onChange={setTimeView} options={[["total", "总时长"], ["average", perspective === "driver" ? "日均时长" : "人均时长"]]} label="时长口径"/> : null}</FieldGroup>
     {complaint ? <Alert><AlertDescription>暂无司机和路区维度的DNR率、客诉率、有效客诉率；以下保留对应数量分布。</AlertDescription></Alert> : null}
     {hours ? <p className="text-xs text-muted-foreground">司机日均按有效派件天数，路区人均按去重派件司机数。当前为演示口径。</p> : null}
-    <Analysis title={`${type.label} · ${perspective === "driver" ? "司机" : "路区"}对比`} option={comboOption(rows, series, type.target === undefined ? undefined : type)} height="detail"/>
+    <Analysis title={`${type.label} · ${perspective === "driver" ? "司机" : "路区"}对比`} option={comboOption(chartRows, series, type.target === undefined ? undefined : type)} height="detail" scrollable categoryLabelMode="entity"/>
     <DataGrid title="对比数据" columns={[{ key: "label", label: perspective === "driver" ? "司机" : "路区", value: (r) => r.label }, ...series.map((s): GridColumn<typeof rows[number]> => ({ key: s.metric.key, label: `${s.metric.label}${s.metric.unit ? `（${s.metric.unit}）` : ""}`, numeric: true, value: (r) => Math.round(r.values[s.metric.key] * 1000) / 1000 }))]} rows={rows} rowKey={(r) => r.id} filename={`${type.label}_${perspective}_${selectionLabel(selection)}`}/>
   </>}</DetailShell>;
 }
-export function ExclusionTables({ selection, initialMetric = "all", embedded = false }: {
+export function ExclusionTables({ selection, organizationId, initialMetric = "all", embedded = false }: {
     selection: Selection;
+    organizationId: string;
     initialMetric?: string;
     embedded?: boolean;
 }) {
     const [filter, setFilter] = useState(initialMetric);
-    const records = recordsFor(selection), all = exclusionsFor(records), filtered = all.filter((r) => filter === "all" || r.metric === filter);
+    const records = recordsFor(selection, organizationId), all = exclusionsFor(records), filtered = all.filter((r) => filter === "all" || r.metric === filter);
     const options = [["all", "全部"], ["2400", "2400妥投率"], ["4800", "4800妥投率"]] as const;
     const groups = new Map<string, typeof filtered>();
     for (const r of filtered) {
@@ -109,12 +114,13 @@ export function ExclusionTables({ selection, initialMetric = "all", embedded = f
     const content = <><TabsContent value="reason">{controls}<DataGrid key={`reason/${filter}/${selectionLabel(selection)}`} title="剔除原因汇总" description="重复量和去重量是同周期、同指标的组统计，不应跨原因重复相加。" columns={reasonColumns} rows={reasons} rowKey={(r) => r.id} filename={`剔除原因_${filter}_${selectionLabel(selection)}`}/></TabsContent><TabsContent value="waybill">{controls}<DataGrid key={`waybill/${filter}/${selectionLabel(selection)}`} title="剔除运单明细" description="同一运单的多条原因已合并；不同指标分别展示。导出包含全部筛选结果。" columns={waybillColumns} rows={filtered.sort((a, b) => b.date.localeCompare(a.date))} rowKey={(r) => `${r.date}/${r.metric}/${r.waybill}`} filename={`剔除运单_${filter}_${selectionLabel(selection)}`}/></TabsContent></>;
     return embedded ? content : <Tabs defaultValue="reason"><TabsList variant="line"><TabsTrigger value="reason">剔除原因汇总</TabsTrigger><TabsTrigger value="waybill">剔除运单明细</TabsTrigger></TabsList>{content}</Tabs>;
 }
-export function AssessmentDetail({ type, selection, onClose }: {
+export function AssessmentDetail({ type, selection, organizationId, onClose }: {
     type: Metric;
     selection: Selection;
+    organizationId: string;
     onClose: () => void;
 }) {
-    const values = aggregate(recordsFor(selection)), kind = type.key.includes("4800") ? "4800" : "2400";
+    const values = aggregate(recordsFor(selection, organizationId)), kind = type.key.includes("4800") ? "4800" : "2400";
     values.exclusionRate = values.should ? values.excluded / values.should * 100 : 0;
-    return <DetailShell title={`${type.label}考核明细`} description={selectionLabel(selection)} onClose={onClose}><Kpis metrics={[metric(`raw${kind}`, "原始值", "%"), timelinessMetrics[kind === "2400" ? 0 : 1], metric("excluded", "去重后剔除量"), metric("exclusionRate", "剔除占比", "%")]} values={values} selection={selection}/><Alert><AlertDescription>模拟计算：原始妥投 {values[`vol${kind}`]} / 应派 {values.should}；考核妥投 {values[`assessed${kind}`]} / 考核应派 {values.assessedShould}。剔除后差异 {values[`delta${kind}`].toFixed(2)}pp。正式口径以数仓结果为准。</AlertDescription></Alert><ExclusionTables selection={selection} initialMetric={kind}/></DetailShell>;
+    return <DetailShell title={`${type.label}考核明细`} description={selectionLabel(selection)} onClose={onClose}><Kpis metrics={[metric(`raw${kind}`, "原始值", "%"), timelinessMetrics[kind === "2400" ? 0 : 1], metric("excluded", "去重后剔除量"), metric("exclusionRate", "剔除占比", "%")]} values={values} selection={selection}/><Alert><AlertDescription>模拟计算：原始妥投 {values[`vol${kind}`]} / 应派 {values.should}；考核妥投 {values[`assessed${kind}`]} / 考核应派 {values.assessedShould}。剔除后差异 {values[`delta${kind}`].toFixed(2)}pp。正式口径以数仓结果为准。</AlertDescription></Alert><ExclusionTables selection={selection} organizationId={organizationId} initialMetric={kind}/></DetailShell>;
 }

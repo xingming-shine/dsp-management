@@ -43,13 +43,19 @@
   padding: 2px 0;
 }
 .cockpit-chart-tooltip__marker {
+  display: flex;
+  height: 1.45em;
   grid-column: 1;
   grid-row: 1;
-  margin-top: 5px;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 .cockpit-chart-tooltip__marker > span {
+  display: block !important;
   width: 8px !important;
   height: 8px !important;
+  flex: none;
   margin-right: 0 !important;
   border-radius: 50% !important;
 }

@@ -22,6 +22,7 @@ import {
   SearchIcon,
   SettingsIcon,
   UsersIcon,
+  WalletIcon,
 } from "lucide-react"
 
 export type NavigationStatus = "available" | "planned"
@@ -277,6 +278,14 @@ export const primaryNavigation: NavigationItem[] = [
         icon: DollarSignIcon,
         permission: "finance.settlement.read",
         status: "planned",
+      },
+      {
+        id: "dsp-withdrawal-mode",
+        label: "DSP提现模式管理",
+        icon: WalletIcon,
+        href: "/finance/withdrawal-mode",
+        permission: "finance.settlement.read",
+        status: "available",
       },
     ],
   },

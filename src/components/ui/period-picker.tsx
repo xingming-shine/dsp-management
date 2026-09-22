@@ -38,8 +38,11 @@ type PeriodPickerProps = {
   selection: PeriodSelection
   onChange: (selection: PeriodSelection) => void
   allowRange?: boolean
+  rangeOnly?: boolean
   modes?: PeriodMode[]
   label?: string
+  showGranularity?: boolean
+  placeholder?: string
   className?: string
 }
 
@@ -197,14 +200,17 @@ function PeriodPicker({
   selection,
   onChange,
   allowRange = true,
+  rangeOnly = false,
   modes = ["day", "week", "month"],
   label = "数据时间",
+  showGranularity = true,
+  placeholder,
   className,
 }: PeriodPickerProps) {
   const triggerId = React.useId()
   const [open, setOpen] = React.useState(false)
   const [draft, setDraft] = React.useState<PeriodSelection>(selection)
-  const [rangeMode, setRangeMode] = React.useState(Boolean(selection.range))
+  const [rangeMode, setRangeMode] = React.useState(rangeOnly || Boolean(selection.range))
   const [cursor, setCursor] = React.useState(
     (selection.range?.start || selection.value).slice(0, 7)
   )
@@ -220,7 +226,7 @@ function PeriodPicker({
 
   function resetDraft() {
     setDraft(selection)
-    setRangeMode(Boolean(selection.range))
+    setRangeMode(rangeOnly || Boolean(selection.range))
     setCursor((selection.range?.start || selection.value).slice(0, 7))
     setAnchor(undefined)
     setHover(undefined)
@@ -449,8 +455,8 @@ function PeriodPicker({
   const calendarStep = mode === "month" ? 12 : 1
 
   return (
-    <FieldGroup className={cn("grid gap-3 md:grid-cols-4", className)}>
-      <Field>
+    <FieldGroup className={cn("grid gap-3", showGranularity && "md:grid-cols-4", className)}>
+      {showGranularity && <Field>
         <FieldLabel>统计粒度</FieldLabel>
         <Tabs
           value={mode}
@@ -464,9 +470,9 @@ function PeriodPicker({
             ))}
           </TabsList>
         </Tabs>
-      </Field>
+      </Field>}
 
-      <Field className="md:col-span-2">
+      <Field className={cn("min-w-0", showGranularity && "md:col-span-2")}>
         <FieldLabel htmlFor={triggerId}>{label}</FieldLabel>
         <Popover
           open={open}
@@ -481,11 +487,11 @@ function PeriodPicker({
               type="button"
               variant="outline"
               className="w-full max-w-[320px] justify-start text-left [--button-font-size:var(--text-sm)]"
-              aria-label={`${label}：${selectionTriggerLabel(selection)}`}
+              aria-label={`${label}：${placeholder || selectionTriggerLabel(selection)}`}
             >
               <CalendarIcon data-icon="inline-start" />
               <span className="truncate tabular-nums">
-                {selectionTriggerLabel(selection)}
+                {placeholder || selectionTriggerLabel(selection)}
               </span>
             </Button>
           </PopoverTrigger>
@@ -500,7 +506,7 @@ function PeriodPicker({
                 : "w-[min(400px,calc(100vw-2rem))]"
             )}
           >
-            {allowRange ? (
+            {allowRange && !rangeOnly ? (
               <div className="border-b px-4">
                 <Tabs
                   value={rangeMode ? "range" : "single"}

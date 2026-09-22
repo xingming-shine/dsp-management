@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import { useMemo, useState } from "react"
-import { ChevronRightIcon, FlameIcon, TrophyIcon, WheatIcon } from "lucide-react"
+import { ArrowRightIcon, FlameIcon, TrophyIcon } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -16,22 +16,55 @@ import type { Selection } from "../cockpit-model"
 import { EChartsChart } from "@/features/data-cockpit/components/echarts-chart"
 import { getRankingPeriodLabel } from "@/features/data-cockpit/date-utils"
 import { rankingSnapshots } from "@/features/data-cockpit/mock-data"
+import { getDspScenario } from "@/features/data-cockpit/mocks"
 import type { CockpitView, RankMode } from "@/features/data-cockpit/types"
 import { cn } from "@/lib/utils"
 
-export function OverviewTab({ onNavigate }: { onNavigate: (view: CockpitView, selection?: Selection) => void }) {
+const rankingRecommendations: Record<string, string> = {
+  时效: "聚焦 2400/4800 妥投时效与异常路区",
+  质量: "复盘断更、虚假签收与 POD 合规问题",
+  客诉: "排查客诉高发司机与路区，并复核派送标准",
+  团队表现: "改善高分司机占比和出勤稳定性",
+}
+
+function formatDimensionGap(gap: number) {
+  if (gap > 0) return `-${gap}分`
+  if (gap < 0) return `+${Math.abs(gap)}分`
+  return "持平"
+}
+
+export function OverviewTab({ organizationId, onNavigate }: { organizationId: string; onNavigate: (view: CockpitView, selection?: Selection) => void }) {
   const [rankMode, setRankMode] = useState<RankMode>("week")
   const [rankScope, setRankScope] = useState<"station" | "region">("station")
-  const ranking = rankingSnapshots[rankMode]
+  const scenario = getDspScenario(organizationId)
+  const ranking = useMemo(() => {
+    const base = rankingSnapshots[rankMode]
+    return {
+      ...base,
+      dspName: scenario.name,
+      stationRank: scenario.stationRank,
+      stationTotal: scenario.stationDspCount,
+      regionRank: scenario.regionRank,
+      regionTotal: scenario.regionDspCount,
+      totalScore: Math.max(0, base.totalScore + scenario.scoreShift),
+      dimensions: base.dimensions.map((item) => ({
+        ...item,
+        value: Math.max(0, Math.min(100, item.value + scenario.scoreShift)),
+        previous: Math.max(0, Math.min(100, item.previous + scenario.scoreShift)),
+      })),
+    }
+  }, [rankMode, scenario])
+  const comparisonLabel = rankScope === "station" ? "站点第一名" : "大区第一名"
   const radar = useMemo(() => radarOption(
     ranking.dimensions.map((item) => ({ name: item.name, max: 100 })),
     [
       { name: "当前DSP", values: ranking.dimensions.map((item) => item.value) },
-      { name: "站点第1名", values: ranking.dimensions.map((item) => item.stationFirst) },
-      { name: "大区第1名", values: ranking.dimensions.map((item) => item.regionFirst) },
+      {
+        name: comparisonLabel,
+        values: ranking.dimensions.map((item) => rankScope === "station" ? item.stationFirst : item.regionFirst),
+      },
     ]
-  ), [ranking])
-  const comparisonLabel = rankScope === "station" ? "站点第一名" : "大区第一名"
+  ), [comparisonLabel, rankScope, ranking])
   const cycleLabel = rankMode === "week" ? "周" : "月"
   const rankingPeriodLabel = getRankingPeriodLabel(rankMode)
   const dimensionGaps = useMemo(() => ranking.dimensions
@@ -39,8 +72,15 @@ export function OverviewTab({ onNavigate }: { onNavigate: (view: CockpitView, se
       name: item.name,
       gap: (rankScope === "station" ? item.stationFirst : item.regionFirst) - item.value,
     }))
-    .sort((a, b) => b.gap - a.gap)
-    .slice(0, 2), [rankScope, ranking])
+    .sort((a, b) => b.gap - a.gap), [rankScope, ranking])
+  const comparisonRank = rankScope === "station" ? ranking.stationRank : ranking.regionRank
+  const comparisonTotal = rankScope === "station" ? ranking.stationTotal : ranking.regionTotal
+  const comparisonScore = rankScope === "station" ? scenario.stationFirstScore : scenario.regionFirstScore
+  const totalScoreGap = Math.max(0, comparisonScore - ranking.totalScore)
+  const priorityGaps = dimensionGaps.filter((item) => item.gap > 0).slice(0, 2)
+  const recommendation = priorityGaps.length
+    ? `优先${rankingRecommendations[priorityGaps[0].name]}${priorityGaps[1] ? `，同时${rankingRecommendations[priorityGaps[1].name]}` : ""}；下周期持续跟踪模块差值和排名变化。`
+    : `当前各模块已达到${comparisonLabel}水平，建议持续关注排名和环比波动。`
 
   return (
     <div className="flex flex-col gap-4">
@@ -65,7 +105,7 @@ export function OverviewTab({ onNavigate }: { onNavigate: (view: CockpitView, se
                 <TabsTrigger value="week">周排名</TabsTrigger>
                 <TabsTrigger value="month">月排名</TabsTrigger>
               </TabsList>
-              <Button variant="ghost" size="sm" onClick={() => onNavigate("ranking")}>详情<ChevronRightIcon data-icon="inline-end" aria-hidden="true" /></Button>
+              <Button variant="link" size="sm" onClick={() => onNavigate("ranking")}>详情<ArrowRightIcon data-icon="inline-end" aria-hidden="true" /></Button>
             </CardAction>
           </CardHeader>
           <TabsContent value={rankMode} asChild>
@@ -85,7 +125,7 @@ export function OverviewTab({ onNavigate }: { onNavigate: (view: CockpitView, se
                     />
                   </div>
                   <div className="flex min-w-0 flex-col items-center gap-3 px-4 py-5 text-center md:py-0">
-                    <p className="flex items-center gap-2 text-base font-semibold"><WheatIcon className="size-5 text-brand-ink" aria-hidden="true" /><span>站点排名</span><WheatIcon className="size-5 -scale-x-100 text-brand-ink" aria-hidden="true" /></p>
+                    <p className="text-base font-semibold">站点排名</p>
                     <p className="font-heading font-bold tracking-tight tabular-nums"><span className="text-8xl text-brand-ink">{ranking.stationRank}</span><span className="text-3xl text-foreground"> / {ranking.stationTotal}</span></p>
                     <p className="text-sm text-muted-foreground">{ranking.stationChange} 环比上{cycleLabel}</p>
                   </div>
@@ -93,23 +133,39 @@ export function OverviewTab({ onNavigate }: { onNavigate: (view: CockpitView, se
                   <RankComparisonStat label="综合总分" value={ranking.totalScore} change={`${ranking.totalScoreChange} 环比上${cycleLabel}`} accent divided />
                 </div>
 
-                <Alert className="mt-2 border-0 bg-brand-selected/70 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
-                  <FlameIcon className="text-brand-ink" aria-hidden="true" />
-                  <AlertTitle className="font-normal">距{comparisonLabel}最大维度差距 <span className="text-lg font-semibold text-brand-ink tabular-nums">{dimensionGaps[0]?.gap}</span> 分，优先提升{dimensionGaps.map((item) => item.name).join("与")}。</AlertTitle>
-                  <AlertDescription className="col-start-2 flex flex-wrap items-center gap-2 pt-1 sm:col-start-3 sm:row-start-1 sm:pt-0">
-                    {dimensionGaps.map((item) => <Badge key={item.name} variant="secondary">{item.name} -{item.gap}分</Badge>)}
-                    <ToggleGroup type="single" variant="outline" spacing={0} size="sm" value={rankScope} onValueChange={(value) => value && setRankScope(value as "station" | "region")} aria-label="排名对比范围">
-                      <ToggleGroupItem value="station">站点第一名</ToggleGroupItem>
-                      <ToggleGroupItem value="region">大区第一名</ToggleGroupItem>
-                    </ToggleGroup>
-                  </AlertDescription>
+                <Alert className="mt-2 border-0 bg-brand-selected/70 px-4 py-3">
+                  <div className="grid min-w-0 gap-2.5">
+                    <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <FlameIcon className="size-4 shrink-0 text-brand-ink" aria-hidden="true" />
+                        <AlertTitle className="min-w-0 text-[13px] font-normal">
+                          <span className="min-w-0">与{comparisonLabel}相差 <strong className="font-semibold text-brand-ink tabular-nums">{totalScoreGap}分</strong><span className="text-muted-foreground"> · 当前{rankScope === "station" ? "站点" : "大区"}排名 {comparisonRank}/{comparisonTotal}</span></span>
+                        </AlertTitle>
+                      </div>
+                      <ToggleGroup className="justify-self-start sm:justify-self-end" type="single" variant="raised" spacing={1} size="sm" value={rankScope} onValueChange={(value) => value && setRankScope(value as "station" | "region")} aria-label="排名对比范围">
+                        <ToggleGroupItem value="station">站点第一名</ToggleGroupItem>
+                        <ToggleGroupItem value="region">大区第一名</ToggleGroupItem>
+                      </ToggleGroup>
+                    </div>
+                    <AlertDescription className="grid min-w-0 gap-2.5 text-left text-sm">
+                      <div className="flex min-w-0 flex-wrap gap-2">
+                        {dimensionGaps.map((item) => <Badge key={item.name} variant={item.gap > 0 ? "destructive" : item.gap < 0 ? "success" : "secondary"}>{item.name} {formatDimensionGap(item.gap)}</Badge>)}
+                      </div>
+                      <p className="min-w-0 text-xs leading-5 text-muted-foreground">{recommendation}</p>
+                    </AlertDescription>
+                  </div>
                 </Alert>
               </div>
 
               <Card size="sm" className="h-full bg-card/60 backdrop-blur-md supports-[backdrop-filter]:bg-card/50">
                 <CardHeader><CardTitle className="text-base">维度得分对比</CardTitle></CardHeader>
                 <CardContent className="flex flex-col gap-3">
-                  <EChartsChart option={radar} height="compact" ariaLabel="维度得分对比" />
+                  <EChartsChart
+                    option={radar}
+                    colors={["--brand", rankScope === "station" ? "--chart-2" : "--chart-3"]}
+                    height="compact"
+                    ariaLabel="维度得分对比"
+                  />
                 </CardContent>
               </Card>
             </CardContent>
@@ -117,7 +173,7 @@ export function OverviewTab({ onNavigate }: { onNavigate: (view: CockpitView, se
         </Card>
       </Tabs>
 
-      <OverviewOperations onNavigate={onNavigate} />
+      <OverviewOperations organizationId={organizationId} onNavigate={onNavigate} />
     </div>
   )
 }

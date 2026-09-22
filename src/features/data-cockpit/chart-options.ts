@@ -15,6 +15,15 @@ export const PROJECT_CHART = {
   trendPaddingRatio: 0.12,
   trendSplitNumber: 5,
   percentMinimumSpan: 5,
+  entityBarMinWidth: 8,
+  entityBarGapMinPercent: 10,
+  entityCategoryGapMinPercent: 16,
+  entityAxisLabelLineHeight: 14,
+  entityAxisLabelSafetyGap: 10,
+  entityAxisMaxLabelWidth: 96,
+  entityAxisLabelRotation: 75,
+  dataZoomGridBottom: 76,
+  entityDataZoomGridBottom: 36,
 } as const
 
 export const CHART_TOOLTIP_EXTRA_CSS = "max-width:360px;border-radius:6px;box-shadow:0 8px 24px rgb(0 0 0 / 12%)"

@@ -1,5 +1,6 @@
 import { DEFAULT_TIME_ZONE, formatDate, formatDateRange, formatMonth } from "@/lib/date-time";
 import type { PeriodMode, Perspective } from "./types";
+import { DEFAULT_DSP_ID, generateDailyValues, getDspScenario, getMockDrivers, mockHash, worksOnDate, type MockDriver } from "./mocks";
 // Presentation fixtures, NOT warehouse KPI/score definitions. All views derive from these records.
 export const MOCK_NOTICE = "演示数据 · 指标口径及评分由数仓提供，当前仅展示模拟结果";
 export type Selection = {
@@ -29,12 +30,7 @@ export type Metric = {
 };
 export const round = (n: number, digits = 2) => Number(n.toFixed(digits));
 export const ratio = (a: number, b: number) => b ? a / b * 100 : 0;
-export function hash(value: string) {
-    let n = Array.from(value).reduce((n, c) => Math.imul(n ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
-    n = Math.imul(n ^ n >>> 16, 2246822507);
-    n = Math.imul(n ^ n >>> 13, 3266489909);
-    return (n ^ n >>> 16) >>> 0;
-}
+export const hash = mockHash;
 export const iso = (date: Date) => date.toISOString().slice(0, 10);
 export const dayDate = (day: string) => new Date(`${day.slice(0, 10)}T00:00:00Z`);
 export const shiftDay = (day: string, n: number) => iso(new Date(dayDate(day).getTime() + n * 86400000));
@@ -126,37 +122,21 @@ export function isUpdating(key: string, mode: PeriodMode, value: string, today =
     const end = mode === "month" ? shiftDay(`${shiftMonth(value, 1)}-01`, -1) : mode === "week" ? value.split("~")[1] : value;
     return (dayDate(today).getTime() - dayDate(end).getTime()) / 86400000 < days;
 }
-export const mockDrivers = ["John Smith", "Mike Torres", "Lisa Kim", "David Lee", "Sarah Wang", "Anna Chen", "Tom Yang", "Jim Brown", "Eva Wilson", "Ray Zhang"].map((name, i) => ({ id: `DRV-${1001 + i}`, name, route: `A-${i % 4 + 1}`, postal: ["31405", "30318", "28208", "31406", "30309", "28212"][i % 6], tenure: `${i % 4 + 1}年${i * 3 % 12}月` }));
+export const mockDrivers = getMockDrivers(DEFAULT_DSP_ID);
 export const buckets = ["2400妥投", "4800妥投", "7200妥投", "final妥投", "其他时效"];
 export const complaintTypes = ["轨迹断更", "签收未收到（疑似虚假签收）", "包裹破损缺件", "服务质量"];
 export const exclusionReasons = ["道路封闭；极端天气", "平台系统故障", "收件方临时管制", "偏远区域临时封控", "恶劣天气二次影响", "场站设备异常", "临时交通管制"];
 export type Daily = {
     date: string;
-    driver: typeof mockDrivers[number];
+    driver: MockDriver;
     values: Values;
 };
-export function dailyRecord(date: string, driver: typeof mockDrivers[number]): Daily {
-    const n = hash(`${date}/${driver.id}`);
-    const expected = 100 + n % 61, picked = expected - n % 4, finalPicked = Math.min(expected, picked + 1);
-    const should = finalPicked, unfinished = n % 3, completed72 = should - unfinished, final = Math.min(should, completed72 + 1);
-    const delivered = final - 1, exception = should - delivered;
-    const vol4800 = Math.max(0, Math.min(delivered, completed72 - (n % 3))), vol2400 = Math.max(0, vol4800 - (n % 8));
-    const excluded = 1 + n % 3, excludedDelivered = Math.min(excluded - 1, vol2400);
-    const sortMinutes = 70 + n % 31, firstMinutes = 90 + n % 41, deliveryMinutes = 240 + n % 121;
-    const podChecked = should, podBad = 1 + n % 4, fake = n % 9 === 0 ? 1 : 0, suspected = n % 4 === 0 ? 1 : 0, broken = n % 7 === 0 ? 1 : 0;
-    const complaint = n % 3, validComplaint = complaint && n % 2 ? 1 : 0, dnr = n % 6 === 0 ? 1 : 0;
-    const values: Values = { expected, picked, finalPicked, should, delivered, exception, vol2400, vol4800, completed72, unfinished, final, excluded, excludedDelivered, sortMinutes, firstMinutes, deliveryMinutes, workMinutes: sortMinutes + firstMinutes + deliveryMinutes, podChecked, podBad, podGood: podChecked - podBad, fake, suspected, broken, dnr, complaint, validComplaint, driverDays: 1,
-        bucket0: vol2400, bucket1: vol4800 - vol2400, bucket2: Math.max(0, delivered - vol4800 - 1), bucket3: delivered > vol4800 ? 1 : 0, bucket4: 0,
-    };
-    values.bucket4 = delivered - values.bucket0 - values.bucket1 - values.bucket2 - values.bucket3;
-    for (let i = 0; i < 4; i++) {
-        values[`complaint${i}`] = i === n % 4 ? complaint : 0;
-        values[`validComplaint${i}`] = i === n % 4 ? validComplaint : 0;
-    }
-    return { date, driver, values };
+export function dailyRecord(date: string, driver: MockDriver): Daily {
+    return { date, driver, values: generateDailyValues(date, driver) };
 }
-export function recordsFor(s: Selection, trend = false, today = todayISO()): Daily[] {
-    return selectedPeriods(s, trend).flatMap((period) => periodDays(s.mode, period, today).flatMap((day) => mockDrivers.map((driver) => dailyRecord(day, driver))));
+export function recordsFor(s: Selection, organizationId = DEFAULT_DSP_ID, trend = false, today = todayISO()): Daily[] {
+    const drivers = getMockDrivers(organizationId);
+    return selectedPeriods(s, trend).flatMap((period) => periodDays(s.mode, period, today).flatMap((day) => drivers.filter((driver) => worksOnDate(day, driver)).map((driver) => dailyRecord(day, driver))));
 }
 export function aggregate(records: Daily[]): Values {
     const v: Values = Object.fromEntries(Object.keys(dailyRecord("2026-01-01", mockDrivers[0]).values).map((key) => [key, 0]));
@@ -166,6 +146,7 @@ export function aggregate(records: Daily[]): Values {
     const get = (key: string) => v[key] || 0;
     const drivers = new Set(records.map((r) => r.driver.id)).size;
     Object.assign(v, { drivers, pickupRate: ratio(get("picked"), get("expected")), finalPickupRate: ratio(get("finalPicked"), get("expected")), pph: get("deliveryMinutes") ? get("should") / (get("deliveryMinutes") / 60) : 0,
+        deliveredPerDriver: get("driverDays") ? get("delivered") / get("driverDays") : 0, complaintsPerThousand: get("should") ? get("complaint") / get("should") * 1000 : 0,
         assessedShould: get("should") - get("excluded"), assessed2400: get("vol2400") - get("excludedDelivered"), assessed4800: get("vol4800") - get("excludedDelivered"),
         raw2400: ratio(get("vol2400"), get("should")), raw4800: ratio(get("vol4800"), get("should")), rate7200: ratio(get("completed72"), get("should")),
         podRate: ratio(get("podGood"), get("podChecked")), fakeRate: ratio(get("fake"), get("should")), suspectedRate: ratio(get("suspected"), get("should")), breakRate: ratio(get("broken"), get("should")), dnrRate: ratio(get("dnr"), get("should")), complaintRate: ratio(get("complaint"), get("should")), validComplaintRate: ratio(get("validComplaint"), get("should")),
@@ -180,10 +161,14 @@ export function aggregate(records: Daily[]): Values {
     }
     return v;
 }
-export function periodRows(s: Selection, trend = true): RecordRow[] {
+export function periodRows(s: Selection, organizationId = DEFAULT_DSP_ID, trend = true): RecordRow[] {
+    const drivers = getMockDrivers(organizationId);
     return selectedPeriods(s, trend).map((period) => {
-        const records = recordsFor({ mode: s.mode, value: period });
-        return { id: period, label: periodLabel(s.mode, period), period, values: aggregate(records), children: mockDrivers.map((driver) => ({ id: `${period}/${driver.id}`, label: driver.name, period, values: aggregate(records.filter((r) => r.driver.id === driver.id)) })) };
+        const records = recordsFor({ mode: s.mode, value: period }, organizationId);
+        const byDriver = new Map<string, Daily[]>();
+        for (const record of records)
+            byDriver.set(record.driver.id, [...(byDriver.get(record.driver.id) || []), record]);
+        return { id: period, label: periodLabel(s.mode, period), period, values: aggregate(records), children: drivers.map((driver) => ({ id: `${period}/${driver.id}`, label: driver.name, period, values: aggregate(byDriver.get(driver.id) || []) })) };
     });
 }
 export function byPerspective(records: Daily[], perspective: Perspective): RecordRow[] {
@@ -227,7 +212,7 @@ export function parcelsFor(records: Daily[], key: string): Parcel[] {
     return records.flatMap((record) => Array.from({ length: record.values[key] || 0 }, (_, index) => ({
         waybill: `GF${record.date.replaceAll("-", "")}${record.driver.id.slice(-4)}${key.slice(0, 3)}${String(index + 1).padStart(3, "0")}`,
         driver: record.driver.name, status: key === "unfinished" ? "运输中" : "已妥投", route: record.driver.route, postal: record.driver.postal,
-        pickupAt: `${record.date}T13:00:00Z`, signedAt: `${record.date}T21:00:00Z`, operation: key === "unfinished" ? "派送中" : "签收", operationAt: `${record.date}T21:00:00Z`, operator: record.driver.name, organization: "JAM-JJ",
+        pickupAt: `${record.date}T13:00:00Z`, signedAt: `${record.date}T21:00:00Z`, operation: key === "unfinished" ? "派送中" : "签收", operationAt: `${record.date}T21:00:00Z`, operator: record.driver.name, organization: getDspScenario(record.driver.organizationId).name,
         problem: ({ fake: "签收未收到", suspected: "轨迹疑似断更", broken: "轨迹断更" } as Record<string, string>)[key] || "待复核",
         ticket: `CS-${record.date}-${record.driver.id}-${index + 1}`, complaintAt: `${record.date}T22:00:00Z`, complaintType: complaintTypes[hash(`${record.date}/${record.driver.id}`) % 4], complaintSubtype: key === "validComplaint" ? "有效客诉" : "待核实",
     })));

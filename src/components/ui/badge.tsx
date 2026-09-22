@@ -36,17 +36,19 @@ const badgeVariants = cva(
 function Badge({
   className,
   variant = "default",
+  size,
   asChild = false,
   ...props
 }: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+  VariantProps<typeof badgeVariants> & { asChild?: boolean; size?: "sm" | "md" | "lg" }) {
   const Comp = asChild ? Slot.Root : "span"
 
   return (
     <Comp
       data-slot="badge"
       data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
+      data-size={size}
+      className={cn(badgeVariants({ variant }), size && "rounded-[4px] py-0", size === "sm" && "h-5 px-1.5 text-xs font-normal", size === "md" && "h-6 px-2 text-xs font-medium", size === "lg" && "h-7 px-2.5 text-[13px] font-medium", className)}
       {...props}
     />
   )
