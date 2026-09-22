@@ -44,6 +44,7 @@ type PeriodPickerProps = {
   showGranularity?: boolean
   placeholder?: string
   className?: string
+  triggerClassName?: string
 }
 
 const MODE_LABEL: Record<PeriodMode, string> = {
@@ -206,6 +207,7 @@ function PeriodPicker({
   showGranularity = true,
   placeholder,
   className,
+  triggerClassName,
 }: PeriodPickerProps) {
   const triggerId = React.useId()
   const [open, setOpen] = React.useState(false)
@@ -486,11 +488,11 @@ function PeriodPicker({
               id={triggerId}
               type="button"
               variant="outline"
-              className="w-full max-w-[320px] justify-start text-left [--button-font-size:var(--text-sm)]"
+              className={cn("w-full max-w-[320px] justify-start text-left [--button-font-size:var(--text-sm)]", triggerClassName)}
               aria-label={`${label}：${placeholder || selectionTriggerLabel(selection)}`}
             >
               <CalendarIcon data-icon="inline-start" />
-              <span className="truncate tabular-nums">
+              <span className={cn("truncate tabular-nums", placeholder && "text-muted-foreground")}>
                 {placeholder || selectionTriggerLabel(selection)}
               </span>
             </Button>

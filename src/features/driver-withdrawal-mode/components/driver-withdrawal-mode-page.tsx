@@ -67,7 +67,7 @@ export function DriverWithdrawalModePage() {
     const target = Array.from(row?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((button) => button.getClientRects().length)
     if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" }) }
     else if (triggerRef.current?.isConnected && triggerRef.current.getClientRects().length) triggerRef.current.focus({ preventScroll: true })
-    else document.getElementById("driver-withdrawal-title")?.focus({ preventScroll: true })
+    else tableRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus({ preventScroll: true })
   }, [panel, returnedId])
   function allowed(next: Panel) {
     const row = rows.find((item) => item.id === next.id)
@@ -113,7 +113,6 @@ export function DriverWithdrawalModePage() {
 
   return <div className="min-w-0">
     <div hidden={Boolean(panel)}><div className="flex min-w-0 flex-col gap-6">
-      <header className="flex flex-col gap-2"><h1 id="driver-withdrawal-title" tabIndex={-1} className="text-2xl font-medium outline-none">司机提现模式管理</h1><p className="text-sm text-muted-foreground">管理司机提现模式的开通、关闭申请与审核记录。</p></header>
       <div ref={tableRef} className="min-w-0" style={{ viewTransitionName: "withdrawal-list" }}>
         <Table variant="grid" aria-label="司机提现模式申请列表" className="sm:min-w-[1160px]" viewportClassName="mx-4 mb-4 rounded-lg border" toolbar={
           <form onSubmit={query} className="flex flex-col gap-4">
@@ -122,7 +121,7 @@ export function DriverWithdrawalModePage() {
               {selector("type", "申请类型", Object.entries(TYPE_LABELS))}
               {selector("modeStatus", "提现模式状态", Object.entries(MODE_LABELS))}
               {selector("auditStatus", "审核状态", Object.entries(AUDIT_LABELS))}
-              <PeriodPicker label="最新操作日期" selection={{ mode: "day", value: draft.to || today, range: { start: draft.from || today, end: draft.to || today } }} onChange={(value) => { setDraft((previous) => ({ ...previous, from: value.range?.start || value.value, to: value.range?.end || value.value })); setFilterError("") }} rangeOnly modes={["day"]} showGranularity={false} placeholder={draft.from ? undefined : "请选择日期范围"} />
+              <PeriodPicker triggerClassName="max-w-none" label="最新操作日期" selection={{ mode: "day", value: draft.to || today, range: { start: draft.from || today, end: draft.to || today } }} onChange={(value) => { setDraft((previous) => ({ ...previous, from: value.range?.start || value.value, to: value.range?.end || value.value })); setFilterError("") }} rangeOnly modes={["day"]} showGranularity={false} placeholder={draft.from ? undefined : "请选择日期范围"} />
             </FieldGroup>
             {filterError && <FieldError>{filterError}</FieldError>}
             <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-sm text-muted-foreground" aria-live="polite">待审核 <span className="font-medium text-foreground tabular-nums">{filtered.filter((row) => row.auditStatus === "pending").length}</span> 条数据</span><div className="ml-auto flex items-center gap-2"><Button type="submit"><SearchIcon data-icon="inline-start" />查询</Button><Button type="button" variant="outline" onClick={reset}><RotateCcwIcon data-icon="inline-start" />重置</Button></div></div>

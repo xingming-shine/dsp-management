@@ -829,6 +829,9 @@ html[data-waybill-transition]::view-transition-new(waybill-detail) { animation: 
 .audit-timeline__reason[data-tone="destructive"] .audit-timeline__reason-label { color: var(--destructive); }
 
 /* Withdrawal workflows share the live dashboard's inline list/detail motion. */
+.bills-workspace { height: calc(100dvh - 5.5rem); min-height: 32rem; scroll-margin-top: 5rem; }
+.bills-record-card[aria-current="true"] { color: var(--brand-ink); background: var(--brand-selected); }
+.bills-workspace [data-slot="field-label"] { white-space: normal; }
 .withdrawal-workspace {
   height: calc(100dvh - 5.5rem);
   min-height: 28rem;

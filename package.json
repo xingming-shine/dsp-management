@@ -9,7 +9,8 @@
     "prebuild": "node scripts/prepare-maplibre.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:bills": "node --test scripts/test-bills.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

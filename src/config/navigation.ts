@@ -273,6 +273,14 @@ export const primaryNavigation: NavigationItem[] = [
     icon: DollarSignIcon,
     children: [
       {
+        id: "finance-bills",
+        label: "账单管理",
+        icon: FileCheck2Icon,
+        href: "/finance/bills",
+        permission: "finance.settlement.read",
+        status: "available",
+      },
+      {
         id: "finance-settlement",
         label: "财务结算",
         icon: DollarSignIcon,

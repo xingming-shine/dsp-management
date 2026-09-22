@@ -17,6 +17,7 @@ import {
   UserIcon,
 } from "lucide-react"
 import { toast } from "sonner"
+import { setTimezone, useTimezone } from "@/features/preferences/timezone-store"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -138,7 +139,7 @@ function getRouteBreadcrumbItems(pathname: string): AppBreadcrumbItem[] {
 export function AppHeader() {
   const pathname = usePathname()
   const { organizationId, setOrganizationId } = useOrganization()
-  const [timezone, setTimezone] = useState(mockSession.preferences.timezone)
+  const timezone = useTimezone()
   const [locale, setLocale] = useState(mockSession.preferences.locale)
   const [logoutOpen, setLogoutOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
