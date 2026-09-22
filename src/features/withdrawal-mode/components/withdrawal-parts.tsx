@@ -12,7 +12,6 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate, formatDateTime } from "@/lib/date-time"
-import { cn } from "@/lib/utils"
 import { mockSession } from "@/mocks/session"
 import { AUDIT_LABELS, FILE_FIELDS, MODE_LABELS, type Application, type Attachment, type AuditStatus, type Driver, type ModeStatus } from "../model"
 
@@ -73,16 +72,29 @@ export function ApplicationMaterials({ row }: { row: Application }) {
 export function AuditHistory({ row }: { row: Application }) {
   const logs = [...row.logs].sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
   return <Section title="审核记录">
-    <p className="text-xs text-muted-foreground">时间按 {mockSession.preferences.timezone} 展示，最新记录在前。</p>
-    <ol aria-label="审核记录时间线" className="flex flex-col">{logs.map((log, index) => <li key={`${log.time}-${index}`} className="relative flex flex-col gap-1.5 pb-6 pl-7 last:pb-0">
-      {index < logs.length - 1 && <Separator orientation="vertical" className="absolute top-5 bottom-0 left-1.5 data-[orientation=vertical]:h-auto" />}
-      <span aria-hidden className={cn("absolute top-1 left-0 size-3 rounded-full", log.status.includes("驳回") ? "bg-destructive" : log.status === "审核通过" ? "bg-success" : "bg-warning")} />
-      <time dateTime={log.time} className="text-xs text-muted-foreground tabular-nums">{displayTime(log.time)}</time>
-      <span className="text-sm font-medium">{log.status}</span>
-      <span className="text-xs text-muted-foreground">操作人：{log.operator}</span>
-      <p className="text-sm">{log.action}</p>
-      {log.reason && <p className="break-words text-sm">驳回原因：{log.reason}</p>}
-    </li>)}</ol>
+    {logs.length ? <ol aria-label="审核记录时间线，最新记录在前" className="audit-timeline">{logs.map((log, index) => {
+      const title = log.action.trim() || log.status.trim() || "审核记录"
+      const status = log.status.trim()
+      const rejected = title.includes("驳回") || status.includes("驳回")
+      const tone = rejected ? "destructive" : title.includes("通过") ? "success" : "neutral"
+      const repeatedStatus = title.includes(status) || (title.includes("驳回") && status.includes("驳回"))
+      const outcome = status && !repeatedStatus ? (status.endsWith("审核中") ? `流转至${status}` : `处理后状态：${status}`) : ""
+      const reason = log.reason?.trim()
+      return <li key={`${log.time}-${index}`} className="audit-timeline__item" data-latest={index === 0}>
+        <div className="audit-timeline__track" aria-hidden="true"><span className="audit-timeline__node" data-tone={tone} /></div>
+        <div className="audit-timeline__content">
+          <div className="audit-timeline__heading"><h4>{title}</h4>{index === 0 && <Badge size="sm" variant="secondary">最新</Badge>}</div>
+          <div className="audit-timeline__meta">
+            <time dateTime={log.time}>{displayTime(log.time)}</time>
+            <span className="audit-timeline__operator"><span aria-hidden="true">·</span><span>操作人：{log.operator.trim() || "—"}</span></span>
+          </div>
+          {(outcome || reason) && <div className="audit-timeline__notes">
+            {outcome && <p>{outcome}</p>}
+            {reason && <p className="audit-timeline__reason" data-tone={tone}><span className="audit-timeline__reason-label">{rejected ? "驳回原因" : "备注"}</span>{reason}</p>}
+          </div>}
+        </div>
+      </li>
+    })}</ol> : <EmptyResults title="暂无审核记录" description="申请提交或审核后，记录将在这里展示。" />}
   </Section>
 }
 export type Confirmation = { title: string; description: string; label: string; destructive?: boolean; onConfirm: () => void }

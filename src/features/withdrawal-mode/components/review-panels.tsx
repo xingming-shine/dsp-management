@@ -13,7 +13,7 @@ import { AgreementSigning } from "./payment-agreement"
 type PanelBaseProps = { row: Application; onClose: () => void }
 
 export function DetailPanel({ row, actions, ...props }: PanelBaseProps & { actions?: ReactNode }) {
-  return <WorkflowPanel {...props} title="提现模式申请详情" description={`${row.dspName} · ${row.fleetName}`} footer={actions ? () => actions : undefined}><ApplicationInfo row={row} /><Separator /><ApplicationMaterials row={row} /><Separator /><AgreementSigning /><Separator /><AuditHistory row={row} /></WorkflowPanel>
+  return <WorkflowPanel {...props} title="提现模式详情" description={`${row.dspName} · ${row.fleetName}`} footer={actions ? () => actions : undefined}><ApplicationInfo row={row} /><Separator /><ApplicationMaterials row={row} /><Separator /><AgreementSigning /><Separator /><AuditHistory row={row} /></WorkflowPanel>
 }
 
 export function ClosingPanel({ row, onSubmit, ...props }: PanelBaseProps & { onSubmit: (reason: string) => void }) {

@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDate } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
-import { AUDIT_LABELS, type Application } from "../model"
-import { AuditBadge, ConfirmAction, WorkflowDirtyContext, type Confirmation } from "./withdrawal-parts"
+import { AUDIT_LABELS, MODE_LABELS, type Application } from "../model"
+import { AuditBadge, ConfirmAction, ModeBadge, WorkflowDirtyContext, type Confirmation } from "./withdrawal-parts"
 
 export type WithdrawalPanel = { type: "create" } | { type: "detail" | "reapply" | "close" | "business" | "financial"; id: string }
 type Navigation = { onCancel: () => void; onNavigate: (panel: WithdrawalPanel) => void }
@@ -121,13 +121,13 @@ export function WithdrawalWorkspace({ panel, rows, onNavigate, onReturn, childre
             <ul className="flex flex-col gap-2">
               {panel.type === "create" && <li><Button variant="outline" aria-current="true" className="withdrawal-navigation-card h-auto w-full flex-col items-start gap-2 px-3 py-4" onClick={() => navigate({ type: "create" })}><span className="flex items-center gap-2"><PlusIcon data-icon="inline-start" />新建申请</span><span className="text-xs text-muted-foreground">未提交</span></Button></li>}
               {rows.map((row, index) => <li key={row.id} style={{ viewTransitionName: withdrawalTransitionName(row.id) }}>
-                <Button variant="outline" className="withdrawal-navigation-card h-auto w-full flex-col items-stretch gap-2 px-3 py-3 text-left" aria-current={row.id === selectedId ? "true" : undefined} aria-label={`查看 ${row.dspName} · ${row.fleetName}，${AUDIT_LABELS[row.auditStatus]}`} disabled={closing} onClick={() => select(index)} onKeyDown={(event) => {
+                <Button variant="outline" className="withdrawal-navigation-card h-auto w-full flex-col items-stretch gap-2 px-3 py-3 text-left" aria-current={row.id === selectedId ? "true" : undefined} aria-label={`查看 ${row.dspName} · ${row.fleetName}，${AUDIT_LABELS[row.auditStatus]}，${row.applicationType === "open" ? "开启申请" : "关闭申请"}，${MODE_LABELS[row.modeStatus]}，最新操作日期：${formatDate(row.latestOperationDate)}`} disabled={closing} onClick={() => select(index)} onKeyDown={(event) => {
                   const target = event.key === "ArrowDown" ? index + 1 : event.key === "ArrowUp" ? index - 1 : event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1 : null
                   if (target !== null) { event.preventDefault(); select(target, true) }
                 }}>
                   <span className="flex min-w-0 items-center justify-between gap-2"><CardText value={row.dspName} /><AuditBadge status={row.auditStatus} /></span>
-                  <span className="flex min-w-0 text-xs text-muted-foreground"><CardText value={row.fleetName} /></span>
-                  <span className="flex flex-wrap items-center justify-between gap-2"><Badge size="sm" variant="outline">{row.applicationType === "open" ? "开启申请" : "关闭申请"}</Badge><time dateTime={row.latestOperationDate} className="text-xs text-muted-foreground tabular-nums">{formatDate(row.latestOperationDate)}</time></span>
+                  <span className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground"><CardText value={row.fleetName} /><Badge size="sm" variant="outline">{row.applicationType === "open" ? "开启申请" : "关闭申请"}</Badge></span>
+                  <span className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground"><span className="flex min-w-0 flex-wrap"><span>最新操作日期：</span><time dateTime={row.latestOperationDate} className="tabular-nums">{formatDate(row.latestOperationDate)}</time></span><ModeBadge status={row.modeStatus} /></span>
                 </Button>
               </li>)}
             </ul>
