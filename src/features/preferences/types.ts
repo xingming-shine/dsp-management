@@ -1,12 +1,11 @@
 export type SupportedLocale = "zh-CN" | "en-US" | "es-ES"
 
 export type DateFormat =
-  | "YYYY-MM-DD"
-  | "MM/DD/YYYY"
-  | "DD/MM/YYYY"
-  | "YYYY年MM月DD日"
-  | "MM-DD-YYYY"
-  | "DD.MM.YYYY"
+  | "HH:mm:ss dd/MM/yyyy"
+  | "HH:mm:ss MM/dd/yyyy"
+  | "MM/dd/yyyy HH:mm:ss"
+  | "dd/MM/yyyy HH:mm:ss"
+  | "yyyy/MM/dd HH:mm:ss"
 
 export interface UserPreferences {
   locale: SupportedLocale

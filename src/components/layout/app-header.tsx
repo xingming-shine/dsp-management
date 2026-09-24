@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Fragment, useEffect, useState } from "react"
 import {
   Building2Icon,
@@ -13,6 +13,7 @@ import {
   LanguagesIcon,
   LogOutIcon,
   SettingsIcon,
+  SlidersHorizontalIcon,
   SmartphoneIcon,
   UserIcon,
 } from "lucide-react"
@@ -78,6 +79,8 @@ import {
 import { cn } from "@/lib/utils"
 import { mockSession } from "@/mocks/session"
 import { useOrganization } from "@/features/organizations/organization-context"
+import { useProfile } from "@/features/auth/profile-context"
+import { mockDspGateway } from "@/services/mock-dsp-gateway"
 import {
   primaryNavigation,
   type NavigationItem,
@@ -138,7 +141,9 @@ function getRouteBreadcrumbItems(pathname: string): AppBreadcrumbItem[] {
 
 export function AppHeader() {
   const pathname = usePathname()
+  const router = useRouter()
   const { organizationId, setOrganizationId } = useOrganization()
+  const { user } = useProfile()
   const timezone = useTimezone()
   const [locale, setLocale] = useState(mockSession.preferences.locale)
   const [logoutOpen, setLogoutOpen] = useState(false)
@@ -164,9 +169,10 @@ export function AppHeader() {
     toast.success(`已切换到：${organization?.name ?? value}`)
   }
 
-  function handleLogout() {
+  async function handleLogout() {
     setLogoutOpen(false)
-    toast.info("框架阶段暂未接入真实退出接口")
+    await mockDspGateway.logout()
+    router.replace("/login")
   }
 
   return (
@@ -248,7 +254,11 @@ export function AppHeader() {
               <Building2Icon />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              position="popper"
+              align="start"
+              className="w-(--radix-select-trigger-width)"
+            >
               <SelectGroup>
                 {mockSession.organizations.map((organization) => (
                   <SelectItem key={organization.id} value={organization.id}>
@@ -307,11 +317,11 @@ export function AppHeader() {
             >
               <Avatar>
                 <AvatarFallback>
-                  {mockSession.user.name.slice(0, 1)}
+                  {user.name.slice(0, 1)}
                 </AvatarFallback>
               </Avatar>
               <span className="hidden max-w-24 truncate xl:inline">
-                {mockSession.user.name}
+                {user.name}
               </span>
               <ChevronDownIcon data-icon="inline-end" />
               <span className="sr-only">打开用户菜单</span>
@@ -321,20 +331,20 @@ export function AppHeader() {
             <DropdownMenuLabel className="flex items-center gap-3 p-3">
               <Avatar size="lg">
                 <AvatarFallback>
-                  {mockSession.user.name.slice(0, 1)}
+                  {user.name.slice(0, 1)}
                 </AvatarFallback>
               </Avatar>
               <span className="flex min-w-0 flex-col gap-1">
-                <span className="truncate">{mockSession.user.name}</span>
+                <span className="truncate">{user.name}</span>
                 <span className="truncate font-normal text-muted-foreground">
-                  {mockSession.user.email}
+                  {user.email}
                 </span>
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="gap-2.5 px-2.5">
+                <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
                   <Building2Icon />
                   当前组织
                 </DropdownMenuSubTrigger>
@@ -355,7 +365,7 @@ export function AppHeader() {
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="gap-2.5 px-2.5">
+                <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
                   <Clock3Icon />
                   时区
                 </DropdownMenuSubTrigger>
@@ -379,7 +389,7 @@ export function AppHeader() {
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="gap-2.5 px-2.5">
+                <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
                   <LanguagesIcon />
                   语言
                 </DropdownMenuSubTrigger>
@@ -405,13 +415,19 @@ export function AppHeader() {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem className="gap-2.5 px-2.5" asChild>
+              <DropdownMenuItem className="gap-2.5 px-2.5 py-2" asChild>
                 <Link href="/my/profile">
                   <UserIcon />
-                  个人资料
+                  个人中心
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2.5 px-2.5" asChild>
+              <DropdownMenuItem className="gap-2.5 px-2.5 py-2" asChild>
+                <Link href="/my/date-format">
+                  <SlidersHorizontalIcon />
+                  个性化设置
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2.5 px-2.5 py-2" asChild>
                 <Link href="/my/password">
                   <SettingsIcon />
                   密码修改
@@ -421,7 +437,7 @@ export function AppHeader() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem
-                className="gap-2.5 px-2.5"
+                className="gap-2.5 px-2.5 py-2"
                 variant="destructive"
                 onSelect={() => setLogoutOpen(true)}
               >
@@ -438,7 +454,7 @@ export function AppHeader() {
           <DialogHeader>
             <DialogTitle>确认退出登录</DialogTitle>
             <DialogDescription>
-              退出后需要重新输入账号密码才能登录。
+              退出当前预览并返回登录页。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

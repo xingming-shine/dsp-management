@@ -1,6 +1,6 @@
 import type { DateFormat } from "@/features/preferences/types"
 
-export const DEFAULT_DATE_FORMAT: DateFormat = "MM/DD/YYYY"
+export const DEFAULT_DATE_FORMAT: DateFormat = "MM/dd/yyyy HH:mm:ss"
 export const DEFAULT_TIME_ZONE = "America/New_York"
 export const DATE_TIME_LOCALE = "en-US"
 
@@ -63,12 +63,11 @@ export function formatDate(
 
   const { day, month, year } = parts
   const formats: Record<DateFormat, string> = {
-    "YYYY-MM-DD": `${year}-${month}-${day}`,
-    "MM/DD/YYYY": `${month}/${day}/${year}`,
-    "DD/MM/YYYY": `${day}/${month}/${year}`,
-    "YYYY年MM月DD日": `${year}年${month}月${day}日`,
-    "MM-DD-YYYY": `${month}-${day}-${year}`,
-    "DD.MM.YYYY": `${day}.${month}.${year}`,
+    "HH:mm:ss dd/MM/yyyy": `${day}/${month}/${year}`,
+    "HH:mm:ss MM/dd/yyyy": `${month}/${day}/${year}`,
+    "MM/dd/yyyy HH:mm:ss": `${month}/${day}/${year}`,
+    "dd/MM/yyyy HH:mm:ss": `${day}/${month}/${year}`,
+    "yyyy/MM/dd HH:mm:ss": `${year}/${month}/${day}`,
   }
 
   return formats[dateFormat]
@@ -109,10 +108,12 @@ export function formatDateTime(
   const normalized = normalizeDateInput(value)
   if (Number.isNaN(normalized.date.getTime())) return options.fallback ?? "—"
 
-  return `${formatDate(value, options)} ${formatTime(value, {
+  const date = formatDate(value, options)
+  const time = formatTime(value, {
     ...options,
-    includeSeconds: options.includeSeconds ?? false,
-  })}`
+    includeSeconds: options.includeSeconds ?? Boolean(options.dateFormat),
+  })
+  return options.dateFormat?.startsWith("HH:") ? `${time} ${date}` : `${date} ${time}`
 }
 
 export function formatDateRange(

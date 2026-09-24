@@ -8,6 +8,8 @@ export interface SessionUser {
   name: string
   phone: string
   email: string
+  gender: "male" | "female"
+  createdAt: string
   role: UserRole
 }
 

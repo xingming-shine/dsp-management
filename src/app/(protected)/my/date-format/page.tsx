@@ -1,48 +1,37 @@
 "use client"
 
-import { useState } from "react"
-import { CalendarDaysIcon, Clock3Icon, SaveIcon } from "lucide-react"
+import { useState, type FormEvent } from "react"
+import Image from "next/image"
+import { CalendarDaysIcon, SaveIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group"
+import { FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { DateFormat } from "@/features/preferences/types"
+import { saveDateFormat, useSavedDateFormat } from "@/features/preferences/date-format-store"
+import { useTimezone } from "@/features/preferences/timezone-store"
 import {
-  DEFAULT_TIME_ZONE,
   formatDate,
   formatDateRange,
   formatDateTime,
   formatTime,
 } from "@/lib/date-time"
-import { mockSession } from "@/mocks/session"
-import { mockDspGateway } from "@/services/mock-dsp-gateway"
 
 const dateFormatOptions: Array<{ value: DateFormat; label: string }> = [
-  { value: "MM/DD/YYYY", label: "MM/DD/YYYY（美国）" },
-  { value: "YYYY-MM-DD", label: "YYYY-MM-DD（ISO）" },
-  { value: "DD/MM/YYYY", label: "DD/MM/YYYY" },
-  { value: "MM-DD-YYYY", label: "MM-DD-YYYY" },
-  { value: "DD.MM.YYYY", label: "DD.MM.YYYY" },
-  { value: "YYYY年MM月DD日", label: "YYYY年MM月DD日" },
+  { value: "HH:mm:ss dd/MM/yyyy", label: "HH:mm:ss dd/MM/yyyy" },
+  { value: "HH:mm:ss MM/dd/yyyy", label: "HH:mm:ss MM/dd/yyyy" },
+  { value: "MM/dd/yyyy HH:mm:ss", label: "MM/dd/yyyy HH:mm:ss" },
+  { value: "dd/MM/yyyy HH:mm:ss", label: "dd/MM/yyyy HH:mm:ss" },
+  { value: "yyyy/MM/dd HH:mm:ss", label: "yyyy/MM/dd HH:mm:ss" },
 ]
 
 const previewDate = "2026-08-21"
@@ -50,110 +39,100 @@ const previewEndDate = "2026-08-27"
 const previewInstant = "2026-08-21T16:42:18-04:00"
 
 export default function DateFormatPage() {
-  const [dateFormat, setDateFormat] = useState<DateFormat>(
-    mockSession.preferences.dateFormat
-  )
+  const savedFormat = useSavedDateFormat()
+  return <DateFormatEditor key={savedFormat} savedFormat={savedFormat} />
+}
+
+function DateFormatEditor({ savedFormat }: { savedFormat: DateFormat }) {
+  const timezone = useTimezone()
+  const [dateFormat, setDateFormat] = useState<DateFormat>(savedFormat)
   const [isSaving, setIsSaving] = useState(false)
 
-  async function savePreference() {
+  async function savePreference(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSaving) return
     setIsSaving(true)
     try {
-      await mockDspGateway.updatePreferences({ dateFormat })
+      await saveDateFormat(dateFormat)
       toast.success("日期格式已保存")
+    } catch {
+      toast.error("保存失败，请重试")
     } finally {
       setIsSaving(false)
     }
   }
 
   return (
-    <section className="flex w-full max-w-4xl flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            日期格式
-          </h1>
-          <p className="text-muted-foreground">
-            设置系统的日期展示顺序，时间始终使用 24 小时制。
-          </p>
-        </div>
-        <Badge variant="outline">默认：美国格式</Badge>
+    <section className="relative isolate mb-4 flex w-full flex-1 flex-col gap-3 pt-0 md:gap-6 md:px-5 md:pt-4 xl:px-12 xl:pt-8 [@media(max-height:800px)]:mb-2 [@media(max-height:800px)]:gap-3 [@media(max-height:800px)]:pt-0">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-4 -top-14 -z-10 hidden h-[260px] w-[min(800px,60%)] overflow-hidden opacity-80 xl:block dark:hidden"
+        style={{
+          maskImage: "linear-gradient(to right, transparent 0%, black 32%), linear-gradient(to bottom, black 0%, black 55%, transparent 100%)",
+          maskComposite: "intersect",
+        }}
+      >
+        <Image src="/images/profile-page-arc.png" alt="" fill sizes="800px" priority unoptimized className="object-cover object-top" />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>展示偏好</CardTitle>
-          <CardDescription>
-            此设置只影响界面展示，接口和存储值仍使用 ISO 8601。
-          </CardDescription>
-          <CardAction>
-            <CalendarDaysIcon className="size-5 text-muted-foreground" aria-hidden="true" />
-          </CardAction>
+      <div className="flex flex-col gap-3 [@media(max-height:620px)]:min-[640px]:flex-row [@media(max-height:620px)]:min-[640px]:items-baseline">
+        <h1 className="text-2xl font-semibold md:text-3xl">个性化设置</h1>
+        <p className="text-sm text-muted-foreground md:text-base">设置系统的日期时间展示格式，时间使用 24 小时制。</p>
+      </div>
+
+      <Card className="min-h-max min-w-0 flex-1 gap-0 py-0 lg:max-h-[620px]">
+        <CardHeader className="grid-cols-[auto_1fr] items-center gap-x-4 gap-y-0 px-5 pt-5 md:px-9 md:pt-8 [@media(max-height:800px)]:pt-3">
+          <div className="flex size-11 items-center justify-center rounded-lg bg-brand-selected text-brand-ink">
+            <CalendarDaysIcon className="size-6" aria-hidden="true" />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1 md:gap-2">
+            <CardTitle className="text-lg leading-normal md:text-2xl">展示偏好</CardTitle>
+            <CardDescription className="text-sm md:text-base">选择日期时间格式，查看实时预览。</CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <Field>
-              <FieldLabel id="date-format-label">日期格式</FieldLabel>
-              <ToggleGroup
-                type="single"
-                variant="outline"
+
+        <form className="flex flex-1 flex-col" onSubmit={savePreference}>
+          <CardContent className="grid flex-1 gap-7 px-5 py-5 md:px-9 md:py-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] [@media(max-height:800px)]:gap-4 [@media(max-height:800px)]:py-3">
+            <FieldSet className="min-w-0 gap-3">
+              <FieldLegend id="date-format-label" variant="label" className="mb-4 data-[variant=label]:text-base">日期时间格式</FieldLegend>
+              <RadioGroup
                 value={dateFormat}
-                onValueChange={(value) => {
-                  if (value) setDateFormat(value as DateFormat)
-                }}
+                onValueChange={(value) => setDateFormat(value as DateFormat)}
                 aria-labelledby="date-format-label"
-                className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2"
+                className="grid w-full grid-cols-1 gap-3 [@media(max-height:700px)]:gap-2"
               >
-                {dateFormatOptions.map((option) => (
-                  <ToggleGroupItem
-                    key={option.value}
-                    value={option.value}
-                    className="justify-start"
-                  >
-                    {option.label}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              <FieldDescription>
-                新用户默认使用 MM/DD/YYYY。
-              </FieldDescription>
-            </Field>
+                {dateFormatOptions.map((option, index) => {
+                  const id = `date-format-${index}`
+                  return (
+                    <FieldLabel key={option.value} htmlFor={id} className="h-14 w-full cursor-pointer gap-3 rounded-md border border-input px-4 font-normal transition-colors hover:bg-brand-hover has-data-[state=checked]:border-brand/30 has-data-[state=checked]:bg-brand-selected [@media(max-height:700px)]:h-12">
+                      <RadioGroupItem id={id} value={option.value} />
+                      <span>{option.label}</span>
+                    </FieldLabel>
+                  )
+                })}
+              </RadioGroup>
+            </FieldSet>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <PreviewItem
-                label="完整日期"
-                value={formatDate(previewDate, { dateFormat })}
-              />
-              <PreviewItem
-                label="日期时间"
-                value={formatDateTime(previewInstant, { dateFormat })}
-              />
-              <PreviewItem
-                label="实时精确时间"
-                value={formatTime(previewInstant)}
-              />
-              <PreviewItem
-                label="日期范围"
-                value={formatDateRange(previewDate, previewEndDate, { dateFormat })}
-              />
+            <div className="flex min-w-0 flex-col rounded-lg bg-muted/60 px-5 py-5 lg:mt-10 [@media(max-height:800px)]:py-3">
+              <h2 className="text-lg font-semibold">格式预览</h2>
+              <p className="mt-1 text-sm text-muted-foreground">选择格式后，示例会实时更新。</p>
+              <dl className="mt-4 grid flex-1 grid-rows-4 divide-y divide-border [@media(max-height:800px)]:mt-2">
+                <PreviewItem label="完整日期" value={formatDate(previewDate, { dateFormat })} />
+                <PreviewItem label="日期时间" value={formatDateTime(previewInstant, { dateFormat, timeZone: timezone, includeSeconds: true })} />
+                <PreviewItem label="实时精确时间" value={formatTime(previewInstant, { timeZone: timezone })} />
+                <PreviewItem label="日期范围" value={formatDateRange(previewDate, previewEndDate, { dateFormat, timeZone: timezone })} />
+              </dl>
             </div>
+          </CardContent>
 
-            <div className="flex items-start gap-3 rounded-lg bg-muted p-4">
-              <Clock3Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">24 小时制</span>
-                <span className="text-sm text-muted-foreground">
-                  当前默认时区为 {DEFAULT_TIME_ZONE}，不显示 AM / PM。
-                </span>
-              </div>
-            </div>
-          </FieldGroup>
-        </CardContent>
-        <CardFooter className="justify-end border-t">
-          <Button onClick={savePreference} disabled={isSaving}>
-            <SaveIcon data-icon="inline-start" />
-            {isSaving ? "保存中…" : "保存设置"}
-          </Button>
-        </CardFooter>
+          <CardFooter className="justify-end gap-3 border-t px-5 pb-4 [--card-spacing:--spacing(4)] md:px-9 [@media(max-height:800px)]:pb-2 [@media(max-height:800px)]:[--card-spacing:--spacing(2)]">
+            <Button type="button" variant="outline" className="h-12 min-w-28 [--button-font-size:16px] [@media(max-height:800px)]:h-10" onClick={() => setDateFormat(savedFormat)} disabled={isSaving}>取消</Button>
+            <Button type="submit" className="h-12 min-w-32 [--button-font-size:16px] [@media(max-height:800px)]:h-10" disabled={isSaving}>
+              <SaveIcon data-icon="inline-start" />
+              {isSaving ? "保存中…" : "保存设置"}
+            </Button>
+          </CardFooter>
+        </form>
       </Card>
     </section>
   )
@@ -161,9 +140,9 @@ export default function DateFormatPage() {
 
 function PreviewItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border bg-card p-4">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="font-mono text-sm tabular-nums">{value}</span>
+    <div className="grid min-h-11 grid-cols-[minmax(84px,0.8fr)_minmax(0,1.6fr)] items-center gap-3 py-2.5 text-sm">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right font-medium tabular-nums">{value}</dd>
     </div>
   )
 }

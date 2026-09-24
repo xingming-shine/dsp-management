@@ -6,6 +6,8 @@ export const mockSession: AuthSession = {
     name: "John Smith",
     phone: "+1 123-456-7890",
     email: "john@abclogistics.com",
+    gender: "male",
+    createdAt: "2026-06-18T17:50:44Z",
     role: "owner",
   },
   organizations: [
@@ -44,6 +46,6 @@ export const mockSession: AuthSession = {
   preferences: {
     locale: "zh-CN",
     timezone: "America/New_York",
-    dateFormat: "MM/DD/YYYY",
+    dateFormat: "MM/dd/yyyy HH:mm:ss",
   },
 }

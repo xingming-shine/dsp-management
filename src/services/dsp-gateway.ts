@@ -9,10 +9,16 @@ export interface LoginInput {
   captchaAnswer: string
 }
 
+export interface ChangePasswordInput {
+  currentPassword: string
+  newPassword: string
+}
+
 export interface DspGateway {
   getSession(): Promise<AuthSession | null>
   login(input: LoginInput): Promise<AuthSession>
   logout(): Promise<void>
   switchOrganization(organizationId: OrganizationSummary["id"]): Promise<void>
   updatePreferences(preferences: Partial<UserPreferences>): Promise<UserPreferences>
+  changePassword(input: ChangePasswordInput): Promise<void>
 }

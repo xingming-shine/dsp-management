@@ -2,6 +2,7 @@ import { mockSession } from "@/mocks/session"
 import type { DspGateway } from "@/services/dsp-gateway"
 
 let activeSession = mockSession
+let previewPassword: string | null = null
 
 export const mockDspGateway: DspGateway = {
   async getSession() {
@@ -31,5 +32,11 @@ export const mockDspGateway: DspGateway = {
       preferences: nextPreferences,
     }
     return activeSession.preferences
+  },
+  async changePassword({ currentPassword, newPassword }) {
+    if (previewPassword !== null && currentPassword !== previewPassword) {
+      throw new Error("当前密码不正确")
+    }
+    previewPassword = newPassword
   },
 }

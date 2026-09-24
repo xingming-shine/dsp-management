@@ -371,3 +371,56 @@ No actionable P0, P1, or P2 visual differences remain. At the mobile width, inst
 - Fix: increased Card spacing and desktop top/section gaps, then captured desktop and mobile again. The final evidence is listed above.
 
 final result: passed
+
+---
+
+# Design QA — 个人资料页（2026-09-24）
+
+- Source visual truth: `/var/folders/yz/ly7r7l4d2fl3pcdbg37m2x5m0000gn/T/codex-clipboard-0d9e2eaf-0bd3-4db9-9b43-bd2d666216c9.png`
+- Implementation screenshot: Codex in-app browser capture in this task (inline image; the browser screenshot API did not provide a filesystem path)
+- Route: `http://localhost:3000/my/profile`
+- Viewport: 1772 × 888 CSS px. Source: 1772 × 888 px. The in-app browser returned a 1750 × 877 px JPEG after its display normalization; layout measurements were taken in the 1772 × 888 CSS viewport.
+- State: light theme, collapsed sidebar, profile form unchanged. The active local organization is ATL-LG; the reference shows JAM-JJ, so this is account state rather than a layout difference.
+
+## Full-view comparison evidence
+
+The source image and the rendered page were emitted together in one browser QA output. The implementation matches the reference's two-card composition, 435 px left column, 20 px gap, title x=120, and card top y=208. The form actions remain at the bottom right and the profile summary occupies the full left card height. The existing project shell and its theme tokens were retained.
+
+## Focused region comparison evidence
+
+The full-resolution comparison remained readable for the profile card and all form controls, so a separate crop was unnecessary. The visible details checked were the avatar and role badge, five icon-led summary rows, phone reveal button, three icon-led fields, gender options, and bottom action buttons.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the project PingFang-first stack and semantic heading hierarchy are used. Field values and actions were enlarged to the reference's form scale; text does not wrap unexpectedly.
+- Spacing and layout rhythm: both cards align on the same top edge. The left summary separators and bottom logout action, and the right form rows and footer actions, follow the reference's vertical order. At 390 × 844 CSS px the cards stack without horizontal document overflow.
+- Colors and tokens: card, border, muted copy, focus, destructive validation, and orange actions use repository tokens. The background follows the repository theme.
+- Image quality and assets: the card ribbon and page arc use separate decorative PNG assets. Icons remain project Lucide components; no UI content is rasterized.
+- Copy and content: all labels, summary values, and profile fields are present. Organization text reflects the currently selected organization.
+
+## Findings
+
+No actionable P0, P1, or P2 visual differences remain. P3: the generated ribbon has a slightly sharper diagonal than the reference artwork; it is subtle and does not obscure text.
+
+## Interaction and accessibility validation
+
+- An invalid phone number produced the expected inline error; Reset restored the stored value.
+- Phone reveal, Save, and logout controls remain present with accessible names.
+- Browser console errors: none. ESLint and production build: passed.
+
+## Comparison history
+
+- Pass 1: the cards were 10 px too high and the ribbon crossed the avatar/name region too strongly.
+- Fix: increased heading and card spacing, moved and softened the ribbon, and captured the page again at the same viewport.
+- Pass 2: card positions and content hierarchy align with the source. No P0/P1/P2 issue remained.
+
+## Right background follow-up
+
+- New source crop: `/var/folders/yz/ly7r7l4d2fl3pcdbg37m2x5m0000gn/T/codex-clipboard-b16e6a70-3607-495e-96e8-80874404934e.png` (1690 × 468 px).
+- Finding: the page reused the profile card's thin ribbon, while the new reference shows two broad pale peach arcs in the upper-right background.
+- Fix: created `/Users/mac/Desktop/DSP管理项目/public/images/profile-page-arc.png` as a dedicated decorative asset, positioned above the right card; the profile card keeps its existing ribbon.
+- Initial visual check: the new arc matched the reference's broad shape, but its white image background formed visible straight edges. A left/bottom fade removed those edges. The browser connection recovered and the revised page was compared with the source at 1772 × 888 CSS px.
+- Clarity follow-up: a vector redraw made the curves crisp but changed their shape, which the user did not want. The original PNG artwork was restored for both decorations; `next/image` now serves each original file without format optimization. The final browser check confirms the original curve style and no horizontal overflow (`scrollWidth = clientWidth = 1772`).
+- Verification: ESLint and production build passed before the final asset restoration; the final checks are recorded below.
+
+final result: passed

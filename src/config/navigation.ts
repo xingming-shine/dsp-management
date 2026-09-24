@@ -42,7 +42,7 @@ export const utilityRouteLabels: Record<string, string> = {
   "/basic/downloads": "下载中心",
   "/my/profile": "个人资料",
   "/my/password": "密码修改",
-  "/my/date-format": "日期格式",
+  "/my/date-format": "个性化设置",
 }
 
 export const primaryNavigation: NavigationItem[] = [
@@ -288,13 +288,6 @@ export const primaryNavigation: NavigationItem[] = [
         href: "/finance/toolkit",
         permission: "finance.settlement.read",
         status: "available",
-      },
-      {
-        id: "finance-settlement",
-        label: "财务结算",
-        icon: DollarSignIcon,
-        permission: "finance.settlement.read",
-        status: "planned",
       },
       {
         id: "dsp-withdrawal-mode",
