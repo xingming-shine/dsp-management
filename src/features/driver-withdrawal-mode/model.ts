@@ -1,17 +1,17 @@
 import { dateInZone, nextMidnight } from "../withdrawal-mode/model"
 
 export type AuditStatus = "pending" | "approved" | "rejected"
-export type ModeStatus = "unopened" | "opened" | "closing_pending_effective" | "closed"
+export type ModeStatus = "unopened" | "opening_pending_effective" | "opened" | "closing_pending_effective" | "closed"
 export type OperationLog = { time: string; operator: string; action: string; note?: string; reason?: string; effectiveTime?: string }
 export type DriverWithdrawal = {
   id: string; name: string; phone: string; fleet: string; type: "open" | "close"
   applyTime: string; auditTime: string; latestOperationTime: string; auditStatus: AuditStatus
   modeStatus: ModeStatus; openTime: string; closeTime: string; plan: string; rejectReason: string
-  restricted?: boolean; logs: OperationLog[]
+  restricted?: boolean; organizationId?: string; logs: OperationLog[]
 }
 export type PricingPlan = { code: string; name: string; feeType: string; currency: string; taxRate: string; items: string[][] }
 export const AUDIT_LABELS: Record<AuditStatus, string> = { pending: "待审核", approved: "已通过", rejected: "不通过" }
-export const MODE_LABELS: Record<ModeStatus, string> = { unopened: "未开通", opened: "已开通", closing_pending_effective: "关闭待生效", closed: "已关闭" }
+export const MODE_LABELS: Record<ModeStatus, string> = { unopened: "未开通", opening_pending_effective: "开通待生效", opened: "已开通", closing_pending_effective: "关闭待生效", closed: "已关闭" }
 export const TYPE_LABELS = { open: "开通申请", close: "关闭申请" }
 export const PRICING_PLANS: Record<string, PricingPlan> = {
   plan1: { code: "STD-LAX-001", name: "洛杉矶标准报价", feeType: "单票服务费", currency: "USD", taxRate: "8.75%", items: [["首票", "$2.20", "1票"], ["续票", "$1.60", "每票"]] },
@@ -50,10 +50,12 @@ export function reviewDriver(rows: DriverWithdrawal[], id: string, draft: Review
     log.effectiveTime = row.closeTime
   } else {
     const plan = PRICING_PLANS[draft.planId]
-    row.modeStatus = "opened"
+    row.modeStatus = "opening_pending_effective"
     row.openTime = nextMidnight(now)
+    row.closeTime = ""
     row.plan = `${plan.code} ${plan.name}`
     log.note = `分配报价方案：${row.plan}`
+    log.effectiveTime = row.openTime
   }
   row.logs = [log, ...row.logs]
   return rows.map((item) => item.id === id ? row : item)

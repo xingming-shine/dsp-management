@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:withdrawals": "node --test scripts/test-withdrawals.mjs scripts/check-withdrawal-mode.mjs scripts/check-driver-withdrawal-mode.mjs",
     "test:bills": "node --test scripts/test-bills.mjs"
   },
   "dependencies": {

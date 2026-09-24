@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useRef, useState } from "react"
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { ChevronDownIcon, RotateCcwIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -11,7 +11,11 @@ import { DataPagination } from "@/components/ui/pagination"
 import { PeriodPicker } from "@/components/ui/period-picker"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Separator } from "@/components/ui/separator"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useTimezone } from "@/features/preferences/timezone-store"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { formatDate } from "@/lib/date-time"
 import { mockSession } from "@/mocks/session"
 import { useOrganization } from "@/features/organizations/organization-context"
@@ -34,11 +38,14 @@ function RowActions({ row, onOpen }: { row: DriverWithdrawal; onOpen: (panel: Pa
     <div className="sm:hidden"><DropdownMenu><DropdownMenuTrigger asChild><Button ref={trigger} variant="link" size="xs" aria-label={`${row.id}的操作`}>操作<ChevronDownIcon data-icon="inline-end" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{operations.map((operation) => <DropdownMenuItem key={operation.type} onSelect={() => { if (trigger.current) onOpen({ type: operation.type, id: row.id }, trigger.current) }}>{operation.label}</DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu></div>
   </>
 }
-export function DriverWithdrawalModePage() {
+export function DriverWithdrawalModePage(props: { overview?: ReactNode; management?: boolean }) {
+  const { organizationId } = useOrganization()
+  return <DriverPage key={organizationId} {...props} />
+}
+function DriverPage({ overview, management = false }: { overview?: ReactNode; management?: boolean }) {
   const records = useDriverWithdrawals()
   const { organization } = useOrganization()
-  // Preview records use the same active fleet as the application header on every surface.
-  const rows = records.map((row) => ({ ...row, fleet: organization.name }))
+  const rows = records.filter((row) => row.organizationId === organization.id)
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [filterError, setFilterError] = useState("")
@@ -50,7 +57,7 @@ export function DriverWithdrawalModePage() {
   const triggerRef = useRef<HTMLElement | null>(null)
   const originalScroll = useRef(0)
   const returning = useRef(false)
-  const timeZone = mockSession.preferences.timezone
+  const timeZone = useTimezone()
   const today = dateInZone(new Date().toISOString(), timeZone)
   const filtered = filterDrivers(rows, filters, timeZone)
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)))
@@ -108,35 +115,48 @@ export function DriverWithdrawalModePage() {
     if (draft.from && draft.to && draft.from > draft.to) { setFilterError("开始日期不能晚于结束日期"); return }
     setFilters(draft); setPage(1)
   }
+  function quickFilter(key: "auditStatus" | "type", value: string) {
+    if (!value) return
+    setDraft((previous) => ({ ...previous, [key]: value }))
+    setFilters((previous) => ({ ...previous, [key]: value }))
+    setPage(1)
+  }
   function reset() { setDraft(EMPTY_FILTERS); setFilters(EMPTY_FILTERS); setPage(1); setFilterError("") }
   const selector = (key: keyof Filters, label: string, options: [string, string][]) => <FilterSelect name={key} label={label} value={draft[key]} options={options} onChange={(value) => changeFilter(key, value)} />
 
   return <div className="min-w-0">
-    <div hidden={Boolean(panel)}><div className="flex min-w-0 flex-col gap-6">
+    <div hidden={Boolean(panel)}><div className="flex min-w-0 flex-col gap-4">
+      {overview}
       <div ref={tableRef} className="min-w-0" style={{ viewTransitionName: "withdrawal-list" }}>
         <Table variant="grid" aria-label="司机提现模式申请列表" className="sm:min-w-[1160px]" viewportClassName="mx-4 mb-4 rounded-lg border" toolbar={
           <form onSubmit={query} className="flex flex-col gap-4">
-            <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {management && <>
+              <h2 className="text-base font-medium">司机提现申请</h2>
+              <div className="flex flex-wrap gap-x-8 gap-y-4">
+                {([ ["auditStatus", "审核状态", AUDIT_LABELS], ["type", "申请类型", TYPE_LABELS] ] as const).map(([key, label, labels]) => <div key={key} className="flex min-w-0 flex-col gap-2"><span className="text-xs text-muted-foreground">{label}</span><ToggleGroup type="single" variant="outline" size="sm" className="max-w-full flex-wrap" value={filters[key]} onValueChange={(value) => quickFilter(key, value)} aria-label={label}><ToggleGroupItem value="all">全部 {rows.length}</ToggleGroupItem>{Object.entries(labels).map(([value, text]) => <ToggleGroupItem key={value} value={value}>{text} {rows.filter((row) => row[key] === value).length}</ToggleGroupItem>)}</ToggleGroup></div>)}
+              </div><Separator />
+            </>}
+            <FieldGroup className={cn("grid grid-cols-1 gap-3 sm:grid-cols-2", management ? "xl:grid-cols-3" : "xl:grid-cols-4")}>
               {selector("driver", "司机", rows.map((row) => [row.id, `${row.id} ${maskName(row.name)}`]))}
-              {selector("type", "申请类型", Object.entries(TYPE_LABELS))}
+              {!management && selector("type", "申请类型", Object.entries(TYPE_LABELS))}
               {selector("modeStatus", "提现模式状态", Object.entries(MODE_LABELS))}
-              {selector("auditStatus", "审核状态", Object.entries(AUDIT_LABELS))}
+              {!management && selector("auditStatus", "审核状态", Object.entries(AUDIT_LABELS))}
               <PeriodPicker triggerClassName="max-w-none" label="最新操作日期" selection={{ mode: "day", value: draft.to || today, range: { start: draft.from || today, end: draft.to || today } }} onChange={(value) => { setDraft((previous) => ({ ...previous, from: value.range?.start || value.value, to: value.range?.end || value.value })); setFilterError("") }} rangeOnly modes={["day"]} showGranularity={false} placeholder={draft.from ? undefined : "请选择日期范围"} />
             </FieldGroup>
             {filterError && <FieldError>{filterError}</FieldError>}
             <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-sm text-muted-foreground" aria-live="polite">待审核 <span className="font-medium text-foreground tabular-nums">{filtered.filter((row) => row.auditStatus === "pending").length}</span> 条数据</span><div className="ml-auto flex items-center gap-2"><Button type="submit"><SearchIcon data-icon="inline-start" />查询</Button><Button type="button" variant="outline" onClick={reset}><RotateCcwIcon data-icon="inline-start" />重置</Button></div></div>
           </form>
         } footer={<DataPagination page={currentPage} pageSize={pageSize} total={filtered.length} pageSizeOptions={[10, 20, 50, 100]} onPageChange={(value) => { setPage(value); tableRef.current?.scrollIntoView({ block: "start" }) }} onPageSizeChange={(value) => { setPageSize(value); setPage(1) }} />}>
-          <TableHeader><TableRow><TableHead>司机ID</TableHead><TableHead className="hidden sm:table-cell">姓名</TableHead><TableHead className="hidden sm:table-cell">电话</TableHead><TableHead className="hidden sm:table-cell">所属车队</TableHead><TableHead className="hidden sm:table-cell">申请类型</TableHead><TableHead className="hidden sm:table-cell">最新操作时间</TableHead><TableHead>审核状态</TableHead><TableHead className="hidden sm:table-cell">提现模式状态</TableHead><TableHead sticky="right" className="w-20 text-center sm:w-52">操作</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>司机ID</TableHead><TableHead className="hidden sm:table-cell">姓名</TableHead><TableHead className="hidden sm:table-cell">电话</TableHead><TableHead className="hidden sm:table-cell">所属车队</TableHead><TableHead className="hidden sm:table-cell">申请类型</TableHead><TableHead className="hidden sm:table-cell">最新操作时间</TableHead><TableHead>审核状态</TableHead><TableHead className="hidden sm:table-cell">提现模式状态</TableHead>{management && <TableHead className="hidden sm:table-cell">报价方案</TableHead>}<TableHead sticky="right" className="w-20 text-center sm:w-52">操作</TableHead></TableRow></TableHeader>
           <TableBody>{visible.map((row) => <TableRow key={row.id} data-driver-id={row.id} data-state={returnedId === row.id ? "selected" : undefined}>
             <TableCell><div className="flex flex-col gap-1 py-2"><span>{row.id}</span><span className="text-muted-foreground sm:hidden">{maskName(row.name)} · {row.fleet}</span></div></TableCell><TableCell className="hidden sm:table-cell">{maskName(row.name)}</TableCell><TableCell className="hidden tabular-nums sm:table-cell">{maskPhone(row.phone)}</TableCell><TableCell className="hidden sm:table-cell">{row.fleet}</TableCell>
             <TableCell className="hidden sm:table-cell"><Badge size="sm" variant="outline">{TYPE_LABELS[row.type]}</Badge></TableCell><TableCell className="hidden tabular-nums sm:table-cell"><time dateTime={row.latestOperationTime}>{displayTime(row.latestOperationTime)}</time></TableCell><TableCell><DriverAuditBadge status={row.auditStatus} /></TableCell><TableCell className="hidden sm:table-cell"><DriverModeBadge status={row.modeStatus} /></TableCell>
-            <TableCell sticky="right" className="w-20 text-center sm:w-52"><RowActions row={row} onOpen={open} /></TableCell>
-          </TableRow>)}{!visible.length && <TableRow><TableCell colSpan={9}><EmptyResults /></TableCell></TableRow>}</TableBody>
+            {management && <TableCell className="hidden sm:table-cell">{row.plan || "—"}</TableCell>}<TableCell sticky="right" className="w-20 text-center sm:w-52"><RowActions row={row} onOpen={open} /></TableCell>
+          </TableRow>)}{!visible.length && <TableRow><TableCell colSpan={management ? 10 : 9}><EmptyResults /></TableCell></TableRow>}</TableBody>
         </Table>
       </div>
     </div></div>
-    {panel && selected && <WithdrawalRecordWorkspace<Panel> panel={panel} title="司机提现模式管理" cards={workspaceRows.map((row) => ({
+    {panel && selected && <WithdrawalRecordWorkspace<Panel> panel={panel} title={management ? "提现管理" : "司机提现模式管理"} cards={workspaceRows.map((row) => ({
       id: row.id,
       label: `查看 ${row.id} · ${maskName(row.name)}，${AUDIT_LABELS[row.auditStatus]}，${TYPE_LABELS[row.type]}，${MODE_LABELS[row.modeStatus]}`,
       content: <>

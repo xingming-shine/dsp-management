@@ -5,6 +5,7 @@ import { flushSync } from "react-dom"
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, ListIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDate } from "@/lib/date-time"
 import { cn } from "@/lib/utils"
@@ -137,6 +138,8 @@ export function WithdrawalRecordWorkspace<P extends RecordPanel>({ panel, cards,
       </header>
       <div className="grid min-h-0 min-w-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
         <aside id="withdrawal-card-list" aria-label="提现模式申请卡片列表" className={cn("min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card p-3 lg:flex", mobileList ? "flex" : "hidden")} style={{ viewTransitionName: "withdrawal-list" }}>
+          <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-medium">记录清单</h2><span className="text-xs text-muted-foreground tabular-nums">{cards.length} 条</span></div>
+          <Separator className="my-3" />
           <div ref={railRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <ul className="flex flex-col gap-2">
               {panel.type === "create" && newPanel && <li><Button variant="outline" aria-current="true" className="withdrawal-navigation-card h-auto w-full flex-col items-start gap-2 px-3 py-4" onClick={() => navigate(newPanel)}><span className="flex items-center gap-2"><PlusIcon data-icon="inline-start" />新建申请</span><span className="text-xs text-muted-foreground">未提交</span></Button></li>}

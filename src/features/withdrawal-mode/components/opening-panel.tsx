@@ -37,11 +37,11 @@ function UploadField({ field, files, onChange, error }: {
   </Field>
 }
 
-export function OpeningPanel({ row, onClose, onSubmit }: {
-  row?: Application; onClose: () => void; onSubmit: (draft: OpeningDraft) => void
+export function OpeningPanel({ row, prefill, lockFleet = false, onClose, onSubmit }: {
+  row?: Application; prefill?: Pick<Application, "dspName" | "fleetName">; lockFleet?: boolean; onClose: () => void; onSubmit: (draft: OpeningDraft) => void
 }) {
-  const [draft, setDraft] = useState<OpeningDraft>(() => ({ dspName: row?.dspName ?? "", fleetName: row?.fleetName ?? "", businessType: row?.businessType ?? "", birthday: row?.birthday ?? "", position: row?.position ?? "", address: row?.address ?? "", attachments: row?.attachments ?? emptyAttachments(), agreed: Boolean(row) }))
-  const [birthday, setBirthday] = useState(row ? formatDate(row.birthday) : "")
+  const [draft, setDraft] = useState<OpeningDraft>(() => ({ dspName: row?.dspName ?? prefill?.dspName ?? "", fleetName: row?.fleetName ?? prefill?.fleetName ?? "", businessType: row?.businessType ?? "", birthday: row?.birthday ?? "", position: row?.position ?? "", address: row?.address ?? "", attachments: row?.attachments ?? emptyAttachments(), agreed: Boolean(row) }))
+  const [birthday, setBirthday] = useState(row?.birthday ? formatDate(row.birthday) : "")
   const [dirty, setDirty] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const now = new Date().toISOString()
@@ -63,7 +63,7 @@ export function OpeningPanel({ row, onClose, onSubmit }: {
     onSubmit(nextDraft)
   }
   function textField(key: "dspName" | "fleetName" | "position" | "address", label: string, placeholder: string, maxLength: number) {
-    return <Field data-invalid={Boolean(errors[key])}><FieldLabel htmlFor={`apply-${key}`}>{label} *</FieldLabel><Input id={`apply-${key}`} value={draft[key]} maxLength={maxLength} placeholder={placeholder} aria-required aria-invalid={Boolean(errors[key])} aria-describedby={errors[key] ? `${key}-error` : undefined} onChange={(event) => change(key, event.target.value)} />{errors[key] && <FieldError id={`${key}-error`}>{errors[key]}</FieldError>}</Field>
+    return <Field data-invalid={Boolean(errors[key])}><FieldLabel htmlFor={`apply-${key}`}>{label} *</FieldLabel><Input id={`apply-${key}`} readOnly={lockFleet && (key === "dspName" || key === "fleetName")} value={draft[key]} maxLength={maxLength} placeholder={placeholder} aria-required aria-invalid={Boolean(errors[key])} aria-describedby={errors[key] ? `${key}-error` : undefined} onChange={(event) => change(key, event.target.value)} />{errors[key] && <FieldError id={`${key}-error`}>{errors[key]}</FieldError>}</Field>
   }
   const rejected = row?.logs.find((log) => log.reason)?.reason
   const resubmitting = row && row.modeStatus !== "closed"

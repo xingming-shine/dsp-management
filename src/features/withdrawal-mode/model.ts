@@ -1,5 +1,5 @@
 export type AuditStatus = "pending_business" | "pending_financial" | "pass" | "business_reject" | "financial_reject"
-export type ModeStatus = "unopened" | "opened" | "closed"
+export type ModeStatus = "unopened" | "opened" | "closing_pending_effective" | "closed"
 export type FileGroup = "tax" | "reg" | "benefit" | "support" | "personal" | "ssn"
 export type Attachment = { id: string; name: string; file?: File }
 export type Attachments = Record<FileGroup, Attachment[]>
@@ -12,12 +12,13 @@ export type Application = {
   closeReason: string; expectedCloseTime: string; affectedDriverCount: number
   everOpened: boolean; firstOpenRejected: boolean
   attachments: Attachments; logs: AuditLog[]; drivers: Driver[]
+  organizationId?: string; requestId?: string; openedAt?: string
 }
 
 export const AUDIT_LABELS: Record<AuditStatus, string> = {
   pending_business: "业务审核中", pending_financial: "财务审核中", pass: "审核通过", business_reject: "业务驳回", financial_reject: "财务驳回",
 }
-export const MODE_LABELS: Record<ModeStatus, string> = { unopened: "未开通", opened: "已开通", closed: "已关闭" }
+export const MODE_LABELS: Record<ModeStatus, string> = { unopened: "未开通", opened: "已开通", closing_pending_effective: "关闭待生效", closed: "已关闭" }
 export const FILE_FIELDS: { key: FileGroup; label: string; required: boolean; hint: string }[] = [
   { key: "tax", label: "税号支持文件", required: true, hint: "支持 PDF、JPG、PNG，可上传多个文件。" },
   { key: "reg", label: "公司注册证明", required: true, hint: "LLC 提供 Certificate of Formation；Corporation 提供 Certificate of Incorporation。" },
@@ -93,6 +94,7 @@ export function transition(rows: Application[], action: WorkflowAction, now: str
     const { agreed: _agreed, ...values } = action.draft
     void _agreed
     const row: Application = {
+      organizationId: old?.organizationId, openedAt: old?.openedAt,
       ...values, dspName: values.dspName.trim(), fleetName: values.fleetName.trim(), position: values.position.trim(), address: values.address.trim(),
       id: old?.id ?? action.id, applicationType: "open", latestOperationDate: date,
       firstOpenApplyDate: old?.firstOpenApplyDate || date, auditStatus: "pending_business", modeStatus: old?.everOpened ? "closed" : "unopened",
@@ -126,13 +128,14 @@ export function transition(rows: Application[], action: WorkflowAction, now: str
       reason = action.reason.trim()
     } else if (row.applicationType === "close") {
       row.auditStatus = "pass"
-      row.modeStatus = "closed"
+      row.modeStatus = row.affectedDriverCount ? "closing_pending_effective" : "closed"
       row.expectedCloseTime = row.affectedDriverCount ? nextMidnight(now) : now
     } else if (action.stage === "business") {
       row.auditStatus = "pending_financial"
     } else {
       row.auditStatus = "pass"
       row.modeStatus = "opened"
+      row.openedAt = now
       row.everOpened = true
       row.firstOpenRejected = false
     }

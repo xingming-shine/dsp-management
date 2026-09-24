@@ -12,16 +12,17 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate, formatDateTime } from "@/lib/date-time"
-import { mockSession } from "@/mocks/session"
+import { recordSensitiveView } from "@/features/withdrawals/store"
+import { getTimezone } from "@/features/preferences/timezone-store"
 import { AUDIT_LABELS, FILE_FIELDS, MODE_LABELS, type Application, type Attachment, type AuditStatus, type Driver, type ModeStatus } from "../model"
 
-export const displayTime = (value: string) => formatDateTime(value, { timeZone: mockSession.preferences.timezone })
+export const displayTime = (value: string) => formatDateTime(value, { timeZone: getTimezone() })
 
 export function AuditBadge({ status }: { status: AuditStatus }) {
   return <Badge size="sm" variant={status === "pass" ? "success" : status.includes("reject") ? "destructive" : "warning"}>{AUDIT_LABELS[status]}</Badge>
 }
 export function ModeBadge({ status }: { status: ModeStatus }) {
-  return <Badge size="sm" variant={status === "opened" ? "success" : "secondary"}>{MODE_LABELS[status]}</Badge>
+  return <Badge size="sm" variant={status === "opened" ? "success" : status === "closing_pending_effective" ? "warning" : "secondary"}>{MODE_LABELS[status]}</Badge>
 }
 export function EmptyResults({ title = "暂无符合条件的申请", description = "请调整查询条件后重试。" }: { title?: string; description?: string }) {
   return <Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader></Empty>
@@ -38,7 +39,7 @@ export function InfoItem({ label, children }: { label: string; children: ReactNo
 export function AttachmentButton({ attachment }: { attachment: Attachment }) {
   function preview() {
     if (!attachment.file) {
-      toast.info("参考示例未提供该历史文件的原件，可在重新提交时上传替换。")
+      toast.info("历史附件预览暂未接入。")
       return
     }
     const url = URL.createObjectURL(attachment.file)
@@ -128,15 +129,13 @@ export function WorkflowPanel({ title, description, children, footer, dirty = fa
 }
 
 export function AffectedDrivers({ drivers }: { drivers: Driver[] }) {
-  const [restricted, setRestricted] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   function sensitive(driver: Driver, field: "name" | "phone") {
-    if (restricted) return "/"
     const key = `${driver.id}-${field}`
-    return <div className="flex items-center gap-2"><span>{revealed[key] ? (field === "name" ? driver.fullName : driver.fullPhone) : driver[field]}</span><Button type="button" variant="ghost" size="icon-xs" aria-label={`${revealed[key] ? "隐藏" : "查看"}${driver.id}的${field === "name" ? "姓名" : "电话"}`} onClick={() => setRevealed((value) => ({ ...value, [key]: !value[key] }))}>{revealed[key] ? <EyeOffIcon /> : <EyeIcon />}</Button></div>
+    return <div className="flex items-center gap-2"><span>{revealed[key] ? (field === "name" ? driver.fullName : driver.fullPhone) : driver[field]}</span><Button type="button" variant="ghost" size="icon-xs" aria-label={`${revealed[key] ? "隐藏" : "查看"}${driver.id}的${field === "name" ? "姓名" : "电话"}`} onClick={() => { if (!revealed[key]) recordSensitiveView(driver.id, field); setRevealed((value) => ({ ...value, [key]: !value[key] })) }}>{revealed[key] ? <EyeOffIcon /> : <EyeIcon />}</Button></div>
   }
   return <Section title="当前开通提现模式的司机">
-    <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-xs text-muted-foreground">共 {drivers.length} 人 · {restricted ? "受限用户不可查看姓名和电话" : "姓名和电话默认脱敏"}</span><Button type="button" variant="outline" size="sm" onClick={() => { setRestricted(!restricted); setRevealed({}) }}>{restricted ? "切换为非受限用户" : "切换为受限用户"}</Button></div>
+    <p className="text-xs text-muted-foreground">共 {drivers.length} 人</p>
     <Table><TableHeader><TableRow><TableHead>司机ID</TableHead><TableHead>司机姓名</TableHead><TableHead>电话</TableHead><TableHead>所属车队</TableHead><TableHead>提现模式开启日期</TableHead></TableRow></TableHeader><TableBody>{drivers.map((driver) => <TableRow key={driver.id}><TableCell>{driver.id}</TableCell><TableCell>{sensitive(driver, "name")}</TableCell><TableCell>{sensitive(driver, "phone")}</TableCell><TableCell>{driver.fleet}</TableCell><TableCell className="tabular-nums">{formatDate(driver.openDate)}</TableCell></TableRow>)}{!drivers.length && <TableRow><TableCell colSpan={5}><EmptyResults title="暂无已开通提现模式的司机" description="审核通过后，车队提现模式将直接关闭。" /></TableCell></TableRow>}</TableBody></Table>
   </Section>
 }

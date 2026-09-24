@@ -32,6 +32,7 @@ No actionable P0, P1, or P2 visual differences remain for the requested adaptati
 
 final result: passed
 
+
 ---
 
 # Design QA — 领件详情下钻弹窗
@@ -341,5 +342,32 @@ No actionable P0, P1, or P2 visual differences remain for the requested section.
 ## Follow-up polish
 
 - P3: the semantic `chart-2` blue is slightly brighter than the reference screenshot's muted blue; it is retained to preserve the repository's fixed chart identity.
+
+final result: passed
+---
+
+# Design QA — 财务结算小工具组合设计（2026-09-24）
+
+- Source visual truth: `/Users/mac/.codex/generated_images/01a0c7d3-5185-73f0-b461-766809955ff7/exec-36275450-5be7-4e95-bd91-3388de85e8de.png`, based on the user's selected upper crop `/var/folders/yz/ly7r7l4d2fl3pcdbg37m2x5m0000gn/T/codex-clipboard-b43ff2f8-dc3a-42c7-8893-2d46a7b65695.png` and lower crop `/var/folders/yz/ly7r7l4d2fl3pcdbg37m2x5m0000gn/T/codex-clipboard-b6b3901d-da51-428a-8852-a122b00aa8c2.png`.
+- Implementation screenshots: `/private/tmp/dsp-toolkit-review/04-combined-desktop-final.png` and `/private/tmp/dsp-toolkit-review/05-combined-mobile-final.png`.
+- Route and state: `http://localhost:3000/finance/toolkit`, default light theme and collapsed sidebar; mobile scroll also inspected to the final instruction.
+- Dimensions: generated source 1449 × 1085 px, desktop implementation 1327 × 994 px. Both have an approximately 1.335 aspect ratio; comparison normalizes the source proportionally to the 1327 × 994 CSS viewport, without assuming generated pixels represent browser device pixels. Mobile viewport override requested 390 × 844 CSS px; the in-app browser capture returned 379 × 820 px after its own insets. No source mobile frame was supplied, so the mobile review checks reflow and completeness rather than pixel matching.
+
+## Comparison and findings
+
+- Full view: the tool identity, description, and single download action are centered above one white instructions panel. The panel uses three equal desktop columns with fine dividers, matching the combined design's hierarchy and reading order.
+- Focused regions: the tool title/version/icon/button and the instruction title/number/text columns were compared against the user crops. The installer filename remains complete and wraps within its column.
+- Fonts and typography: the implementation uses the project's PingFang-first stack, 24 px tool title, 16 px instruction headings, 14 px body, 12 px metadata, and enlarged neutral step numbers. The image generator rendered some text larger than the project scale; project typography is intentionally retained.
+- Spacing and layout rhythm: the first comparison found the panel about 20–30 px too shallow and the step numbers too small. Increased Card spacing from 24 to 32 px, changed the numbers from 36 to 48 px, and increased desktop top/section space. The final panel is close to the normalized source height and preserves the centered composition.
+- Colors and tokens: canvas, card, border, muted copy, and orange primary button all use project semantic tokens. No shadow or gradient was introduced.
+- Image quality and assets: the target has no photo or illustration assets. The calculator and download marks use the project's Lucide icon library, consistent with the existing shell.
+- Copy and content: tool name, Windows/offline status, version, description, and three installation steps are present. The download button retains the required “下载入口暂未接入” toast.
+
+No actionable P0, P1, or P2 visual differences remain. At the mobile width, instructions stack with separators, the full third step is reachable by scrolling, and there is no visible horizontal overflow. Browser console errors: none.
+
+## Comparison history
+
+- Pass 1: the first desktop capture showed a shallow panel, small step numbers, and a tighter vertical gap than the selected composite.
+- Fix: increased Card spacing and desktop top/section gaps, then captured desktop and mobile again. The final evidence is listed above.
 
 final result: passed
