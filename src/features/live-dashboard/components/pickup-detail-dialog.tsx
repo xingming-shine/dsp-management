@@ -931,7 +931,6 @@ export function PickupDetailView({ onBack, period = "current", initialDriverId }
                 total={filteredDriverRows.length}
                 onPageChange={setDriverPage}
                 onPageSizeChange={setDriverPageSize}
-                showJumper={false}
               />
             </TabsContent>
 
@@ -1020,7 +1019,6 @@ export function PickupDetailView({ onBack, period = "current", initialDriverId }
                 total={filteredWaybillRows.length}
                 onPageChange={setWaybillPage}
                 onPageSizeChange={setWaybillPageSize}
-                showJumper={false}
               />
             </TabsContent>
           </Tabs>

@@ -573,7 +573,6 @@ function TaskWaybillDetail({
           total={filteredRows.length}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
-          showJumper={false}
         />
       </div>
 
@@ -953,7 +952,6 @@ function TaskAssignmentDetail({
           total={filteredRows.length}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
-          showJumper={false}
         />
       </div>
 

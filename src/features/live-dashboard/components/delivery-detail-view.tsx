@@ -493,7 +493,7 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
             <DriverTableHeader metric={config.metric} source={effectiveSource} sortKey={driverSortKey} direction={driverSortDirection} onSort={sortDrivers} />
             <TableBody>{visibleDrivers.map((row) => <DriverTableRow key={row.id} row={row} metric={config.metric} source={effectiveSource} onMetric={(filters) => openDriverWaybills(row, filters)} onContact={() => setContactDriver(row)} />)}{visibleDrivers.length === 0 ? <TableRow><TableCell colSpan={12} className="h-28 text-center text-muted-foreground">暂无符合条件的司机</TableCell></TableRow> : null}</TableBody>
           </Table>
-          <DataPagination className="border-t-0 px-0" page={currentDriverPage} pageSize={driverPageSize} total={driverSummaries.length} onPageChange={setDriverPage} onPageSizeChange={setDriverPageSize} showJumper={false} />
+          <DataPagination className="border-t-0 px-0" page={currentDriverPage} pageSize={driverPageSize} total={driverSummaries.length} onPageChange={setDriverPage} onPageSizeChange={setDriverPageSize} />
         </TabsContent>
         <TabsContent value="waybill" className="flex min-w-0 flex-col gap-4">
           {waybillToolbar}
@@ -501,7 +501,7 @@ export function DeliveryDetailView({ detailKey, onBack }: { detailKey: string; o
             <WaybillTableHeader metric={config.metric} sortKey={waybillSortKey} direction={waybillSortDirection} onSort={sortWaybills} />
             <TableBody>{visibleWaybills.map((row) => <WaybillTableRow key={row.trackingNumber} row={row} metric={config.metric} onSelect={() => setSelectedWaybill(row)} />)}{visibleWaybills.length === 0 ? <TableRow><TableCell colSpan={15} className="h-28 text-center text-muted-foreground">暂无符合条件的运单</TableCell></TableRow> : null}</TableBody>
           </Table>
-          <DataPagination className="border-t-0 px-0" page={currentWaybillPage} pageSize={waybillPageSize} total={filteredWaybills.length} onPageChange={setWaybillPage} onPageSizeChange={setWaybillPageSize} showJumper={false} />
+          <DataPagination className="border-t-0 px-0" page={currentWaybillPage} pageSize={waybillPageSize} total={filteredWaybills.length} onPageChange={setWaybillPage} onPageSizeChange={setWaybillPageSize} />
         </TabsContent>
       </Tabs>
     </section>

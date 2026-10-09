@@ -184,33 +184,37 @@ function PaginationJumper({
   const [jumpValue, setJumpValue] = React.useState(String(currentPage))
 
   const commitJump = () => {
-    const nextPage = Number.parseInt(jumpValue, 10)
+    const value = jumpValue.trim()
+    const nextPage = Number(value)
 
-    if (Number.isNaN(nextPage)) {
+    if (!/^\d+$/.test(value) || !Number.isFinite(nextPage)) {
       setJumpValue(String(currentPage))
       return
     }
 
     const clampedPage = Math.min(Math.max(nextPage, 1), pageCount)
     setJumpValue(String(clampedPage))
-    onPageChange(clampedPage)
+    if (clampedPage !== currentPage) {
+      onPageChange(clampedPage)
+    }
   }
 
   return (
     <label className="flex items-center gap-2 whitespace-nowrap text-muted-foreground">
       <span>跳至</span>
       <Input
-        type="number"
-        min={1}
-        max={pageCount}
+        type="text"
         inputMode="numeric"
+        pattern="[0-9]*"
         aria-label="跳转页码"
         value={jumpValue}
-        className="h-[var(--pagination-control-height)] w-14 px-2 text-center [font-size:var(--pagination-font-size)] tabular-nums"
+        disabled={pageCount <= 1}
+        className="h-[var(--pagination-control-height)] w-14 px-2 text-center text-base tabular-nums sm:[font-size:var(--pagination-font-size)] md:[font-size:var(--pagination-font-size)]"
         onChange={(event) => setJumpValue(event.target.value)}
         onBlur={commitJump}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
+            event.preventDefault()
             event.currentTarget.blur()
           }
         }}
@@ -236,6 +240,12 @@ function DataPagination({
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const currentPage = Math.min(Math.max(page, 1), pageCount)
 
+  React.useEffect(() => {
+    if (page !== currentPage) {
+      onPageChange(currentPage)
+    }
+  }, [currentPage, onPageChange, page])
+
   const goToPage = React.useCallback(
     (nextPage: number) => {
       onPageChange(Math.min(Math.max(nextPage, 1), pageCount))
@@ -247,12 +257,12 @@ function DataPagination({
     <div
       data-slot="data-pagination"
       className={cn(
-        "flex min-h-14 flex-col items-start justify-between gap-3 border-t bg-card px-3 py-3 [font-size:var(--pagination-font-size)] sm:flex-row sm:items-center",
+        "flex min-h-14 flex-wrap items-center justify-end gap-3 border-t bg-card px-3 py-3 [font-size:var(--pagination-font-size)]",
         className
       )}
       {...props}
     >
-      <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-end gap-3 text-muted-foreground">
         {showTotal ? (
           <span className="whitespace-nowrap tabular-nums">共 {total} 条</span>
         ) : null}
@@ -288,7 +298,7 @@ function DataPagination({
         ) : null}
       </div>
 
-      <div className="flex max-w-full flex-wrap items-center gap-3">
+      <div className="flex max-w-full flex-wrap items-center justify-end gap-3">
         <Pagination className="w-auto">
           <PaginationContent>
             <PaginationItem>
@@ -357,7 +367,7 @@ function DataPagination({
 
         {showJumper ? (
           <PaginationJumper
-            key={currentPage}
+            key={`${currentPage}-${pageCount}`}
             currentPage={currentPage}
             pageCount={pageCount}
             onPageChange={goToPage}

@@ -271,7 +271,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
                 {shownDrivers.length === 0 ? <TableRow><TableCell colSpan={9} className="h-28 text-center text-muted-foreground">{period === "next" ? "暂无信息" : "暂无符合条件的司机"}</TableCell></TableRow> : null}
               </TableBody>
             </Table>
-            <DataPagination className="border-t-0" page={driverPage} pageSize={driverPageSize} total={filteredDrivers.length} onPageChange={setDriverPage} onPageSizeChange={setDriverPageSize} showJumper={false} />
+            <DataPagination className="border-t-0" page={driverPage} pageSize={driverPageSize} total={filteredDrivers.length} onPageChange={setDriverPage} onPageSizeChange={setDriverPageSize} />
           </TabsContent>
 
           <TabsContent value="waybill" className="flex min-h-0 flex-1 flex-col gap-4">
@@ -316,7 +316,7 @@ export function ReturnDetailView({ onBack, period = "current" }: { onBack: () =>
                 {shownWaybills.length === 0 ? <TableRow><TableCell colSpan={14} className="h-28 text-center text-muted-foreground">暂无符合条件的运单</TableCell></TableRow> : null}
               </TableBody>
             </Table>
-            <DataPagination className="border-t-0" page={waybillPage} pageSize={waybillPageSize} total={filteredWaybills.length} onPageChange={setWaybillPage} onPageSizeChange={setWaybillPageSize} showJumper={false} />
+            <DataPagination className="border-t-0" page={waybillPage} pageSize={waybillPageSize} total={filteredWaybills.length} onPageChange={setWaybillPage} onPageSizeChange={setWaybillPageSize} />
           </TabsContent>
         </Tabs>
       </section>
