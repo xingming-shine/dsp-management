@@ -139,14 +139,14 @@ export function RecordsPage({ initialTab = "progress", initialSelection = null }
               <LearningContentDetail key={selectedItem.id} item={selectedItem} onClose={closeDetail} closeLabel="返回列表" recordSummary={<LearningRecordSummary item={selectedItem} state={state} timeZone={timeZone} />} />
             </div>
           ) : (
-            <Table footer={<p className="border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground">学习记录按 DSP 与内容版本保存；新版本独立记录，旧记录保留。已下架内容不计入当前完成率。点击内容可在当前页查看详情。</p>}>
+            <Table footer={<p className="border-t px-4 py-3 text-xs leading-relaxed text-muted-foreground">学习记录按 DSP 与内容版本保存；新版本独立记录，旧记录保留。点击内容可查看记录信息；已下架内容仅显示提示。</p>}>
               <TableHeader><TableRow><TableHead>内容</TableHead><TableHead>类型</TableHead><TableHead>版本</TableHead><TableHead>必学</TableHead><TableHead>状态</TableHead><TableHead>累计时长</TableHead><TableHead>完成时间</TableHead></TableRow></TableHeader>
               <TableBody>{learningItems.map((item) => {
                 const status = getItemStatus(item, state)
                 const minutes = getItemMinutes(item, state)
                 const completedAt = getItemCompletedAt(item, state)
                 return <TableRow key={item.id}>
-                  <TableCell className="min-w-60 whitespace-normal"><Button type="button" variant="ghost" className="h-auto justify-start px-0 text-start" onClick={() => openDetail(item.id)}>{item.title}</Button>{item.archived ? <Badge size="sm" variant="outline" className="ml-2">已下架 · 不计分母</Badge> : null}</TableCell>
+                  <TableCell className="min-w-60 whitespace-normal"><Button type="button" variant="ghost" className="h-auto justify-start px-0 text-start" onClick={() => openDetail(item.id)}>{item.title}</Button>{item.archived ? <Badge size="sm" variant="outline" className="ml-2">已下架</Badge> : null}</TableCell>
                   <TableCell>{item.type}</TableCell><TableCell>v{item.version}</TableCell><TableCell>{item.required ? <Badge size="sm" variant="secondary">必学</Badge> : "—"}</TableCell><TableCell><LearningStatusBadge status={status} /></TableCell><TableCell className="tabular-nums">{minutes} 分钟</TableCell><TableCell className="tabular-nums">{status === "已完成" && completedAt ? formatDate(completedAt, { timeZone }) : "—"}</TableCell>
                 </TableRow>
               })}</TableBody>
@@ -227,6 +227,6 @@ function DownloadRecordSummary({ record, item, timeZone }: { record: DownloadRec
       <p><span className="text-muted-foreground">下载文件</span><br /><span className="break-all font-medium">{record.fileName ?? "未记录"}{record.fileFormat ? ` · ${record.fileFormat}` : ""}</span></p>
       <p><span className="text-muted-foreground">备注</span><br /><span className="font-medium">{record.note?.trim() || "—"}</span></p>
     </div>
-    {historicalVersion ? <p className="text-muted-foreground">这条记录下载的是 v{recordVersion}；下方内容展示当前 v{item.version}，不能代表当时下载的文件。</p> : null}
+    {historicalVersion ? <p className="text-muted-foreground">这条记录下载的是 v{recordVersion}；{item.archived ? "关联内容已下架，无法查看正文。" : `下方内容展示当前 v${item.version}，不能代表当时下载的文件。`}</p> : null}
   </div>
 }

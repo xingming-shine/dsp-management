@@ -1,12 +1,13 @@
 "use client"
 
 import { useRef, useState, type ReactNode } from "react"
-import { DownloadIcon, XIcon } from "lucide-react"
+import { ArchiveIcon, DownloadIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { useProfile } from "@/features/auth/profile-context"
@@ -97,7 +98,7 @@ export function LearningContentDetail({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <h2 className="text-lg font-medium">{item.title}</h2>
-            <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
+            {!item.archived ? <p className="text-sm leading-6 text-muted-foreground">{item.description}</p> : null}
           </div>
           <Button type="button" variant="outline" size="sm" onClick={onClose}><XIcon data-icon="inline-start" />{closeLabel}</Button>
         </div>
@@ -106,17 +107,19 @@ export function LearningContentDetail({
           {!recordSummary ? <Badge size="sm" variant="outline">v{item.version}</Badge> : null}
           <LearningStatusBadge status={status} />
           {item.required ? <Badge size="sm" variant="destructiveSolid">必学</Badge> : null}
-          {item.archived ? <Badge size="sm" variant="outline">已下架 · 历史版本</Badge> : null}
+          {item.archived ? <Badge size="sm" variant="outline">已下架</Badge> : null}
           <span className="text-xs text-muted-foreground tabular-nums">发布于 {formatDate(item.publishedAt, { timeZone })}</span>
         </div>
         {recordSummary}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-        <LearningContentBody item={item} />
-        <div className="mt-6 flex flex-wrap gap-2 border-t pt-4">
-          <Badge size="sm" variant="outline">{item.category}</Badge>
-          {item.tags.map((value) => <Badge key={value} size="sm" variant="outline">#{value}</Badge>)}
-        </div>
+      <div className={cn("min-h-0 flex-1 overflow-y-auto p-4 sm:p-5", item.archived && "flex items-center justify-center")}>
+        {item.archived ? <Empty className="min-h-52"><EmptyHeader><EmptyMedia variant="icon"><ArchiveIcon /></EmptyMedia><EmptyTitle>内容已下架，无法查看正文</EmptyTitle><EmptyDescription>历史记录仍保留。可返回列表查看其他内容。</EmptyDescription></EmptyHeader></Empty> : <>
+          <LearningContentBody item={item} />
+          <div className="mt-6 flex flex-wrap gap-2 border-t pt-4">
+            <Badge size="sm" variant="outline">{item.category}</Badge>
+            {item.tags.map((value) => <Badge key={value} size="sm" variant="outline">#{value}</Badge>)}
+          </div>
+        </>}
       </div>
       {!item.archived ? <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-card px-4 py-3 sm:px-5">
         <p className="text-xs text-muted-foreground tabular-nums">累计学习 {minutes} 分钟{!canLearn ? " · 内容待配置" : ""}</p>
