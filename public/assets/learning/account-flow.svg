@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title description">
+  <title id="title">DSP 账号开通流程</title>
+  <desc id="description">准备资料、提交申请、等待审核、首次登录四个步骤。</desc>
+  <rect width="1200" height="360" rx="16" fill="#f5f6f9"/>
+  <path d="M269 180h49m235 0h49m235 0h49" stroke="#9ca3af" stroke-width="3" stroke-dasharray="8 8"/>
+  <g fill="#fff" stroke="#e4e8f0" stroke-width="2">
+    <rect x="35" y="92" width="234" height="176" rx="12"/>
+    <rect x="318" y="92" width="235" height="176" rx="12"/>
+    <rect x="602" y="92" width="235" height="176" rx="12"/>
+    <rect x="886" y="92" width="279" height="176" rx="12"/>
+  </g>
+  <g font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif" text-anchor="middle">
+    <g fill="#ff6703" font-size="22" font-weight="600"><text x="152" y="145">01</text><text x="435" y="145">02</text><text x="719" y="145">03</text><text x="1025" y="145">04</text></g>
+    <g fill="#1f2937" font-size="25" font-weight="500"><text x="152" y="192">准备资料</text><text x="435" y="192">提交申请</text><text x="719" y="192">等待审核</text><text x="1025" y="192">首次登录</text></g>
+    <g fill="#6b7280" font-size="17"><text x="152" y="230">核对主体与管理员信息</text><text x="435" y="230">填写并上传申请材料</text><text x="719" y="230">按通知补齐缺失资料</text><text x="1025" y="230">检查组织和成员权限</text></g>
+  </g>
+</svg>
