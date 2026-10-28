@@ -153,6 +153,7 @@ export function AppHeader() {
     pageBreadcrumbItems.length > 0
       ? pageBreadcrumbItems
       : getRouteBreadcrumbItems(pathname)
+  const currentLocaleLabel = localeOptions.find((option) => option.value === locale)?.label ?? "中文"
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
@@ -313,6 +314,37 @@ export function AppHeader() {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
+              size="sm"
+              className="gap-1.5 px-2"
+              aria-label={`切换语言，当前${currentLocaleLabel}`}
+            >
+              <LanguagesIcon data-icon="inline-start" />
+              <span className="hidden sm:inline">{currentLocaleLabel}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={8} className="w-36">
+            <DropdownMenuRadioGroup
+              value={locale}
+              onValueChange={(value) => {
+                if (value === "zh-CN" || value === "en-US" || value === "es-ES") {
+                  setLocale(value)
+                  toast.success("语言偏好已更新")
+                }
+              }}
+            >
+              {localeOptions.map((option) => (
+                <DropdownMenuRadioItem key={option.value} value={option.value}>
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
               className="h-10 gap-2 px-1.5"
             >
               <Avatar>
@@ -378,30 +410,6 @@ export function AppHeader() {
                     }}
                   >
                     {timezoneOptions.map((option) => (
-                      <DropdownMenuRadioItem
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
-                  <LanguagesIcon />
-                  语言
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    value={locale}
-                    onValueChange={(value) => {
-                      setLocale(value as typeof locale)
-                      toast.success("语言偏好已更新")
-                    }}
-                  >
-                    {localeOptions.map((option) => (
                       <DropdownMenuRadioItem
                         key={option.value}
                         value={option.value}
