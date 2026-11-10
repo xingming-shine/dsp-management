@@ -85,7 +85,7 @@ export function OverviewTab({ organizationId, onNavigate }: { organizationId: st
   return (
     <div className="flex flex-col gap-4">
       <Tabs value={rankMode} onValueChange={(value) => setRankMode(value as RankMode)}>
-        <Card className="relative overflow-hidden !bg-transparent">
+        <Card size="sm" className="relative overflow-hidden !bg-transparent">
           <div
             className="pointer-events-none absolute inset-0 bg-linear-to-r from-card via-card/70 to-transparent"
             aria-hidden="true"
@@ -110,9 +110,9 @@ export function OverviewTab({ organizationId, onNavigate }: { organizationId: st
           </CardHeader>
           <TabsContent value={rankMode} asChild>
             <CardContent className="relative z-10 -mt-2 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(22rem,1fr)]">
-              <div className="flex min-w-0 flex-col gap-4">
-                <div className="grid items-stretch md:h-[229px] md:grid-cols-[minmax(11rem,.95fr)_minmax(11rem,1fr)_minmax(8rem,.65fr)_minmax(8rem,.65fr)] md:items-end">
-                  <div className="flex items-end justify-center overflow-hidden py-5 md:py-0">
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="grid items-stretch md:h-40 md:grid-cols-[minmax(11rem,.95fr)_minmax(11rem,1fr)_minmax(8rem,.65fr)_minmax(8rem,.65fr)] md:items-end">
+                  <div className="flex items-end justify-center overflow-hidden py-3 md:py-0">
                     <Image
                       src="/assets/dsp-ranking/rank-trophy-decor-v2.webp"
                       alt=""
@@ -120,21 +120,21 @@ export function OverviewTab({ organizationId, onNavigate }: { organizationId: st
                       height={580}
                       unoptimized
                       sizes="(min-width: 1280px) 18vw, 40vw"
-                      className="pointer-events-none h-auto w-full max-w-64 translate-y-2 object-contain"
+                      className="pointer-events-none h-auto w-full max-w-40 translate-y-2 object-contain"
                       aria-hidden="true"
                     />
                   </div>
-                  <div className="flex min-w-0 flex-col items-center gap-3 px-4 py-5 text-center md:py-0">
+                  <div className="flex min-w-0 flex-col items-center gap-2 px-4 py-3 text-center md:py-0">
                     <p className="text-base font-semibold">站点排名</p>
-                    <p className="font-heading font-bold tracking-tight tabular-nums"><span className="text-8xl text-brand-ink">{ranking.stationRank}</span><span className="text-3xl text-foreground"> / {ranking.stationTotal}</span></p>
+                    <p className="font-heading font-bold tracking-tight tabular-nums"><span className="text-6xl text-brand-ink md:text-7xl">{ranking.stationRank}</span><span className="text-2xl text-foreground"> / {ranking.stationTotal}</span></p>
                     <p className="text-sm text-muted-foreground">{ranking.stationChange} 环比上{cycleLabel}</p>
                   </div>
                   <RankComparisonStat label="大区排名" value={ranking.regionRank} total={ranking.regionTotal} change={`${ranking.regionChange} 环比上${cycleLabel}`} divided />
                   <RankComparisonStat label="综合总分" value={ranking.totalScore} change={`${ranking.totalScoreChange} 环比上${cycleLabel}`} accent divided />
                 </div>
 
-                <Alert className="mt-2 border-0 bg-brand-selected/70 px-4 py-3">
-                  <div className="grid min-w-0 gap-2.5">
+                <Alert className="border-0 bg-brand-selected/70 px-4 py-4">
+                  <div className="grid min-w-0 gap-2">
                     <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                       <div className="flex min-w-0 items-center gap-3">
                         <FlameIcon className="size-4 shrink-0 text-brand-ink" aria-hidden="true" />
@@ -147,7 +147,7 @@ export function OverviewTab({ organizationId, onNavigate }: { organizationId: st
                         <ToggleGroupItem value="region">大区第一名</ToggleGroupItem>
                       </ToggleGroup>
                     </div>
-                    <AlertDescription className="grid min-w-0 gap-2.5 text-left text-sm">
+                    <AlertDescription className="grid min-w-0 gap-2 text-left text-sm">
                       <div className="flex min-w-0 flex-wrap gap-2">
                         {dimensionGaps.map((item) => <Badge key={item.name} variant={item.gap > 0 ? "destructive" : item.gap < 0 ? "success" : "secondary"}>{item.name} {formatDimensionGap(item.gap)}</Badge>)}
                       </div>
@@ -179,9 +179,9 @@ export function OverviewTab({ organizationId, onNavigate }: { organizationId: st
 }
 
 function RankComparisonStat({ label, value, total, change, accent = false, divided = false }: { label: string; value: number; total?: number; change: string; accent?: boolean; divided?: boolean }) {
-  return <div className={cn("flex min-w-0 flex-col gap-3 px-4 py-5 md:py-0", divided && "border-t md:border-s md:border-t-0")}>
+  return <div className={cn("flex min-w-0 flex-col gap-2 px-4 py-3 md:py-0", divided && "border-t md:border-s md:border-t-0")}>
     <dt className="text-base font-medium text-muted-foreground">{label}</dt>
-    <dd className="font-heading text-4xl font-bold tracking-tight tabular-nums"><span className={accent ? "text-brand-ink" : undefined}>{value}</span>{total ? <span className="text-xl font-semibold text-foreground"> / {total}</span> : null}</dd>
+    <dd className="font-heading text-3xl font-bold tracking-tight tabular-nums"><span className={accent ? "text-brand-ink" : undefined}>{value}</span>{total ? <span className="text-xl font-semibold text-foreground"> / {total}</span> : null}</dd>
     <dd className="text-sm text-muted-foreground">{change}</dd>
   </div>
 }

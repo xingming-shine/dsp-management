@@ -26,6 +26,8 @@
 .DS_Store
 *.pem
 /运营报告/
+/output/
+/public/assets/login-demo/hero-background-4k.png
 
 # debug
 npm-debug.log*

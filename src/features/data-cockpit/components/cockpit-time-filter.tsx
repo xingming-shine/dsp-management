@@ -20,6 +20,7 @@ export function CockpitTimeFilter({
       onChange={onChange}
       allowRange={allowRange}
       modes={modes}
+      inline
     />
   )
 }

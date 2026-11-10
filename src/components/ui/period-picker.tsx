@@ -42,6 +42,7 @@ type PeriodPickerProps = {
   modes?: PeriodMode[]
   label?: string
   showGranularity?: boolean
+  inline?: boolean
   placeholder?: string
   className?: string
   triggerClassName?: string
@@ -205,6 +206,7 @@ function PeriodPicker({
   modes = ["day", "week", "month"],
   label = "数据时间",
   showGranularity = true,
+  inline = false,
   placeholder,
   className,
   triggerClassName,
@@ -457,9 +459,9 @@ function PeriodPicker({
   const calendarStep = mode === "month" ? 12 : 1
 
   return (
-    <FieldGroup className={cn("grid gap-3", showGranularity && "md:grid-cols-4", className)}>
-      {showGranularity && <Field>
-        <FieldLabel>统计粒度</FieldLabel>
+    <FieldGroup className={cn(inline ? "flex flex-row flex-wrap items-center gap-3" : "grid gap-3", !inline && showGranularity && "md:grid-cols-4", className)}>
+      {showGranularity && <Field className={cn(inline && "w-auto shrink-0")}>
+        <FieldLabel className={cn(inline && "sr-only")}>统计粒度</FieldLabel>
         <Tabs
           value={mode}
           onValueChange={changeMode}
@@ -474,8 +476,8 @@ function PeriodPicker({
         </Tabs>
       </Field>}
 
-      <Field className={cn("min-w-0", showGranularity && "md:col-span-2")}>
-        <FieldLabel htmlFor={triggerId}>{label}</FieldLabel>
+      <Field className={cn("min-w-0", inline ? "w-full sm:w-[320px] sm:max-w-full" : showGranularity && "md:col-span-2")}>
+        <FieldLabel htmlFor={triggerId} className={cn(inline && "sr-only")}>{label}</FieldLabel>
         <Popover
           open={open}
           onOpenChange={(nextOpen) => {

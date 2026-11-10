@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Analysis, Choices, DataGrid, Kpis, MetricHelp, MetricTable, TargetFilter, comboOption, type ChartSeries, type GridColumn } from "./cockpit-widgets";
 import { CockpitTimeFilter } from "./cockpit-time-filter";
+import { OverviewMetricSection } from "./overview-metric-section";
 import { AssessmentDetail, ExclusionTables, MetricDetail } from "./cockpit-details";
-import { aggregate, buckets, byPerspective, capacityColumns, capacityMetrics, complaintTypes, defaultSelection, display, efficiencyColumns, efficiencyMetrics, metric, MOCK_NOTICE, mockAvailability, passes, periodLabel, periodRows, qualityColumns, qualityGroups, recordsFor, resolveReadyPeriod, selectedPeriods, selectionLabel, shiftPeriod, timelinessColumns, timelinessMetrics, isUpdating, type Daily, type Metric, type RecordRow, type Selection } from "../cockpit-model";
+import { aggregate, buckets, byPerspective, capacityColumns, capacityMetrics, complaintTypes, defaultSelection, display, efficiencyColumns, efficiencyMetrics, metric, MOCK_NOTICE, mockAvailability, passes, periodDays, periodLabel, periodRows, qualityColumns, qualityGroups, recordsFor, resolveReadyPeriod, selectedPeriods, selectionLabel, shiftDay, shiftPeriod, timelinessColumns, timelinessMetrics, isUpdating, type Daily, type Metric, type RecordRow, type Selection } from "../cockpit-model";
 import { driverMonth, driverSummary, driverSummaryMetrics } from "../score-model";
 import type { CockpitView, Perspective } from "../types";
 import { chartLegend } from "../chart-options";
@@ -90,13 +91,90 @@ export function OverviewOperations({ organizationId, onNavigate }: {
     organizationId: string;
     onNavigate: (view: CockpitView, selection?: Selection) => void;
 }) {
-    const [selection, setSelection] = useState(defaultSelection()), [filter, setFilter] = useState("all"), [scope, setScope] = useState("assessment"), [detail, setDetail] = useState<Metric>();
-    const values = aggregate(recordsFor(selection, organizationId)), previous = aggregate(recordsFor({ ...selection, value: shiftPeriod(selection.mode, selection.value, -1) }, organizationId)), week = selection.mode === "day" ? aggregate(recordsFor({ mode: "day", value: shiftPeriod("day", selection.value, -7) }, organizationId)) : undefined;
-    const sections: {
-        title: string;
-        view: CockpitView;
-        metrics: Metric[];
-    }[] = [{ title: "产能", view: "capacity", metrics: capacityMetrics }, { title: "人效", view: "efficiency", metrics: efficiencyMetrics.slice(1, 3) }, { title: "时效", view: "timeliness", metrics: timelinessMetrics.slice(0, 3) }, { title: "质量", view: "quality", metrics: [qualityGroups[0].metrics[0], qualityGroups[1].metrics[1], qualityGroups[0].metrics[1], qualityGroups[0].metrics[2], qualityGroups[1].metrics[0], ...qualityGroups[2].metrics.slice(0, 3)] }];
+    const [selection, setSelection] = useState(defaultSelection());
+    const [filter, setFilter] = useState("all");
+    const [scope, setScope] = useState("assessment");
+    const values = aggregate(recordsFor(selection, organizationId));
+    const previous = aggregate(recordsFor({ ...selection, value: shiftPeriod(selection.mode, selection.value, -1) }, organizationId));
+    const week = selection.mode === "day"
+        ? aggregate(recordsFor({ mode: "day", value: shiftPeriod("day", selection.value, -7) }, organizationId))
+        : undefined;
+    const sections: { title: string; view: CockpitView; metrics: Metric[] }[] = [
+        { title: "产能", view: "capacity", metrics: capacityMetrics },
+        { title: "人效", view: "efficiency", metrics: efficiencyMetrics.slice(1, 3) },
+        { title: "时效", view: "timeliness", metrics: timelinessMetrics.slice(0, 3) },
+        { title: "质量", view: "quality", metrics: [qualityGroups[0].metrics[0], qualityGroups[1].metrics[1], qualityGroups[0].metrics[1], qualityGroups[0].metrics[2], qualityGroups[1].metrics[0], ...qualityGroups[2].metrics.slice(0, 3)] },
+    ];
+    const visibleSections = sections.map((section) => ({
+        section,
+        metrics: section.metrics.filter((metric) => filter === "all" || metric.assessment),
+    })).filter(({ metrics }) => metrics.length > 0);
+    const topSections = visibleSections.filter(({ section }) => section.view === "capacity" || section.view === "efficiency");
+    const lowerSections = visibleSections.filter(({ section }) => section.view === "timeliness" || section.view === "quality");
     const month = resolveReadyPeriod(selection.value.slice(0, 7), mockAvailability("driver"));
-    return <><Card><CardHeader><CardTitle>运营指标</CardTitle><CardDescription>{MOCK_NOTICE}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><CockpitTimeFilter selection={selection} onChange={setSelection} allowRange={false}/><Choices value={filter} onChange={setFilter} options={[["all", "全部指标"], ["assessment", "仅考核指标"]]} label="指标筛选"/>{sections.filter((s) => filter === "all" || s.metrics.some((m) => m.assessment)).map((s) => <section key={s.view} className="flex flex-col gap-4 border-t pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-medium">{s.title}</h3>{s.view === "timeliness" ? <div className="flex items-center gap-2">{filter === "all" ? <Choices value={scope} onChange={setScope} options={[["assessment", "考核口径"], ["raw", "原始口径"]]} label="时效口径"/> : <span className="text-xs text-muted-foreground">考核口径</span>}<MetricHelp /></div> : null}<Button variant="link" size="sm" onClick={() => onNavigate(s.view, selection)}>详情<ArrowRightIcon data-icon="inline-end"/></Button></div><Kpis metrics={s.metrics.filter((m) => filter === "all" || m.assessment)} values={values} selection={selection} onDetail={setDetail} comparison={{ previous, week }} raw={s.view === "timeliness" && filter !== "assessment" && scope === "raw"}/></section>)}</CardContent></Card><Card><CardHeader><CardTitle>司机表现</CardTitle><CardDescription>月度数据 · 每月5号计划更新 · {periodLabel("month", month)}</CardDescription><Button variant="link" size="sm" onClick={() => onNavigate("driver", { mode: "month", value: month })}>详情<ArrowRightIcon data-icon="inline-end"/></Button></CardHeader><CardContent className="flex flex-col gap-4">{month !== selection.value.slice(0, 7) ? <Alert><AlertDescription>所选周期所属月份尚未就绪，展示最近已就绪月份。</AlertDescription></Alert> : null}<Kpis metrics={driverSummaryMetrics} values={driverSummary(driverMonth(month, organizationId))} selection={{ mode: "month", value: month }} comparison={{ previous: driverSummary(driverMonth(shiftPeriod("month", month, -1), organizationId)) }}/></CardContent></Card>{detail ? <MetricDetail key={detail.key} type={detail} selection={selection} organizationId={organizationId} onClose={() => setDetail(undefined)}/> : null}</>;
+    const dailyTrend = useMemo(() => {
+        const endPeriod = selection.range?.end || selection.value;
+        const endDay = periodDays(selection.mode, endPeriod).at(-1);
+        if (!endDay) return [];
+
+        const days = Array.from({ length: 7 }, (_, index) => shiftDay(endDay, index - 6));
+        const records = recordsFor({ mode: "day", value: endDay, range: { start: days[0], end: endDay } }, organizationId);
+        const byDay = new Map<string, Daily[]>();
+        for (const record of records) byDay.set(record.date, [...(byDay.get(record.date) || []), record]);
+        return days.map((date) => ({ date, values: byDay.has(date) ? aggregate(byDay.get(date) || []) : undefined }));
+    }, [organizationId, selection.mode, selection.range?.end, selection.value]);
+
+    const renderSection = ({ section, metrics }: (typeof visibleSections)[number]) => (
+        <OverviewMetricSection
+            key={section.view}
+            section={section}
+            selection={selection}
+            metrics={metrics}
+            values={values}
+            previous={previous}
+            week={week}
+            dailyTrend={dailyTrend}
+            raw={section.view === "timeliness" && filter !== "assessment" && scope === "raw"}
+            action={section.view === "timeliness" ? (
+                <div className="flex flex-wrap items-center gap-2">
+                    {filter === "all" ? (
+                        <Choices value={scope} onChange={setScope} options={[["assessment", "考核口径"], ["raw", "原始口径"]]} label="时效口径" />
+                    ) : <span className="text-xs text-muted-foreground">考核口径</span>}
+                    <MetricHelp />
+                </div>
+            ) : undefined}
+            onNavigate={onNavigate}
+        />
+    );
+
+    return <>
+        <Card aria-labelledby="operations-overview-title">
+            <CardHeader>
+                <CardTitle><h2 id="operations-overview-title">运营指标</h2></CardTitle>
+                <CardDescription>{MOCK_NOTICE}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-6">
+                <div className="flex flex-wrap items-end gap-4">
+                    <div className="min-w-0 w-full flex-none sm:flex-1"><CockpitTimeFilter selection={selection} onChange={setSelection} allowRange={false} /></div>
+                    <div className="flex flex-col gap-2">
+                        <span className="text-sm font-medium">指标筛选</span>
+                        <Choices value={filter} onChange={setFilter} options={[["all", "全部指标"], ["assessment", "仅考核指标"]]} label="指标筛选" />
+                    </div>
+                </div>
+                {topSections.length > 0 ? <div className={topSections.length === 2 ? "grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : "grid gap-6"}>{topSections.map(renderSection)}</div> : null}
+                {lowerSections.map(renderSection)}
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader>
+                <CardTitle>司机表现</CardTitle>
+                <CardDescription>月度数据 · 每月5号计划更新 · {periodLabel("month", month)}</CardDescription>
+                <Button variant="link" size="sm" onClick={() => onNavigate("driver", { mode: "month", value: month })}>详情<ArrowRightIcon data-icon="inline-end" /></Button>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+                {month !== selection.value.slice(0, 7) ? <Alert><AlertDescription>所选周期所属月份尚未就绪，展示最近已就绪月份。</AlertDescription></Alert> : null}
+                <Kpis metrics={driverSummaryMetrics} values={driverSummary(driverMonth(month, organizationId))} selection={{ mode: "month", value: month }} comparison={{ previous: driverSummary(driverMonth(shiftPeriod("month", month, -1), organizationId)) }} />
+            </CardContent>
+        </Card>
+    </>;
 }
