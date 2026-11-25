@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+/web-demo/node_modules/
 /.pnpm-store/
 /.pnp
 .pnp.*
@@ -16,8 +16,9 @@
 
 # next.js
 /.next/
+/web-demo/.next/
 /out/
-/public/vendor/maplibre/
+/web-demo/public/vendor/maplibre/
 
 # production
 /build
@@ -27,7 +28,7 @@
 *.pem
 /运营报告/
 /output/
-/public/assets/login-demo/hero-background-4k.png
+/web-demo/public/assets/login-demo/hero-background-4k.png
 
 # debug
 npm-debug.log*

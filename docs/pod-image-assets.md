@@ -1,12 +1,12 @@
 # POD image assets
 
-These images were generated with the built-in image generation tool for the local POD fixtures, not sourced from actual deliveries. Production integration must replace the fixture adapter in `src/features/live-dashboard/pod-demo-data.ts` with authorized POD records. The UI intentionally does not display a demo-data label.
+These images were generated with the built-in image generation tool for the local POD fixtures, not sourced from actual deliveries. Production integration must replace the fixture adapter in `web-demo/src/features/live-dashboard/pod-demo-data.ts` with authorized POD records. The UI intentionally does not display a demo-data label.
 
 Saved files:
 
-- `public/assets/live-dashboard/pod/parcel-label.png`
-- `public/assets/live-dashboard/pod/doorstep.png`
-- `public/assets/live-dashboard/pod/parcel-side.png`
+- `web-demo/public/assets/live-dashboard/pod/parcel-label.png`
+- `web-demo/public/assets/live-dashboard/pod/doorstep.png`
+- `web-demo/public/assets/live-dashboard/pod/parcel-side.png`
 
 ## Exact prompt set
 

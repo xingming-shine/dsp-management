@@ -1,6 +1,7 @@
 import type { AuthSession } from "@/features/auth/types"
 
 export const mockSession: AuthSession = {
+  isSystemAdmin: true,
   user: {
     id: "user-1001",
     name: "John Smith",
@@ -42,6 +43,7 @@ export const mockSession: AuthSession = {
     "change_password",
     "download_file",
     "batch_download",
+    "team.staff.read",
   ],
   preferences: {
     locale: "zh-CN",

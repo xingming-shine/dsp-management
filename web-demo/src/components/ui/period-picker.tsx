@@ -46,6 +46,7 @@ type PeriodPickerProps = {
   placeholder?: string
   className?: string
   triggerClassName?: string
+  timeZone?: string
 }
 
 const MODE_LABEL: Record<PeriodMode, string> = {
@@ -81,11 +82,11 @@ function shiftMonth(value: string, amount: number) {
     .slice(0, 7)
 }
 
-function todayISO(now = new Date()) {
+function todayISO(timeZone = DEFAULT_TIME_ZONE, now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     day: "2-digit",
     month: "2-digit",
-    timeZone: DEFAULT_TIME_ZONE,
+    timeZone,
     year: "numeric",
   }).formatToParts(now)
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
@@ -112,8 +113,8 @@ function shiftPeriod(mode: PeriodMode, value: string, amount: number) {
   return shiftDay(value, amount)
 }
 
-function defaultSelection(mode: PeriodMode): PeriodSelection {
-  const today = todayISO()
+function defaultSelection(mode: PeriodMode, timeZone = DEFAULT_TIME_ZONE): PeriodSelection {
+  const today = todayISO(timeZone)
   return {
     mode,
     value:
@@ -152,10 +153,10 @@ function periodCount(mode: PeriodMode, start: string, end: string) {
   return Math.floor(days / (mode === "week" ? 7 : 1)) + 1
 }
 
-function validateSelection(mode: PeriodMode, start: string, end: string) {
+function validateSelection(mode: PeriodMode, start: string, end: string, timeZone = DEFAULT_TIME_ZONE) {
   if (!start || !end) return "请选择完整的起止时间"
   if (end < start) return "结束时间不能早于开始时间"
-  if (end > defaultSelection(mode).value) return "不能选择未来周期"
+  if (end > defaultSelection(mode, timeZone).value) return "不能选择未来周期"
 
   const count = periodCount(mode, start, end)
   const maximum = mode === "day" ? 31 : 12
@@ -210,6 +211,7 @@ function PeriodPicker({
   placeholder,
   className,
   triggerClassName,
+  timeZone = DEFAULT_TIME_ZONE,
 }: PeriodPickerProps) {
   const triggerId = React.useId()
   const [open, setOpen] = React.useState(false)
@@ -226,7 +228,7 @@ function PeriodPicker({
   const end = draft.range?.end || draft.value
   const previewStart = anchor && hover ? (anchor < hover ? anchor : hover) : start
   const previewEnd = anchor && hover ? (anchor < hover ? hover : anchor) : end
-  const error = anchor ? "请选择结束周期" : validateSelection(mode, start, end)
+  const error = anchor ? "请选择结束周期" : validateSelection(mode, start, end, timeZone)
 
   function resetDraft() {
     setDraft(selection)
@@ -238,7 +240,7 @@ function PeriodPicker({
 
   function changeMode(value: string) {
     if (!value) return
-    onChange(defaultSelection(value as PeriodMode))
+    onChange(defaultSelection(value as PeriodMode, timeZone))
     setOpen(false)
   }
 
@@ -335,7 +337,7 @@ function PeriodPicker({
                 state.middle && "is-in-range",
                 state.end && "is-range-end"
               )}
-              disabled={!isCurrentMonth || day > todayISO()}
+              disabled={!isCurrentMonth || day > todayISO(timeZone)}
               aria-label={formatDate(day)}
               aria-pressed={selected || state.start || state.middle || state.end}
               onClick={() => choose(day)}
@@ -384,7 +386,7 @@ function PeriodPicker({
                 state.middle && "rounded-none bg-period-range text-brand hover:bg-period-range hover:text-brand",
                 (state.start || state.end) && "bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground"
               )}
-              disabled={week.value > defaultSelection("week").value}
+              disabled={week.value > defaultSelection("week", timeZone).value}
               aria-label={periodLabel("week", week.value)}
               aria-pressed={selected || state.start || state.middle || state.end}
               onClick={() => choose(week.value)}
@@ -434,7 +436,7 @@ function PeriodPicker({
                 state.middle && "rounded-none border-transparent bg-period-range text-brand hover:bg-period-range hover:text-brand",
                 (state.start || state.end) && "border-transparent bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground"
               )}
-              disabled={monthValue > todayISO().slice(0, 7)}
+              disabled={monthValue > todayISO(timeZone).slice(0, 7)}
               aria-pressed={selected || state.start || state.middle || state.end}
               onClick={() => choose(monthValue)}
               onFocus={() => anchor && setHover(monthValue)}
@@ -598,7 +600,7 @@ function PeriodPicker({
                           )}
                           aria-pressed={periodCount(mode, start, end) === count}
                           onClick={() => {
-                            const nextEnd = defaultSelection(mode).value
+                            const nextEnd = defaultSelection(mode, timeZone).value
                             setDraft({
                               mode,
                               value: nextEnd,

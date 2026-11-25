@@ -22,6 +22,8 @@ import {
   RouteIcon,
   SearchIcon,
   SettingsIcon,
+  ShieldCheckIcon,
+  SmartphoneIcon,
   UsersIcon,
   WalletIcon,
 } from "lucide-react"
@@ -79,7 +81,7 @@ export const primaryNavigation: NavigationItem[] = [
         icon: GaugeIcon,
         href: "/data-cockpit",
         permission: "data_cockpit.read",
-        status: "available",
+        status: "planned",
       },
     ],
   },
@@ -262,9 +264,10 @@ export const primaryNavigation: NavigationItem[] = [
       {
         id: "staff",
         label: "其他员工管理",
-        icon: SettingsIcon,
+        icon: UsersIcon,
+        href: "/team/staff",
         permission: "team.staff.read",
-        status: "planned",
+        status: "available",
       },
     ],
   },
@@ -331,3 +334,13 @@ export const primaryNavigation: NavigationItem[] = [
     ],
   },
 ]
+
+export const systemNavigation: NavigationItem = {
+  id: "system-management",
+  label: "系统管理",
+  icon: SettingsIcon,
+  children: [
+    { id: "system-permissions", label: "系统权限", icon: ShieldCheckIcon, href: "/system/permissions", status: "available" },
+    { id: "app-releases", label: "App 版本发布", icon: SmartphoneIcon, href: "/system/app-releases", status: "available" },
+  ],
+}

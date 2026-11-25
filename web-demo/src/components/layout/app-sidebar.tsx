@@ -25,8 +25,10 @@ import {
 } from "@/components/ui/sidebar"
 import {
   primaryNavigation,
+  systemNavigation,
   type NavigationItem,
 } from "@/config/navigation"
+import { mockSession } from "@/mocks/session"
 
 function isActive(item: NavigationItem, pathname: string): boolean {
   if (item.href === pathname) {
@@ -212,6 +214,7 @@ function NavigationGroup({
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const isSystemRoute = pathname.startsWith("/system/")
 
   return (
     <Sidebar collapsible="icon" desktopBehavior="overlay">
@@ -224,7 +227,7 @@ export function AppSidebar() {
               tooltip="DSP 管理系统"
               className="h-10 px-2"
             >
-              <Link href="/">
+              <Link href={isSystemRoute ? "/system/permissions" : "/"}>
                 <span className="relative flex size-8 items-center justify-center rounded-full bg-foreground text-background">
                   <PackageCheckIcon />
                   <span
@@ -265,6 +268,9 @@ export function AppSidebar() {
                   />
                 )
               })}
+              {mockSession.isSystemAdmin && (
+                <NavigationGroup item={systemNavigation} pathname={pathname} />
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

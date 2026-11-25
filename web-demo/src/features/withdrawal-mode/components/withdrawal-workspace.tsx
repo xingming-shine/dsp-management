@@ -54,9 +54,9 @@ export function WithdrawalWorkspace({ panel, rows, onNavigate, onReturn, childre
 }
 
 /** Shared list-to-detail workspace for DSP and driver withdrawal workflows. */
-export function WithdrawalRecordWorkspace<P extends RecordPanel>({ panel, cards, title, detailPanel, newPanel, onNavigate, onReturn, children }: {
-  panel: P; cards: WorkspaceCard[]; title: string; detailPanel: (id: string) => P; newPanel?: P
-  onNavigate: (panel: P) => void; onReturn: () => void; children: (navigation: RecordNavigation<P>) => ReactNode
+export function WithdrawalRecordWorkspace<P extends RecordPanel>({ panel, cards, title, detailPanel, newPanel, newLabel = "新建申请", showListHeader = true, onNavigate, onReturn, navigationLocked = false, children }: {
+  panel: P; cards: WorkspaceCard[]; title: string; detailPanel: (id: string) => P; newPanel?: P; newLabel?: string
+  showListHeader?: boolean; onNavigate: (panel: P) => void; onReturn: () => void; navigationLocked?: boolean; children: (navigation: RecordNavigation<P>) => ReactNode
 }) {
   const [mobileList, setMobileList] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -82,7 +82,7 @@ export function WithdrawalRecordWorkspace<P extends RecordPanel>({ panel, cards,
   useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current) }, [])
 
   function request(action: () => void) {
-    if (closing) return
+    if (closing || navigationLocked) return
     if (!dirtyRef.current) { action(); return }
     setConfirmation({
       title: "放弃未提交的内容？", description: "当前修改尚未提交，离开后将丢失这些修改。", label: "放弃修改", destructive: true,
@@ -122,29 +122,28 @@ export function WithdrawalRecordWorkspace<P extends RecordPanel>({ panel, cards,
       close()
     }}>
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3"><Button variant="outline" size="sm" onClick={close} disabled={closing}><ArrowLeftIcon data-icon="inline-start" />返回列表</Button><h1 className="truncate text-base font-medium">{title}</h1></div>
+        <div className="flex min-w-0 items-center gap-3"><Button variant="outline" size="sm" onClick={close} disabled={closing || navigationLocked}><ArrowLeftIcon data-icon="inline-start" />返回列表</Button><h1 className="truncate text-base font-medium">{title}</h1></div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{panel.type === "create" ? "新建申请" : `第 ${selectedIndex + 1} / ${cards.length} 条`}</span>
-          <Button variant="outline" size="icon-sm" aria-label="上一条申请" disabled={closing || selectedIndex <= 0} onClick={() => select(selectedIndex - 1)}><ChevronLeftIcon /></Button>
-          <Button variant="outline" size="icon-sm" aria-label="下一条申请" disabled={closing || selectedIndex < 0 || selectedIndex >= cards.length - 1} onClick={() => select(selectedIndex + 1)}><ChevronRightIcon /></Button>
+          <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{panel.type === "create" ? newLabel : `第 ${selectedIndex + 1} / ${cards.length} 条`}</span>
+          <Button variant="outline" size="icon-sm" aria-label="上一条记录" disabled={closing || navigationLocked || selectedIndex <= 0} onClick={() => select(selectedIndex - 1)}><ChevronLeftIcon /></Button>
+          <Button variant="outline" size="icon-sm" aria-label="下一条记录" disabled={closing || navigationLocked || selectedIndex < 0 || selectedIndex >= cards.length - 1} onClick={() => select(selectedIndex + 1)}><ChevronRightIcon /></Button>
           <Button variant="outline" size="sm" className="lg:hidden" aria-expanded={mobileList} aria-controls="withdrawal-card-list" onClick={() => {
             setMobileList(!mobileList)
             requestAnimationFrame(() => {
               const target = mobileList ? workspaceRef.current?.querySelector<HTMLElement>("article h2") : railRef.current?.querySelector<HTMLElement>('[aria-current="true"]')
               target?.focus({ preventScroll: true })
             })
-          }} disabled={closing}><ListIcon data-icon="inline-start" />{mobileList ? "查看内容" : "切换记录"}</Button>
+          }} disabled={closing || navigationLocked}><ListIcon data-icon="inline-start" />{mobileList ? "查看内容" : "切换记录"}</Button>
         </div>
       </header>
       <div className="grid min-h-0 min-w-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
-        <aside id="withdrawal-card-list" aria-label="提现模式申请卡片列表" className={cn("min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card p-3 lg:flex", mobileList ? "flex" : "hidden")} style={{ viewTransitionName: "withdrawal-list" }}>
-          <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-medium">记录清单</h2><span className="text-xs text-muted-foreground tabular-nums">{cards.length} 条</span></div>
-          <Separator className="my-3" />
+        <aside id="withdrawal-card-list" aria-label={title + "记录清单"} className={cn("min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card p-3 lg:flex", mobileList ? "flex" : "hidden")} style={{ viewTransitionName: "withdrawal-list" }}>
+          {showListHeader && <><div className="flex items-center justify-between gap-2"><h2 className="text-sm font-medium">记录清单</h2><span className="text-xs text-muted-foreground tabular-nums">{cards.length} 条</span></div><Separator className="my-3" /></>}
           <div ref={railRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <ul className="flex flex-col gap-2">
-              {panel.type === "create" && newPanel && <li><Button variant="outline" aria-current="true" className="withdrawal-navigation-card h-auto w-full flex-col items-start gap-2 px-3 py-4" onClick={() => navigate(newPanel)}><span className="flex items-center gap-2"><PlusIcon data-icon="inline-start" />新建申请</span><span className="text-xs text-muted-foreground">未提交</span></Button></li>}
+              {panel.type === "create" && newPanel && <li><Button variant="outline" aria-current="true" className="withdrawal-navigation-card h-auto w-full flex-col items-start gap-2 px-3 py-4" disabled={navigationLocked} onClick={() => navigate(newPanel)}><span className="flex items-center gap-2"><PlusIcon data-icon="inline-start" />{newLabel}</span><span className="text-xs text-muted-foreground">未提交</span></Button></li>}
               {cards.map((card, index) => <li key={card.id} style={{ viewTransitionName: withdrawalTransitionName(card.id) }}>
-                <Button variant="outline" className="withdrawal-navigation-card h-auto w-full flex-col items-stretch gap-2 px-3 py-3 text-left" aria-current={card.id === selectedId ? "true" : undefined} aria-label={card.label} disabled={closing} onClick={() => select(index)} onKeyDown={(event) => {
+                <Button variant="outline" className="withdrawal-navigation-card h-auto w-full flex-col items-stretch gap-2 px-3 py-3 text-left" aria-current={card.id === selectedId ? "true" : undefined} aria-label={card.label} disabled={closing || navigationLocked} onClick={() => select(index)} onKeyDown={(event) => {
                   const target = event.key === "ArrowDown" ? index + 1 : event.key === "ArrowUp" ? index - 1 : event.key === "Home" ? 0 : event.key === "End" ? cards.length - 1 : null
                   if (target !== null) { event.preventDefault(); select(target, true) }
                 }}>{card.content}</Button>

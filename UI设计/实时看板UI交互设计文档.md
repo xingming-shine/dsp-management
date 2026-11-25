@@ -576,6 +576,7 @@
 
 ## 14. 实现参考
 
+- 以下源码路径位于 `web-demo/`。
 - 页面入口：`src/app/(protected)/live-dashboard/page.tsx`
 - 页面状态与下钻路由：`src/features/live-dashboard/components/live-dashboard.tsx`
 - 总览布局：`src/features/live-dashboard/components/desktop-realtime-overview.tsx`

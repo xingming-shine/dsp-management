@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { Fragment, useEffect, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { Fragment, Suspense, useEffect, useState } from "react"
 import {
   Building2Icon,
   ChevronDownIcon,
@@ -67,6 +67,8 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -83,6 +85,7 @@ import { useProfile } from "@/features/auth/profile-context"
 import { mockDspGateway } from "@/services/mock-dsp-gateway"
 import {
   primaryNavigation,
+  systemNavigation,
   type NavigationItem,
   utilityRouteLabels,
 } from "@/config/navigation"
@@ -127,7 +130,7 @@ function findNavigationTrail(
 }
 
 function getRouteBreadcrumbItems(pathname: string): AppBreadcrumbItem[] {
-  const navigationTrail = findNavigationTrail(primaryNavigation, pathname)
+  const navigationTrail = findNavigationTrail([...primaryNavigation, systemNavigation], pathname)
   const routeItems = navigationTrail?.map((item) => ({
     label: item.label,
     href: item.href,
@@ -139,8 +142,112 @@ function getRouteBreadcrumbItems(pathname: string): AppBreadcrumbItem[] {
   )
 }
 
+type StaffScopeProps = {
+  organizationId: string
+  setOrganizationId: (organizationId: string) => void
+}
+
+function useStaffScope({ organizationId, setOrganizationId }: StaffScopeProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const view = searchParams.get("view")
+  const dspOrganizations = mockSession.organizations.slice(0, 2)
+  const selectedOrganizationId = dspOrganizations.some((item) => item.id === organizationId)
+    ? organizationId
+    : dspOrganizations[0].id
+
+  function handleScopeChange(value: string) {
+    if (value === "system") {
+      router.push("/system/permissions")
+      return
+    }
+    const query = new URLSearchParams(searchParams.toString())
+    if (value === "headquarters") {
+      query.delete("view")
+      query.delete("org")
+    } else {
+      setOrganizationId(value)
+      query.set("view", "dsp")
+      query.set("org", value)
+    }
+    router.push(`/team/staff${query.size ? `?${query}` : ""}`)
+  }
+
+  return { view, dspOrganizations, selectedOrganizationId, handleScopeChange }
+}
+
+function StaffScopeSelect(props: StaffScopeProps) {
+  const { view, dspOrganizations, selectedOrganizationId, handleScopeChange } = useStaffScope(props)
+
+  if (view === "denied") {
+    return <span className="text-sm text-muted-foreground">无权限视角</span>
+  }
+
+  return (
+    <Select value={view === "dsp" ? selectedOrganizationId : "headquarters"} onValueChange={handleScopeChange}>
+      <SelectTrigger size="sm" aria-label="切换工作视角" className="w-48">
+        <Building2Icon />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent position="popper" align="start" className="w-(--radix-select-trigger-width)">
+        {mockSession.isSystemAdmin && <>
+          <SelectGroup><SelectItem value="system">Gofo-Express</SelectItem></SelectGroup>
+          <SelectSeparator />
+        </>}
+        <SelectGroup>
+          <SelectItem value="headquarters">总部视角</SelectItem>
+        </SelectGroup>
+        <SelectSeparator />
+        <SelectGroup>
+          <SelectLabel>DSP 车队视角</SelectLabel>
+          {dspOrganizations.map((organization) => (
+            <SelectItem key={organization.id} value={organization.id}>
+              {organization.name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+}
+
+function StaffScopeMenu(props: StaffScopeProps) {
+  const { view, dspOrganizations, selectedOrganizationId, handleScopeChange } = useStaffScope(props)
+
+  if (view === "denied") return null
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
+        <Building2Icon />
+        工作视角
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup
+          value={view === "dsp" ? selectedOrganizationId : "headquarters"}
+          onValueChange={handleScopeChange}
+        >
+          {mockSession.isSystemAdmin && <>
+            <DropdownMenuRadioItem value="system">Gofo-Express</DropdownMenuRadioItem>
+            <DropdownMenuSeparator />
+          </>}
+          <DropdownMenuRadioItem value="headquarters">总部视角</DropdownMenuRadioItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>DSP 车队视角</DropdownMenuLabel>
+          {dspOrganizations.map((organization) => (
+            <DropdownMenuRadioItem key={organization.id} value={organization.id}>
+              {organization.name}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
+
 export function AppHeader() {
   const pathname = usePathname()
+  const isSystemRoute = pathname.startsWith("/system/")
   const router = useRouter()
   const { organizationId, setOrganizationId } = useOrganization()
   const { user } = useProfile()
@@ -154,6 +261,11 @@ export function AppHeader() {
       ? pageBreadcrumbItems
       : getRouteBreadcrumbItems(pathname)
   const currentLocaleLabel = localeOptions.find((option) => option.value === locale)?.label ?? "中文"
+  const workspaceValue = isSystemRoute ? "system" : organizationId
+  const availableDspOrganizations = mockSession.organizations
+  const canSwitchWorkspace = mockSession.isSystemAdmin
+    ? availableDspOrganizations.length > 0
+    : availableDspOrganizations.length > 1
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
@@ -162,12 +274,17 @@ export function AppHeader() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  function handleOrganizationChange(value: string) {
+  function handleWorkspaceChange(value: string) {
+    if (value === workspaceValue) return
+    if (value === "system") {
+      if (!mockSession.isSystemAdmin) return
+      router.push("/system/permissions")
+      return
+    }
+    const organization = availableDspOrganizations.find((item) => item.id === value)
+    if (!organization) return
     setOrganizationId(value)
-    const organization = mockSession.organizations.find(
-      (item) => item.id === value
-    )
-    toast.success(`已切换到：${organization?.name ?? value}`)
+    router.push(`/?org=${encodeURIComponent(value)}`)
   }
 
   async function handleLogout() {
@@ -247,28 +364,38 @@ export function AppHeader() {
         </Breadcrumb>
 
         <div className="hidden items-center xl:flex">
-          <Select
-            value={organizationId}
-            onValueChange={handleOrganizationChange}
-          >
-            <SelectTrigger size="sm" aria-label="切换组织" className="w-48">
-              <Building2Icon />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent
-              position="popper"
-              align="start"
-              className="w-(--radix-select-trigger-width)"
-            >
-              <SelectGroup>
-                {mockSession.organizations.map((organization) => (
-                  <SelectItem key={organization.id} value={organization.id}>
-                    {organization.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          {pathname === "/team/staff" ? (
+            <Suspense fallback={<span className="text-sm text-muted-foreground">总部视角</span>}>
+              <StaffScopeSelect organizationId={organizationId} setOrganizationId={setOrganizationId} />
+            </Suspense>
+          ) : canSwitchWorkspace ? (
+            <Select value={workspaceValue} onValueChange={handleWorkspaceChange}>
+              <SelectTrigger size="sm" aria-label="切换工作空间" className="w-44">
+                <Building2Icon />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                align="start"
+                className="w-(--radix-select-trigger-width)"
+              >
+                {mockSession.isSystemAdmin && <>
+                  <SelectGroup><SelectItem value="system">Gofo-Express</SelectItem></SelectGroup>
+                  <SelectSeparator />
+                </>}
+                <SelectGroup>
+                  <SelectLabel>DSP 车队</SelectLabel>
+                  {availableDspOrganizations.map((organization) => (
+                    <SelectItem key={organization.id} value={organization.id}>
+                      {organization.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-sm text-muted-foreground">{isSystemRoute ? "Gofo-Express" : availableDspOrganizations.find((item) => item.id === organizationId)?.name ?? "未选择车队"}</span>
+          )}
         </div>
 
         <Separator orientation="vertical" className="hidden h-6 xl:block" />
@@ -375,27 +502,38 @@ export function AppHeader() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
-                  <Building2Icon />
-                  当前组织
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    value={organizationId}
-                    onValueChange={handleOrganizationChange}
-                  >
-                    {mockSession.organizations.map((organization) => (
-                      <DropdownMenuRadioItem
-                        key={organization.id}
-                        value={organization.id}
-                      >
-                        {organization.name}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              {pathname === "/team/staff" ? (
+                <Suspense fallback={null}>
+                  <StaffScopeMenu organizationId={organizationId} setOrganizationId={setOrganizationId} />
+                </Suspense>
+              ) : canSwitchWorkspace ? (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
+                    <Building2Icon />
+                    工作空间
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuRadioGroup
+                      value={workspaceValue}
+                      onValueChange={handleWorkspaceChange}
+                    >
+                      {mockSession.isSystemAdmin && <>
+                        <DropdownMenuRadioItem value="system">Gofo-Express</DropdownMenuRadioItem>
+                        <DropdownMenuSeparator />
+                      </>}
+                      <DropdownMenuLabel>DSP 车队</DropdownMenuLabel>
+                      {availableDspOrganizations.map((organization) => (
+                        <DropdownMenuRadioItem
+                          key={organization.id}
+                          value={organization.id}
+                        >
+                          {organization.name}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : null}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="gap-2.5 px-2.5 py-2">
                   <Clock3Icon />

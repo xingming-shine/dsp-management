@@ -15,6 +15,7 @@ export interface SessionUser {
 
 export interface AuthSession {
   user: SessionUser
+  isSystemAdmin?: boolean
   organizations: OrganizationSummary[]
   currentOrganizationId: string
   permissions: string[]

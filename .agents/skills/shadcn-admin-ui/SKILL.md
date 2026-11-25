@@ -5,7 +5,7 @@ description: Design, implement, and review the DSP management system's admin UI 
 
 # DSP shadcn admin UI
 
-Create and review UI that belongs to this repository. Treat repository files as the source of truth and the AdminCN site as visual reference material, not as source code to copy.
+Create and review UI that belongs to this repository. The runnable application root is `web-demo/`; application paths below are relative to it. Treat repository files as the source of truth and the AdminCN site as visual reference material, not as source code to copy.
 
 ## Load context
 
@@ -15,7 +15,7 @@ Before changing UI:
 2. Read [references/dsp-project-profile.md](references/dsp-project-profile.md).
 3. Read [references/admincn-patterns.md](references/admincn-patterns.md) when the task concerns layout, hierarchy, spacing, interaction, or a page recipe.
 4. Inspect the target route and nearby feature components.
-5. Run `pnpm shadcn info --json` from the repository root when project configuration may have changed.
+5. Run `pnpm shadcn info --json` from `web-demo/` when project configuration may have changed.
 6. Use the repository-local `shadcn` Skill for component discovery, documentation, installation, or updates.
 
 Do not read or import UI specifications, components, CSS, configuration, or Skills from other projects.
@@ -83,7 +83,7 @@ Prefer the smallest recipe that completes the user's task. Do not turn every sec
 - Lead with four to six comparable KPIs, not a wall of unrelated widgets.
 - Give the primary chart or analysis view the largest area.
 - Use supporting panels for ranking, anomalies, breakdowns, or recent activity.
-- Use no more than six standard chart colors; map the leading series to teal through `chart-1`. If more than six categories are unavoidable, merge low-value categories first or derive registered light/dark variants from the standard colors. Use about 10% opacity for area fills and no more than four overlapping area series. Keep brand orange out of analytical series even though it is used for the primary Button.
+- Use no more than six standard chart colors; map the leading series to teal through `chart-1`. If more than six categories are unavoidable, merge low-value categories first or derive registered light/dark variants from the standard colors. Use a same-series vertical area gradient from about 18% opacity to 0% and no more than four overlapping area series. Allow restrained same-hue vertical lightness on bars. Keep brand orange out of analytical series even though it is used for the primary Button.
 - Keep chart legends, axes, tooltips, and table numbers readable at normal zoom.
 - Use tabular numerals for metrics.
 - Do not nest KPI cards inside a large decorative card unless the grouping has a clear product meaning.

@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import type { LucideIcon } from "lucide-react"
 import {
@@ -28,6 +30,7 @@ import {
   type NavigationItem,
 } from "@/config/navigation"
 import { mockSession } from "@/mocks/session"
+import { useOrganization } from "@/features/organizations/organization-context"
 
 function countItemsByStatus(
   items: NavigationItem[],
@@ -42,11 +45,8 @@ function countItemsByStatus(
   }, 0)
 }
 
-const currentOrganization = mockSession.organizations.find(
-  (organization) => organization.id === mockSession.currentOrganizationId
-)
-
 export default function HomePage() {
+  const { organization: currentOrganization } = useOrganization()
   return (
     <div className="flex w-full flex-col gap-6">
       <section className="flex flex-wrap items-end justify-between gap-4">
