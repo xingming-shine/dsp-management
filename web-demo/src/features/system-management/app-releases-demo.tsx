@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useTimezone } from "@/features/preferences/timezone-store"
 import { DmsOrgTreePicker, DmsOrgTreeView } from "./dms-org-tree-picker"
@@ -27,23 +28,26 @@ import { mockSession } from "@/mocks/session"
 type Status = "enabled" | "withdrawn" | "disabled"
 type Platform = "Android" | "iOS"
 type ReminderPolicy = "daily" | "three_days"
+const apps = [{ id: "dsp-app", name: "DSP App" }] as const
+const defaultAppId = apps[0].id
+const appName = (appId: string) => apps.find((app) => app.id === appId)?.name ?? appId
 type Release = {
-  id: string; version: string; platform: Platform
+  id: string; appId: string; version: string; platform: Platform
   requirement: "suggest" | "force"; reminderPolicy: ReminderPolicy | null; scope: "all" | "gray"; targets: string[]
   storeUrl: string; privateUrl: string; minVersion: string; notes: string
   publishAt: string; status: Status; disabledAt: string | null; disabledBy: string | null
 }
-type StoredRelease = Omit<Release, "status" | "reminderPolicy" | "disabledAt" | "disabledBy"> & { status: Status | "gray" | "full" | "stopped" | "draft" | "scheduled" | "paused"; reminderPolicy?: ReminderPolicy | null; disabledAt?: string | null; disabledBy?: string | null; events?: { at: string; title: string; operator: string }[]; build?: string; minBuild?: string; type?: "normal" | "hot"; hotKey?: string; hotMaxBuild?: string }
+type StoredRelease = Omit<Release, "appId" | "status" | "reminderPolicy" | "disabledAt" | "disabledBy"> & { appId?: string; status: Status | "gray" | "full" | "stopped" | "draft" | "scheduled" | "paused"; reminderPolicy?: ReminderPolicy | null; disabledAt?: string | null; disabledBy?: string | null; events?: { at: string; title: string; operator: string }[]; build?: string; minBuild?: string; type?: "normal" | "hot"; hotKey?: string; hotMaxBuild?: string }
 type DisabledVersion = { id: string; platform: Platform; version: string; at: string; reason: string }
 type StoredDisabledVersion = DisabledVersion & { build?: string }
 type PendingAction = { kind: "withdraw" | "enable" | "disable" | "restore"; releaseId: string }
 type DiscardIntent = { kind: "action"; action: PendingAction } | null
 
 const sample: Release[] = [
-  { id: "r-1", version: "2.8.0", platform: "Android", requirement: "suggest", reminderPolicy: "three_days", scope: "gray", targets: ["org-1", "org-2"], storeUrl: "https://play.google.com/store/apps/details?id=example.dsp", privateUrl: "", minVersion: "", notes: "优化任务列表与扫描反馈。", publishAt: "2026-11-19T09:00:00Z", status: "enabled", disabledAt: null, disabledBy: null },
-  { id: "r-2", version: "2.7.2", platform: "iOS", requirement: "force", reminderPolicy: null, scope: "all", targets: [], storeUrl: "https://apps.apple.com/app/example-dsp/id000000", privateUrl: "", minVersion: "", notes: "修复登录稳定性问题。", publishAt: "2026-11-15T09:00:00Z", status: "enabled", disabledAt: null, disabledBy: null },
+  { id: "r-1", appId: defaultAppId, version: "2.8.0", platform: "Android", requirement: "suggest", reminderPolicy: "three_days", scope: "gray", targets: ["org-1", "org-2"], storeUrl: "https://play.google.com/store/apps/details?id=example.dsp", privateUrl: "", minVersion: "", notes: "优化任务列表与扫描反馈。", publishAt: "2026-11-19T09:00:00Z", status: "enabled", disabledAt: null, disabledBy: null },
+  { id: "r-2", appId: defaultAppId, version: "2.7.2", platform: "iOS", requirement: "force", reminderPolicy: null, scope: "all", targets: [], storeUrl: "https://apps.apple.com/app/example-dsp/id000000", privateUrl: "", minVersion: "", notes: "修复登录稳定性问题。", publishAt: "2026-11-15T09:00:00Z", status: "enabled", disabledAt: null, disabledBy: null },
 ]
-const emptyRelease = (): Release => ({ id: "", version: "", platform: "Android", requirement: "suggest", reminderPolicy: null, scope: "gray", targets: [], storeUrl: "", privateUrl: "", minVersion: "", notes: "", publishAt: "", status: "enabled", disabledAt: null, disabledBy: null })
+const emptyRelease = (appId: string): Release => ({ id: "", appId, version: "", platform: "Android", requirement: "suggest", reminderPolicy: null, scope: "gray", targets: [], storeUrl: "", privateUrl: "", minVersion: "", notes: "", publishAt: "", status: "enabled", disabledAt: null, disabledBy: null })
 const storageKey = "dsp-app-releases-demo-v2"
 const disabledKey = "dsp-disabled-builds-demo-v2"
 const statusText: Record<Status, string> = { enabled: "启用", withdrawn: "已撤回", disabled: "已禁用" }
@@ -103,7 +107,8 @@ function readStoredReleases(stored: StoredRelease[], legacyDisabled: StoredDisab
   const source: StoredRelease[] = Array.isArray(stored) ? stored : sample
   return source.flatMap((item) => {
     if (!item || item.type === "hot" || item.status === "draft" || item.status === "scheduled") return []
-    const oldDisable = legacyDisabled.find((entry) => entry.platform === item.platform && (entry.version === item.version || (!entry.version && entry.build && entry.build === item.build)))
+    const appId = item.appId ?? defaultAppId
+    const oldDisable = appId === defaultAppId ? legacyDisabled.find((entry) => entry.platform === item.platform && (entry.version === item.version || (!entry.version && entry.build && entry.build === item.build))) : undefined
     const status: Status = oldDisable || item.status === "disabled" ? "disabled" : item.status === "withdrawn" || item.status === "stopped" || item.status === "paused" ? "withdrawn" : "enabled"
     const lastDisable = Array.isArray(item.events) ? item.events.find((entry) => entry.title === "禁用版本") : undefined
     const storedFields = { ...item }
@@ -113,7 +118,7 @@ function readStoredReleases(stored: StoredRelease[], legacyDisabled: StoredDisab
     delete storedFields.type
     delete storedFields.hotKey
     delete storedFields.hotMaxBuild
-    const release: Release = { ...storedFields, status, reminderPolicy: item.requirement === "force" ? null : item.reminderPolicy === "daily" ? "daily" : "three_days", scope: item.status === "gray" ? "gray" : item.status === "full" ? "all" : item.scope, minVersion: item.minVersion ?? "", disabledAt: status === "disabled" ? item.disabledAt ?? oldDisable?.at ?? lastDisable?.at ?? null : null, disabledBy: status === "disabled" ? item.disabledBy ?? lastDisable?.operator ?? (oldDisable ? "演示数据" : null) : null }
+    const release: Release = { ...storedFields, appId, status, reminderPolicy: item.requirement === "force" ? null : item.reminderPolicy === "daily" ? "daily" : "three_days", scope: item.status === "gray" ? "gray" : item.status === "full" ? "all" : item.scope, minVersion: item.minVersion ?? "", disabledAt: status === "disabled" ? item.disabledAt ?? oldDisable?.at ?? lastDisable?.at ?? null : null, disabledBy: status === "disabled" ? item.disabledBy ?? lastDisable?.operator ?? (oldDisable ? "演示数据" : null) : null }
     return [release]
   })
 }
@@ -122,9 +127,10 @@ export function AppReleasesDemo() {
   const timeZone = useTimezone()
   const today = todayInTimeZone(timeZone)
   const [releases, setReleases] = useState<Release[]>(sample)
+  const [activeAppId, setActiveAppId] = useState<string>(defaultAppId)
   const [mode, setMode] = useState<"form" | "detail" | "manage" | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<Release>(emptyRelease)
+  const [draft, setDraft] = useState<Release>(() => emptyRelease(defaultAppId))
   const [formInitial, setFormInitial] = useState("")
   const [publishAtInput, setPublishAtInput] = useState("")
   const [installConfirmed, setInstallConfirmed] = useState(false)
@@ -170,12 +176,13 @@ export function AppReleasesDemo() {
 
   const active = releases.find((item) => item.id === activeId)
   const visible = useMemo(() => releases.filter((item) =>
+    item.appId === activeAppId &&
     (filters.platform === "all" || item.platform === filters.platform) &&
     (filters.status === "all" || item.status === filters.status) &&
     (!filters.from || Boolean(item.publishAt && new Date(item.publishAt).getTime() >= new Date(filters.from).getTime())) &&
     (!filters.to || Boolean(item.publishAt && new Date(item.publishAt).getTime() <= new Date(filters.to).getTime())) &&
     item.version.includes(filters.search)
-  ), [releases, filters])
+  ), [releases, filters, activeAppId])
   const currentPage = Math.min(page, Math.max(1, Math.ceil(visible.length / pageSize)))
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const requirementDirty = mode === "manage" && manageRequirementDraft !== active?.requirement
@@ -189,7 +196,7 @@ export function AppReleasesDemo() {
   const makingForce = active?.requirement === "suggest" && manageRequirementDraft === "force" && requirementDirty
 
   function commit(next: Release[]) { setReleases(next); window.localStorage.setItem(storageKey, JSON.stringify(next)); window.localStorage.removeItem(disabledKey) }
-  function openForm() { const next = emptyRelease(); setDraftOrgVersion(orgSnapshot?.version ?? ""); setDraft(next); setFormInitial(JSON.stringify(next)); setPublishAtInput(""); setInstallConfirmed(false); setMode("form") }
+  function openForm() { const next = emptyRelease(activeAppId); setDraftOrgVersion(orgSnapshot?.version ?? ""); setDraft(next); setFormInitial(JSON.stringify(next)); setPublishAtInput(""); setInstallConfirmed(false); setMode("form") }
   function openDetail(item: Release) { setActiveId(item.id); setMode("detail") }
   function openManage(item: Release) { setActiveId(item.id); setManageRequirementDraft(item.requirement); setManageReminderDraft(item.reminderPolicy ?? ""); setManageNotesDraft(item.notes); setManageScopeDraft(item.scope); setGrayTargets([...item.targets]); setGrayOrgVersion(orgSnapshot?.version ?? ""); setMode("manage") }
   function changeManageRequirement(requirement: Release["requirement"]) {
@@ -249,6 +256,7 @@ export function AppReleasesDemo() {
   }
   function publish() {
     const publishAt = publishTimeToIso(publishAtInput, timeZone)
+    if (!apps.some((app) => app.id === draft.appId)) { toast.error("应用不存在，请返回列表后重试"); return }
     if (!versionPattern.test(draft.version.trim())) { toast.error("请输入数字及点号组成的版本号，例如 2.9.0"); return }
     if (draft.minVersion.trim() && (!versionPattern.test(draft.minVersion.trim()) || compareVersions(draft.minVersion.trim(), draft.version.trim()) > 0)) { toast.error("最低兼容版本号须不高于当前版本号"); return }
     if (!draft.notes.trim()) { toast.error("请填写发布内容"); return }
@@ -261,7 +269,7 @@ export function AppReleasesDemo() {
     if (draft.scope === "gray" && !draft.targets.length) { toast.error("请至少选择一个灰度 DSP"); return }
     if (draft.scope === "gray" && (!orgSnapshot || orgSyncing || orgSyncError || draftOrgVersion !== orgSnapshot.version)) { toast.error("请重新同步 DMS 组织树后选择灰度 DSP"); return }
     if (draft.scope === "gray" && invalidDspIds(draft.targets, orgSnapshot).length) { toast.error("灰度名单中有失效 DSP，请先移除"); return }
-    if (releases.some((item) => item.platform === draft.platform && compareVersions(item.version, draft.version.trim()) === 0)) { toast.error("该平台版本号已有发布记录"); return }
+    if (releases.some((item) => item.appId === draft.appId && item.platform === draft.platform && compareVersions(item.version, draft.version.trim()) === 0)) { toast.error("该应用与平台的版本号已有发布记录"); return }
     const next: Release = { ...draft, id: crypto.randomUUID(), version: draft.version.trim(), reminderPolicy: draft.requirement === "force" ? null : draft.reminderPolicy, minVersion: draft.minVersion.trim(), status: "enabled", targets: draft.scope === "all" ? [] : draft.targets, publishAt }
     commit([next, ...releases])
     setMode(null); toast.success("版本已发布（演示）")
@@ -304,6 +312,11 @@ export function AppReleasesDemo() {
     setSearchDraft(""); setPlatformDraft("all"); setStatusDraft("all"); setDateRangeDraft(null)
     setFilters({ search: "", platform: "all", status: "all", from: "", to: "" }); setPage(1)
   }
+  function switchApp(appId: string) {
+    if (!apps.some((app) => app.id === appId) || appId === activeAppId) return
+    setActiveAppId(appId)
+    resetFilters()
+  }
 
   const pendingRelease = releases.find((item) => item.id === pending?.releaseId)
 
@@ -321,11 +334,13 @@ export function AppReleasesDemo() {
   </form>
 
   return <div className="flex min-w-0 w-full flex-col gap-6">
-    <header><h1 className="text-2xl font-semibold">App 版本发布</h1><p className="mt-1 text-sm text-muted-foreground">管理版本策略、灰度名单及旧版本禁用；安装包由现有分发渠道提供。</p></header>
-    <Table aria-label="App 版本记录" className="min-w-[350px] sm:min-w-[1040px]" viewportClassName="mx-4 mb-4 rounded-lg border" toolbar={filterToolbar} footer={<DataPagination page={currentPage} pageSize={pageSize} total={visible.length} pageSizeOptions={[10, 20, 50, 100]} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1) }} />}>
-      <TableHeader><TableRow><TableHead>版本号</TableHead><TableHead className="hidden sm:table-cell">平台</TableHead><TableHead className="hidden sm:table-cell">更新机制</TableHead><TableHead className="hidden sm:table-cell">发布范围</TableHead><TableHead>状态</TableHead><TableHead className="hidden sm:table-cell">发布时间（当前时区）</TableHead><TableHead className="hidden sm:table-cell">禁用时间（当前时区）</TableHead><TableHead sticky="right" className="w-40 min-w-40 text-center sm:w-44 sm:min-w-44">操作</TableHead></TableRow></TableHeader>
+    <Tabs value={activeAppId} onValueChange={switchApp} className="-mt-2 min-w-0 gap-4"><div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-2"><div className="min-w-24 flex-1 overflow-x-auto pb-2"><TabsList variant="line" aria-label="应用版本" className="w-max">{apps.map((app) => <TabsTrigger key={app.id} value={app.id}>{app.name}</TabsTrigger>)}</TabsList></div><p className="ml-auto max-w-full pb-2 text-right text-sm text-muted-foreground">管理版本策略、灰度名单及旧版本禁用；安装包由现有分发渠道提供。</p></div>
+    <TabsContent value={activeAppId} className="min-w-0">
+    <Table aria-label={`${appName(activeAppId)} 版本记录`} className="min-w-[450px] sm:min-w-[1140px]" viewportClassName="mx-4 mb-4 rounded-lg border" toolbar={filterToolbar} footer={<DataPagination page={currentPage} pageSize={pageSize} total={visible.length} pageSizeOptions={[10, 20, 50, 100]} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1) }} />}>
+      <TableHeader><TableRow><TableHead>应用</TableHead><TableHead>版本号</TableHead><TableHead className="hidden sm:table-cell">平台</TableHead><TableHead className="hidden sm:table-cell">更新机制</TableHead><TableHead className="hidden sm:table-cell">发布范围</TableHead><TableHead>状态</TableHead><TableHead className="hidden sm:table-cell">发布时间（当前时区）</TableHead><TableHead className="hidden sm:table-cell">禁用时间（当前时区）</TableHead><TableHead sticky="right" className="w-40 min-w-40 text-center sm:w-44 sm:min-w-44">操作</TableHead></TableRow></TableHeader>
       <TableBody>
         {pageRows.map((item) => <TableRow key={item.id}>
+          <TableCell>{appName(item.appId)}</TableCell>
           <TableCell><div className="flex flex-col gap-1 py-2"><span className="font-medium tabular-nums">{item.version}</span><span className="text-muted-foreground sm:hidden">{item.platform}</span></div></TableCell>
           <TableCell className="hidden sm:table-cell">{item.platform}</TableCell>
           <TableCell className="hidden sm:table-cell">{item.requirement === "force" ? "强制更新" : "非强制更新"}</TableCell>
@@ -339,12 +354,13 @@ export function AppReleasesDemo() {
             {item.status === "disabled" ? <Button variant="link" size="xs" onClick={() => begin({ kind: "restore", releaseId: item.id })}>解除禁用</Button> : <Button variant="link" size="xs" onClick={() => begin({ kind: "disable", releaseId: item.id })}>禁用</Button>}
           </div></TableCell>
         </TableRow>)}
-        {!pageRows.length && <TableRow><TableCell colSpan={8}><Empty className="min-h-44"><EmptyHeader><EmptyTitle>没有匹配的版本</EmptyTitle><EmptyDescription>调整查询条件后重试。</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}
+        {!pageRows.length && <TableRow><TableCell colSpan={9}><Empty className="min-h-44"><EmptyHeader><EmptyTitle>没有匹配的版本</EmptyTitle><EmptyDescription>调整查询条件后重试。</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}
       </TableBody>
     </Table>
+    </TabsContent></Tabs>
 
     <Sheet open={mode === "form"} onOpenChange={(open) => { if (!open) requestClose() }}><SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-none data-[side=right]:lg:w-[70vw]"><SheetHeader className="border-b px-[30px] py-[30px]"><SheetTitle>新建 App 版本</SheetTitle><SheetDescription>填写版本配置后立即发布；安装包由现有分发渠道提供。</SheetDescription></SheetHeader><div className="min-h-0 flex-1 overflow-y-auto px-[30px] py-[30px]"><FieldGroup className="gap-6">
-      <FieldSet><FieldLegend variant="label">版本标识</FieldLegend><div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel htmlFor="version-number"><span>版本号 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Input id="version-number" value={draft.version} onChange={(e) => setDraft({ ...draft, version: e.target.value })} placeholder="例如 2.9.0" /></Field><Field><FieldLabel><span>平台 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Select value={draft.platform} onValueChange={(value) => setDraft({ ...draft, platform: value as Platform })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="Android">Android</SelectItem><SelectItem value="iOS">iOS</SelectItem></SelectGroup></SelectContent></Select></Field></div></FieldSet>
+      <FieldSet><FieldLegend variant="label">版本标识</FieldLegend><div className="grid gap-4 sm:grid-cols-2"><StaticReleaseField label="应用" value={appName(draft.appId)} /><Field><FieldLabel htmlFor="version-number"><span>版本号 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Input id="version-number" value={draft.version} onChange={(e) => setDraft({ ...draft, version: e.target.value })} placeholder="例如 2.9.0" /></Field><Field><FieldLabel><span>平台 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Select value={draft.platform} onValueChange={(value) => setDraft({ ...draft, platform: value as Platform })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="Android">Android</SelectItem><SelectItem value="iOS">iOS</SelectItem></SelectGroup></SelectContent></Select></Field></div></FieldSet>
       <FieldSet><FieldLegend variant="label">更新机制与发布地址</FieldLegend><div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel><span>更新机制 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Select value={draft.requirement} onValueChange={(value) => setDraft({ ...draft, requirement: value as Release["requirement"], reminderPolicy: null })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="suggest">非强制更新</SelectItem><SelectItem value="force">强制更新</SelectItem></SelectGroup></SelectContent></Select></Field><Field><FieldLabel><span>发布范围 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Select value={draft.scope} onValueChange={(value) => setDraft({ ...draft, scope: value as Release["scope"] })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="gray">按 DSP 灰度</SelectItem><SelectItem value="all">全网</SelectItem></SelectGroup></SelectContent></Select></Field>{draft.requirement === "suggest" && <FieldSet><FieldLegend variant="label">提醒策略 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></FieldLegend><ReminderPolicyOptions value={draft.reminderPolicy} onValueChange={(reminderPolicy) => setDraft({ ...draft, reminderPolicy })} idPrefix="release-reminder" /></FieldSet>}</div>{draft.scope === "gray" && <Field><FieldLabel>灰度 DSP 名单（已选 {draft.targets.length}）</FieldLabel><DmsOrgTreePicker snapshot={orgSnapshot} selected={draft.targets} onChange={changeDraftTargets} onSync={refreshOrgTree} syncing={orgSyncing} syncError={orgSyncError} /></Field>}<div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel htmlFor="store-url">商店地址</FieldLabel><Input id="store-url" type="url" value={draft.storeUrl} onChange={(e) => setDraft({ ...draft, storeUrl: e.target.value })} placeholder="https://…" /></Field><Field><FieldLabel htmlFor="private-url">私服包地址</FieldLabel><Input id="private-url" type="url" value={draft.privateUrl} onChange={(e) => setDraft({ ...draft, privateUrl: e.target.value })} placeholder="https://…" /></Field><Field><FieldLabel htmlFor="min-version">最低兼容版本号</FieldLabel><Input id="min-version" value={draft.minVersion} onChange={(e) => setDraft({ ...draft, minVersion: e.target.value })} placeholder="例如 2.5.0" /></Field></div></FieldSet>
       <FieldSet><FieldLegend variant="label">发布信息</FieldLegend><Field><FieldLabel htmlFor="publish-time"><span>发布时间 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Input id="publish-time" type="datetime-local" value={publishAtInput} onChange={(e) => setPublishAtInput(e.target.value)} /></Field><Field><FieldLabel htmlFor="release-notes"><span>发布内容 <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only">（必填）</span></span></FieldLabel><Textarea id="release-notes" rows={4} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></Field><label className="flex items-start gap-2 text-sm"><Checkbox checked={installConfirmed} onCheckedChange={(checked) => setInstallConfirmed(checked === true)} />我确认目标版本已在所填分发渠道可安装（发布时必选）</label></FieldSet>
     </FieldGroup></div><SheetFooter className="flex-row flex-wrap justify-end border-t px-[30px] py-[18px]"><Button variant="outline" onClick={requestClose}>取消</Button><Button onClick={publish}>发布版本</Button></SheetFooter></SheetContent></Sheet>
@@ -352,6 +368,7 @@ export function AppReleasesDemo() {
     <Sheet open={(mode === "detail" || mode === "manage") && !!active} onOpenChange={(open) => { if (!open) requestClose() }}><SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-none data-[side=right]:lg:w-[70vw]"><SheetHeader className="border-b px-[30px] py-[30px]"><SheetTitle>{mode === "manage" ? "版本管理" : "版本详情"} · {active?.version}</SheetTitle><SheetDescription>已发布记录的版本标识和安装地址不可原地修改。</SheetDescription></SheetHeader>{active && <div className="min-h-0 flex-1 overflow-y-auto px-[30px] py-[30px]"><FieldGroup className="gap-6">
       <FieldSet><FieldLegend variant="label">版本标识</FieldLegend>
         <div className="grid gap-4 sm:grid-cols-2">
+          {mode === "detail" && <StaticReleaseField label="应用" value={appName(active.appId)} />}
           <StaticReleaseField label="版本号" value={active.version} />
           <StaticReleaseField label="平台" value={active.platform} />
         </div>
